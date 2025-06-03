@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chicken Fighters - Simple Version</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .hp-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 900px;
+      margin: 0 auto 8px auto;
+    }
+    .hp-label {
+      min-width: 90px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 20px;
+      color: #fff;
+      text-shadow: 1px 1px 3px #000;
+    }
+    .vs-label {
+      min-width: 60px;
+      text-align: center;
+      font-size: 26px;
+      color: #ffeb3b;
+      font-weight: bold;
+      text-shadow: 1px 1px 3px #000;
+    }
+    .center-vertical {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding-top: 48px;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div class="center-vertical">
+    <div id="ui" class="screen active">
+      <div class="hp-row">
+        <span class="hp-label" id="p1nameui"></span>
+        <div>
+          <div class="hp-bar" id="p1hp"><div class="hp-inner" style="width:100%"></div></div>
+        </div>
+        <span class="vs-label">VS</span>
+        <div>
+          <div class="hp-bar" id="p2hp"><div class="hp-inner" style="width:100%"></div></div>
+        </div>
+        <span class="hp-label" id="p2nameui"></span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 900px; margin: 0 auto 10px auto;">
+        <div>
+          <div class="dash-cooldown-ui"><div class="dash-cooldown-bar" id="p1dashbar" style="width:100%"></div></div>
+        </div>
+        <div>
+          <div class="dash-cooldown-ui"><div class="dash-cooldown-bar" id="p2dashbar" style="width:100%"></div></div>
+        </div>
+      </div>
+      <div id="winner"></div>
+    </div>
+    <canvas id="game" width="900" height="600" class="screen active"></canvas>
+  </div>
+  <script src="js/blocking.js"></script>
+  <script src="js/globals.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/attack.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/platform.js"></script>
+  <script src="js/player.js"></script>
+    <script src="js/animation.js"></script> 
+  <script src="js/main.js"></script>
+</body>
+</html>

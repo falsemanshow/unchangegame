@@ -1,0 +1,27 @@
+body { background: #292d3e; margin: 0; }
+#game { display: block; margin: 25px auto; background: #21252b; border: 4px solid #44476a; }
+#ui { width: 900px; margin: 0 auto; text-align: center; color: #fff; font-family: Arial, sans-serif; margin-bottom: 5px; font-size: 20px; user-select: none; }
+.hp-bar { display: inline-block; width: 300px; height: 26px; background: #44476a; border-radius: 12px; margin: 0 20px; overflow: hidden; vertical-align: middle; box-shadow: 0 0 4px 0 #0006; }
+.hp-inner { height: 100%; transition: width 0.2s; border-radius: 12px 0 0 12px; }
+#p1hp .hp-inner { background: #42a5f5; }
+#p2hp .hp-inner { background: #ef5350; }
+#winner { font-size: 32px; color: #ffeb3b; font-weight: bold; margin-top: 10px; text-shadow: 1px 1px 4px #000; }
+.screen { display: none; }
+.active { display: block !important; }
+.dash-cooldown-ui {
+  display: inline-block;
+  width: 60px; height: 15px;
+  background: #333;
+  border-radius: 7px;
+  margin-left: 10px;
+  position: relative;
+  top: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+  border: 1.5px solid #666;
+}
+.dash-cooldown-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ffeb3b 30%, #ffa726 100%);
+  transition: width 0.1s;
+}
