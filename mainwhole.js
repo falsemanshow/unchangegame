@@ -1,3 +1,71 @@
+
+const WIDTH = 900, HEIGHT = 600;
+const GRAVITY = 0.7;
+const FRICTION = 0.7;
+const GROUND = HEIGHT - 60;
+const PLATFORM_HEIGHT = 20;
+const PLAYER_SIZE = 50;
+const PLAYER_SPEED = 5;
+const DASH_SPEED = 13;
+const DASH_WINDOW = 250;
+const JUMP_VEL = 15;
+const MAX_JUMPS = 2;
+const PLAYER_HP = 120;
+const PLATFORM_COLOR = "#ffd54f";
+const PLATFORM_EDGE = "#ffb300";
+const PLAYER_OUTLINE = "#fff";
+const FLOOR_HEIGHT = HEIGHT-30;
+const DASH_COOLDOWN = 36;
+const DASH_FRAMES = 8;
+const DASH_DAMAGE = 10;
+const SLOW_FALL_MULTIPLIER = 0.16;
+const BLOCK_MAX = 100;
+const BLOCK_DEPLETION = 1.8;
+const BLOCK_RECOVERY = 0.8;
+const DIZZY_FRAMES = 38;
+const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
+const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
+
+// NEW: Judgment Cut Constants
+const JUDGEMENT_CUT_CONSTANTS = {
+    SLIDE_DURATION: 5000,
+    SLIDE_SPEED: 1,
+    FALL_INITIAL_VY: -7,
+    FALL_VX_RANGE: 3,
+    LINE_DISPLAY_DURATION: 1100,
+    LINE_APPEAR_INTERVAL: 50,
+    FIRST_THREE_INTERVAL: 50,
+    REMAINING_LINES_DELAY: 200
+};
+
+// NEW: Add this after your existing JUDGEMENT_CUT_CONSTANTS
+const VERGIL_JUDGMENT_CUT_SPRITES = {
+    slashOverlay: {
+        src: "vergil-judgment-cut-slashes.png", // Your huge slash animation sprite
+        frames: 12, // How many frames in your slash animation
+        w: 1920,   // Width of each frame (make this big to cover screen)
+        h: 1080,   // Height of each frame
+        speed: 4   // How fast the animation plays
+    },
+    sheathing: {
+        src: "vergil-sheathing.png", // Your sheathing animation sprite
+        frames: 8,  // How many frames in your sheathing animation
+        w: 100,     // Width matches Vergil's size
+        h: 100,     // Height matches Vergil's size
+        speed: 6    // Animation speed
+    }
+};
+
+const vergilJudgmentSprites = {};
+for (const animName in VERGIL_JUDGMENT_CUT_SPRITES) {
+    const anim = VERGIL_JUDGMENT_CUT_SPRITES[animName];
+    if (!vergilJudgmentSprites[anim.src]) {
+        const img = new Image();
+        img.src = anim.src;
+        vergilJudgmentSprites[anim.src] = img;
+    }
+}
+
 // Handles blocking, block depletion, block recovery, and dizzy state
 function updateBlocking(p, pid) {
   const controls = pid === 0 ?
@@ -42,44 +110,6 @@ function updateBlocking(p, pid) {
   return false;
 }
 
-const WIDTH = 900, HEIGHT = 600;
-const GRAVITY = 0.7;
-const FRICTION = 0.7;
-const GROUND = HEIGHT - 60;
-const PLATFORM_HEIGHT = 20;
-const PLAYER_SIZE = 50;
-const PLAYER_SPEED = 5;
-const DASH_SPEED = 13;
-const DASH_WINDOW = 250;
-const JUMP_VEL = 15;
-const MAX_JUMPS = 2;
-const PLAYER_HP = 120;
-const PLATFORM_COLOR = "#ffd54f";
-const PLATFORM_EDGE = "#ffb300";
-const PLAYER_OUTLINE = "#fff";
-const FLOOR_HEIGHT = HEIGHT-30;
-const DASH_COOLDOWN = 36;
-const DASH_FRAMES = 8;
-const DASH_DAMAGE = 10;
-const SLOW_FALL_MULTIPLIER = 0.16;
-const BLOCK_MAX = 100;
-const BLOCK_DEPLETION = 1.8;
-const BLOCK_RECOVERY = 0.8;
-const DIZZY_FRAMES = 38;
-const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
-const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
-
-// NEW: Judgment Cut Constants
-const JUDGEMENT_CUT_CONSTANTS = {
-    SLIDE_DURATION: 5000,
-    SLIDE_SPEED: 1,
-    FALL_INITIAL_VY: -7,
-    FALL_VX_RANGE: 3,
-    LINE_DISPLAY_DURATION: 1100,
-    LINE_APPEAR_INTERVAL: 50,
-    FIRST_THREE_INTERVAL: 50,
-    REMAINING_LINES_DELAY: 200
-};
 
 // NEW: Game State for pause/resume functionality
 let gameState = {
@@ -397,7 +427,13 @@ const AbilityLibrary = {
         
         // Set cooldown
         character.judgementCutCooldown = 120;
-        
+        character.judgmentCutState = {
+    phase: 'blue_screen', // What phase we're in
+    slashAnimFrame: 0,    // Current frame of slash animation
+    slashAnimTimer: 0,    // Timer for slash animation
+    isHidden: true,       // Hide Vergil during blue screen and slashes
+    sheathingStarted: false
+};
         // STEP 1: Show lines immediately
         const effect = {
             lines: [
@@ -432,7 +468,6 @@ const AbilityLibrary = {
         
         // Store effect in character
         character.judgementCutEffect = effect;
-        
         // Lines appear one by one
         for (let i = 0; i < 7; i++) {
             setTimeout(() => {
@@ -449,6 +484,27 @@ const AbilityLibrary = {
             }
         }, 3 * JUDGEMENT_CUT_CONSTANTS.FIRST_THREE_INTERVAL + JUDGEMENT_CUT_CONSTANTS.REMAINING_LINES_DELAY);
         
+        // NEW: When lines disappear, show Vergil again and start sheathing
+setTimeout(() => {
+    if (character.judgmentCutState) {
+        character.judgmentCutState.phase = 'sheathing';
+        character.judgmentCutState.isHidden = false;  // Make Vergil visible again
+        character.judgmentCutState.sheathingStarted = true;
+        // Force sheathing animation
+        character.animState = 'sheathing';
+        character.animFrame = 0;
+        character.animTimer = 0;
+    }
+}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION);
+// NEW: Clean up judgment cut state when everything is done
+setTimeout(() => {
+    if (character.judgmentCutState) {
+        character.judgmentCutState.phase = 'complete';
+        character.judgmentCutState.isHidden = false;
+        character.judgmentCutState = null; // Clean up
+    }
+}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 2000);
+
         // STEP 2: After lines display duration, hide lines and prepare shards
         setTimeout(() => {
             if (character.judgementCutEffect) {
@@ -992,6 +1048,31 @@ function updatePlayer(p, pid) {
     if (p.judgementCutCooldown > 0) {
         p.judgementCutCooldown--;
     }
+    // NEW: Handle judgment cut slash animation
+if (p.judgmentCutState) {
+    if (p.judgmentCutState.phase === 'blue_screen' || p.judgmentCutState.phase === 'slashes') {
+        // Update slash animation
+        const slashAnim = VERGIL_JUDGMENT_CUT_SPRITES.slashOverlay;
+        p.judgmentCutState.slashAnimTimer++;
+        
+        if (p.judgmentCutState.slashAnimTimer >= slashAnim.speed) {
+            p.judgmentCutState.slashAnimTimer = 0;
+            p.judgmentCutState.slashAnimFrame = (p.judgmentCutState.slashAnimFrame + 1) % slashAnim.frames;
+        }
+    }
+    
+    if (p.judgmentCutState.phase === 'sheathing' && p.judgmentCutState.sheathingStarted) {
+        // Handle sheathing animation completion
+        const sheathAnim = getAnimForPlayer({...p, animState: 'sheathing'});
+        if (sheathAnim && p.animFrame >= sheathAnim.frames - 1) {
+            // Sheathing animation finished, return to idle
+            p.judgmentCutState = null;
+            p.animState = 'idle';
+            p.animFrame = 0;
+            p.animTimer = 0;
+        }
+    }
+}
     
     // Handle teleport effects
     if (p.teleportTrail && p.teleportTrail.duration > 0) {
@@ -1280,6 +1361,7 @@ const characterSprites = {
          blocking:  { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 8 },
          jump:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
          fall:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+          sheathing: { src: "vergil-sheathing.png", frames: 8, w: 100, h: 100, speed: 6 },
   },
 };
 
@@ -1295,7 +1377,7 @@ for (const charId in characterSprites) {
   }
 }
 
-// --- Player State Initialization ---
+// player initialization
 const players = [
   {
     x: WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -1378,14 +1460,48 @@ function draw() {
     
     ctx.font = "18px Arial";
     ctx.shadowBlur = 5;
-    ctx.restore();
+  ctx.font = "18px Arial";
+ctx.shadowBlur = 5;
+
+// NEW: Draw the huge slash animation during blue screen
+for (let player of players) {
+    if (player.charId === 'vergil' && player.judgmentCutState && 
+        (player.judgmentCutState.phase === 'blue_screen' || player.judgmentCutState.phase === 'slashes')) {
+        
+        const slashAnim = VERGIL_JUDGMENT_CUT_SPRITES.slashOverlay;
+        const slashSprite = vergilJudgmentSprites[slashAnim.src];
+        
+        if (slashSprite && slashSprite.complete && slashSprite.naturalWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.9;
+            
+            // Center the slash animation on screen
+            const slashX = camera.cx - slashAnim.w / 2;
+            const slashY = camera.cy - slashAnim.h / 2;
+            
+            ctx.drawImage(
+                slashSprite,
+                slashAnim.w * player.judgmentCutState.slashAnimFrame, 0, 
+                slashAnim.w, slashAnim.h,
+                slashX, slashY, slashAnim.w, slashAnim.h
+            );
+            
+            ctx.restore();
+        }
+    }
+}
+
+ctx.restore(); // This was the original line
   }
 
   // Draw players with enhanced sprite scaling
   for(let i=0; i<players.length; i++) {
     let p = players[i];
     if(!p.alive && getAnimForPlayer(p) && p.animState !== "defeat") continue;
-
+    // NEW: Hide Vergil during judgment cut blue screen and slash phase
+if (p.charId === 'vergil' && p.judgmentCutState && p.judgmentCutState.isHidden) {
+    continue; // Skip rendering Vergil
+}
     // Draw Vergil's teleport trail first (behind character)
    if (p.charId === 'vergil' && p.teleportTrail && p.teleportTrail.duration > 0) {
   ctx.save();
