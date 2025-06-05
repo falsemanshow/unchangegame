@@ -61,8 +61,15 @@ const PLAYER_HP = 120, PLATFORM_COLOR = "#ffd54f", PLATFORM_EDGE = "#ffb300";
 const PLAYER_OUTLINE = "#fff", FLOOR_HEIGHT = HEIGHT-30;
 const DASH_COOLDOWN = 36, DASH_FRAMES = 8, DASH_DAMAGE = 10;
 const JUDGMENT_CUT_TRIGGER_RANGE = 150; 
+const VERGIL_WEAPONS = {
+    YAMATO: 'yamato',
+    BEOWULF: 'beowulf'
+};
+
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
 const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 38;
+const UNIVERSAL_DASH_KNOCKBACK_X = 18; // New universal dash knockback
+const UNIVERSAL_DASH_KNOCKBACK_Y = -6;
 const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
 const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
 
@@ -88,9 +95,10 @@ let cameraZoomEffect = {
 const impactEffects = [];
 
 const characterImpactEffects = {
-  vergil: {
-    dash: { sprite: "vergil-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 }, directionalOffset: { x: 8, y: 0 } }
-  },
+ vergil: {
+    dash: { sprite: "vergil-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 }, directionalOffset: { x: 8, y: 0 } },
+    'beowulf-dash': { sprite: "vergil-beowulf-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 }, directionalOffset: { x: 15, y: 0 } }
+},
   gold: {
     dash: { sprite: "gold-punch-impact.png", frames: 4, w: 60, h: 60, speed: 2, duration: 12, offset: { x: -10, y: -10 } }
   },
@@ -451,8 +459,8 @@ function updateSnapshotWithVergil(character) {
 
 function getControls(pid) {
   return pid === 0
-    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e' }
-    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p' };
+    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', attack: 'r' }
+    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', attack: 'u' };
 }
 
 function knockback(attacker, defender, strengthX, strengthY) {
@@ -788,17 +796,56 @@ document.addEventListener("keydown", function(e) {
     
 const controls = getControls(pid);
 if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0 && p.onGround) {
-  if (isOpponentInJudgmentCutRange(p)) {
-    p.judgmentCutCharging = true;
-    p.judgmentCutChargeStart = performance.now();
-    p.judgmentCutChargeLevel = 0;
-    p.animState = "charging";
-    p.animFrame = 0;
-    p.animTimer = 0;
+  // Yamato can use Judgment Cut, Beowulf has different special
+  if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+    if (isOpponentInJudgmentCutRange(p)) {
+      p.judgmentCutCharging = true;
+      p.judgmentCutChargeStart = performance.now();
+      p.judgmentCutChargeLevel = 0;
+      p.animState = "charging";
+      p.animFrame = 0;
+      p.animTimer = 0;
+    } else {
+      rangeWarningText.show = true;
+      rangeWarningText.timer = 60;
+    }
   } else {
-    rangeWarningText.show = true;
-    rangeWarningText.timer = 60;
+    // Beowulf special attack (you can add different ability here later)
+    console.log("Beowulf special attack - Coming Soon!");
   }
+}
+// Weapon switching for Vergil (Q key for player 1, I key for player 2)
+const weaponSwitchKey = pid === 0 ? 'q' : 'i';
+if (k === weaponSwitchKey && p.charId === 'vergil' && p.onGround && !p.judgmentCutCharging) {
+  if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+    p.currentWeapon = VERGIL_WEAPONS.BEOWULF;
+    console.log(`${p.name} switched to Beowulf (Gauntlets)!`);
+  } else {
+    p.currentWeapon = VERGIL_WEAPONS.YAMATO;
+    console.log(`${p.name} switched to Yamato (Sword)!`);
+  }
+  
+  // Reset animation to show weapon change
+  p.animFrame = 0;
+  p.animTimer = 0;
+}
+// Yamato Pass-Through Attack (R key for player 1, U key for player 2)
+if (k === controls.attack && p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO && p.dashCooldown === 0 && p.onGround) {
+  // Yamato special dash - passes through opponent
+  p.yamatoPassThrough = true;
+  p.yamatoPassThroughTimer = 20; // Duration of pass-through effect
+  
+  if (p.charId === 'vergil') {
+    p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
+    p.isTeleporting = true;
+    p.teleportAlpha = 0.3;
+    p.vx = p.facing * DASH_SPEED * 1.5; // Faster than normal dash
+  }
+  
+  p.dash = DASH_FRAMES;
+  p.dashCooldown = DASH_COOLDOWN;
+  spawnDashEffects(p);
+  console.log(`${p.name} used Yamato Pass-Through Attack!`);
 }
   }
 
@@ -888,42 +935,73 @@ function handleDashAttack() {
   for (let i = 0; i < 2; ++i) {
     let p = players[i], opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
-    if (p.dash > 0 && !p.hasDashHit) {
-      if (p.x < opp.x + opp.w && p.x + p.w > opp.x && p.y < opp.y + opp.h && p.y + p.h > opp.y) {
+if (p.dash > 0 && !p.hasDashHit) {
+  if (p.x < opp.x + opp.w && p.x + p.w > opp.x && p.y < opp.y + opp.h && p.y + p.h > opp.y) {
+    // Yamato pass-through attack doesn't collide
+    if (p.yamatoPassThrough) {
+      // Deal damage but don't stop dash
+      if (opp.justHit === 0) {
+        interruptJudgmentCut(opp);
+        opp.hp -= DASH_DAMAGE;
+        opp.justHit = 16;
+        createImpactEffect(p, opp, 'dash');
+        
+        if (opp.hp <= 0) { 
+          opp.hp = 0; 
+          opp.alive = false; 
+          winner = p.id; 
+        }
+        
+        console.log(`${p.name} passed through ${opp.name} with Yamato!`);
+      }
+      continue; // Don't stop the dash, pass through
+    }
         let isBlocking = false;
         if (opp.blocking && opp.block > 0 && !opp.dizzy) {
           if (opp.facing === -Math.sign(p.vx || p.facing)) {
             isBlocking = true;
           }
         }
-if (isBlocking) {
-  // Even when blocking, interrupt Judgment Cut charging
-  interruptJudgmentCut(opp);
-  
-  p.dizzy = DIZZY_FRAMES;
-  p.vx = opp.facing * BLOCK_PUSHBACK_X;
-  p.vy = BLOCK_PUSHBACK_Y;
-  p.hasDashHit = true;
-  createImpactEffect(p, opp, 'block');
-  continue;
-}
-if (opp.justHit === 0 && (!opp.blocking || !isBlocking || opp.block <= 0)) {
-  // Interrupt Judgment Cut if opponent is charging
-  interruptJudgmentCut(opp);
-  
-  opp.hp -= DASH_DAMAGE;
-  opp.justHit = 16;
-  
-  createImpactEffect(p, opp, 'dash');
+        
+        if (isBlocking) {
+          // Even when blocking, interrupt Judgment Cut charging
+          interruptJudgmentCut(opp);
+          
+          p.dizzy = DIZZY_FRAMES;
+          p.vx = opp.facing * BLOCK_PUSHBACK_X;
+          p.vy = BLOCK_PUSHBACK_Y;
+          p.hasDashHit = true;
+          createImpactEffect(p, opp, 'block');
+          continue;
+        }
+        
+        if (opp.justHit === 0 && (!opp.blocking || !isBlocking || opp.block <= 0)) {
+          // Interrupt Judgment Cut if opponent is charging
+          interruptJudgmentCut(opp);
+          
+          opp.hp -= DASH_DAMAGE;
+          opp.justHit = 16;
+          
+          // UNIVERSAL KNOCKBACK SYSTEM - All characters now knock back opponents
+          const pushDirection = (p.x + p.w/2 < opp.x + opp.w/2) ? 1 : -1;
           
           if (opp.dizzy > 0) {
-            let dir = (p.x + p.w/2 < opp.x + opp.w/2) ? 1 : -1;
-            opp.vx = dir * DIZZY_KNOCKBACK_X;
+            // Stronger knockback when opponent is dizzy
+            opp.vx = pushDirection * DIZZY_KNOCKBACK_X;
             opp.vy = DIZZY_KNOCKBACK_Y;
           } else {
-            opp.vx = (p.facing || 1) * 8;
-            opp.vy = -8;
+            // Standard universal knockback for all characters
+            opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X;
+            opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y;
           }
+          
+          // Create appropriate impact effect
+          if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+            createImpactEffect(p, opp, 'beowulf-dash');
+          } else {
+            createImpactEffect(p, opp, 'dash');
+          }
+          
           if (opp.hp <= 0) { opp.hp = 0; opp.alive = false; winner = p.id; }
           p.hasDashHit = true;
         }
@@ -1009,7 +1087,14 @@ function updatePlayer(p, pid) {
 
   if (p.charId === 'vergil') {
     if (p.judgementCutCooldown > 0) p.judgementCutCooldown--;
-    
+        // Update Beowulf push effect
+// Update Yamato pass-through effect
+if (p.yamatoPassThroughTimer > 0) {
+  p.yamatoPassThroughTimer--;
+  if (p.yamatoPassThroughTimer <= 0) {
+    p.yamatoPassThrough = false;
+  }
+}
     if (p.judgmentCutCharging) {
         const chargeTime = performance.now() - p.judgmentCutChargeStart;
         p.judgmentCutChargeLevel = Math.min(chargeTime / JUDGMENT_CUT_CHARGE.MAX_CHARGE_TIME, 1.0);
@@ -1141,6 +1226,15 @@ if (effect.phase === 'slide') {
 function getAnimForPlayer(p) {
   let charAnim = characterSprites[p.charId];
   if (!charAnim) return null;
+  
+  // Handle Vergil weapon switching
+  if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    const beowulfAnimState = `beowulf-${p.animState}`;
+    if (charAnim[beowulfAnimState]) {
+      return charAnim[beowulfAnimState];
+    }
+  }
+  
   return charAnim[p.animState];
 }
 
@@ -1290,7 +1384,8 @@ const characterSprites = {
     defeat: { src: "chicken-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
     victory: { src: "chicken-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
   },
-  vergil: {
+vergil: {
+    // Yamato (sword) sprites
     idle: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     dash: { src: "vergil-dash.png", frames: 3, w: 100, h: 100, speed: 4 },
     walk: { src: "vergil-walk.png", frames: 3, w: 100, h: 100, speed: 6 },
@@ -1300,8 +1395,17 @@ const characterSprites = {
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
-    charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 }
-  }
+    charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
+    
+    // Beowulf (gauntlet) sprites
+    'beowulf-idle': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
+    'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
+    'beowulf-block': { src: "vergil-beowulf-block.png", frames: 3, w: 100, h: 100, speed: 6 },
+    'beowulf-blocking': { src: "vergil-beowulf-blocking.png", frames: 2, w: 100, h: 100, speed: 8 },
+    'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 }
+}
 };
 
 const spritesheetCache = {};
@@ -1329,7 +1433,12 @@ const players = [
     teleportAlpha: 1.0, hasDashHit: false, blockAnimationFinished: false,
     blockStartTime: 0, judgementCutPhase: null, isInvisibleDuringJudgmentCut: false,
     slashAnimationFrame: 0, slashAnimationTimer: 0, judgmentCutCharging: false,
-    judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0, updateShardsInRealTime: false
+    judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0, updateShardsInRealTime: false,
+       updateShardsInRealTime: false,
+    currentWeapon: VERGIL_WEAPONS.YAMATO,
+    beowulfPushEffect: null,    currentWeapon: VERGIL_WEAPONS.YAMATO,
+    yamatoPassThrough: false,
+    yamatoPassThroughTimer: 0
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -1341,7 +1450,13 @@ const players = [
     hasDashHit: false, blockAnimationFinished: false, blockStartTime: 0,
     judgementCutPhase: null, isInvisibleDuringJudgmentCut: false,
     slashAnimationFrame: 0, slashAnimationTimer: 0, judgmentCutCharging: false,
-    judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0, updateShardsInRealTime: false
+    judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0, updateShardsInRealTime: false,
+       updateShardsInRealTime: false,
+    currentWeapon: VERGIL_WEAPONS.YAMATO,
+    beowulfPushEffect: null,
+        currentWeapon: VERGIL_WEAPONS.YAMATO,
+    yamatoPassThrough: false,
+    yamatoPassThroughTimer: 0
   }
 ];
 let winner = null;
@@ -1603,18 +1718,28 @@ function draw() {
       ctx.restore();
     }
 
-    // Draw player name
-    if (p.name) {
-      ctx.save();
-      ctx.font = "bold 15px Arial";
-      ctx.textAlign = "center";
-      ctx.strokeStyle = "#23243a";
-      ctx.lineWidth = 3;
-      ctx.strokeText(p.name, p.x + p.w/2, p.y - 28);
-      ctx.fillStyle = p.color;
-      ctx.fillText(p.name, p.x + p.w/2, p.y - 28);
-      ctx.restore();
-    }
+   // Draw player name and weapon indicator
+if (p.name) {
+  ctx.save();
+  ctx.font = "bold 15px Arial";
+  ctx.textAlign = "center";
+  ctx.strokeStyle = "#23243a";
+  ctx.lineWidth = 3;
+  ctx.strokeText(p.name, p.x + p.w/2, p.y - 28);
+  ctx.fillStyle = p.color;
+  ctx.fillText(p.name, p.x + p.w/2, p.y - 28);
+  
+  // Draw weapon indicator for Vergil
+  if (p.charId === 'vergil') {
+    const weaponText = p.currentWeapon === VERGIL_WEAPONS.YAMATO ? "⚔️" : "👊";
+    ctx.font = "12px Arial";
+    ctx.strokeText(weaponText, p.x + p.w/2, p.y - 12);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(weaponText, p.x + p.w/2, p.y - 12);
+  }
+  
+  ctx.restore();
+}
 
     // Draw Block Bar Below Player
     const barWidth = p.w;
@@ -1867,7 +1992,7 @@ document.addEventListener("keydown", function(e) {
     p.teleportTrail = null;
     p.isTeleporting = false;
     p.teleportAlpha = 1.0;
-    console.log("Player 1 is now Vergil! Press 'E' for Judgment Cut!");
+   console.log("Player 1 is now Vergil! Q=Switch Weapon, E=Judgment Cut(Yamato), R=Pass-Through(Yamato)");
   }
   
   if (e.key === "2") {
@@ -1884,7 +2009,7 @@ document.addEventListener("keydown", function(e) {
     p.teleportTrail = null;
     p.isTeleporting = false;
     p.teleportAlpha = 1.0;
-    console.log("Player 2 is now Vergil! Press 'P' for Judgment Cut!");
+   console.log("Player 2 is now Vergil! I=Switch Weapon, P=Judgment Cut(Yamato), U=Pass-Through(Yamato)");
   }
 });
 
