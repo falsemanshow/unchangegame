@@ -1572,40 +1572,42 @@ function draw() {
   ctx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT-FLOOR_HEIGHT);
   // Draw particles under players
   drawParticles(ctx);
-// NEW: Visual feedback for pause state with blue overlay until shards break
-if (gameState.paused && gameState.pauseReason === 'judgement_cut') {
+// NEW: Blue overlay during slashing and lines phases
+let showBlueOverlay = false;
+let isSlashingPhase = false;
+
+for (let player of players) {
+  // Show blue overlay during slashing phase (when game is paused)
+  if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+    isSlashingPhase = true;
+    showBlueOverlay = true;
+  }
+  
+  // Show blue overlay during lines phase (the white lines appearing)
+  if (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines') {
+    showBlueOverlay = true;
+  }
+}
+
+// Draw blue overlay 
+if (showBlueOverlay) {
   ctx.save();
-  
-  // Check if any Vergil is in slashing phase for stronger effect
-  let isSlashingPhase = false;
-  let hasActiveEffect = false;
-  for (let player of players) {
-    if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
-      isSlashingPhase = true;
-      hasActiveEffect = true;
-      break;
-    }
-    // Also keep blue overlay during lines and preparing phases
-    if (player.judgementCutEffect && 
-        (player.judgementCutEffect.phase === 'lines' || 
-         player.judgementCutEffect.phase === 'preparing' ||
-         player.judgementCutEffect.phase === 'slide')) {
-      hasActiveEffect = true;
-    }
-  }
-  
-  // Only show blue overlay if there's an active judgment cut effect
-  if (hasActiveEffect) {
-    ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing
-    ctx.fillStyle = "#4a90e2";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  }
-  
+  ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing, lighter during lines
+  ctx.fillStyle = "#4a90e2";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
+}
+
+// Draw blue overlay regardless of pause state
+if (showBlueOverlay) {
+  ctx.save();
+  ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing
+  ctx.fillStyle = "#4a90e2";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
   ctx.restore();
 }
 
 // NEW: Draw huge slashing animation during slashing phase
-// NEW: Draw big Vergil slashing sprite at his position during slashing phase
 for (let player of players) {
 if (player.charId === 'vergil' && 
     player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
