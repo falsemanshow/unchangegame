@@ -54,7 +54,6 @@ const VERGIL_JUDGMENT_CUT_PHASES = {
 const JUDGMENT_CUT_CHARGE = {
     MIN_CHARGE_TIME: 1000, // 1 second minimum charge
     MAX_CHARGE_TIME: 3000, // 3 seconds for full charge
-    CHARGE_INDICATOR_RADIUS: 30
 };
 
 const WIDTH = 900, HEIGHT = 600;
@@ -550,11 +549,11 @@ const AbilityLibrary = {
         // Set cooldown
         character.judgementCutCooldown = 120;
         
-        // NEW: Set Vergil to preparing phase initially
-        character.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.PREPARING;
-        character.isInvisibleDuringJudgmentCut = false;
-        character.slashAnimationFrame = 0;
-        character.slashAnimationTimer = 0;
+       // NEW: Set Vergil to preparing phase initially
+character.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.PREPARING;
+// NOTE: Don't change invisibility here - it's already set before this function is called
+character.slashAnimationFrame = 0;
+character.slashAnimationTimer = 0;
         
         // STEP 1: Show lines immediately
         const effect = {
@@ -606,11 +605,6 @@ const AbilityLibrary = {
                 character.judgementCutEffect.visibleLines = effect.lines.length;
             }
         }, 3 * JUDGEMENT_CUT_CONSTANTS.FIRST_THREE_INTERVAL + JUDGEMENT_CUT_CONSTANTS.REMAINING_LINES_DELAY);
-        
-        // NEW: Start slashing phase - Vergil becomes invisible and huge slashes appear
-// NEW: Make Vergil invisible when screen turns blue (before lines appear)
-character.isInvisibleDuringJudgmentCut = true;
-console.log("Vergil disappears as the screen turns blue!");
 
 // NEW: Start slashing phase - huge slashes appear
 setTimeout(() => {
@@ -757,6 +751,13 @@ setTimeout(() => {
         }
         
         return true;
+        // NEW: Make Vergil visible again after the effect completes
+setTimeout(() => {
+    character.isInvisibleDuringJudgmentCut = false;
+    console.log("Vergil reappears after Judgment Cut!");
+}, 8000); // Adjust timing as needed
+
+return true;
     }
 };
 
@@ -932,7 +933,7 @@ document.addEventListener("keyup", function(e) {
     if (k === controls.left) dashTapState[pid].lastReleaseTime.left = now;
     if (k === controls.right) dashTapState[pid].lastReleaseTime.right = now;
     
-    // NEW: Handle Judgment Cut release
+// NEW: Handle Judgment Cut release
 const playerControls = getControls(pid);
 if (k === playerControls.special) {
   const p = players[pid];
@@ -940,6 +941,10 @@ if (k === playerControls.special) {
     const chargeTime = now - p.judgmentCutChargeStart;
     
     if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
+      // NEW: Make Vergil invisible BEFORE executing Judgment Cut
+      p.isInvisibleDuringJudgmentCut = true;
+      console.log("Vergil disappears before the blue screen!");
+      
       // Execute Judgment Cut
       p.judgmentCutCharging = false;
       p.judgmentCutChargeLevel = 0;
@@ -1094,19 +1099,6 @@ if (p.charId === 'vergil') {
     if (p.judgmentCutCharging) {
         const chargeTime = performance.now() - p.judgmentCutChargeStart;
         p.judgmentCutChargeLevel = Math.min(chargeTime / JUDGMENT_CUT_CHARGE.MAX_CHARGE_TIME, 1.0);
-    }
-
-       // NEW: Update slashing animation during slashing phase
-    if (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
-        p.slashAnimationTimer++;
-        if (p.slashAnimationTimer >= 3) {
-            p.slashAnimationTimer = 0;
-            p.slashAnimationFrame++;
-            const slashAnim = characterSprites.vergil.slashing;
-            if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
-                p.slashAnimationFrame = 0;
-            }
-        }
     }
     
     // Handle teleport effects
@@ -1612,6 +1604,7 @@ if (gameState.paused && gameState.pauseReason === 'judgement_cut') {
 }
 
 // NEW: Draw huge slashing animation during slashing phase
+// NEW: Draw huge animated slashing sprite during slashing phase
 for (let player of players) {
   if (player.charId === 'vergil' && 
       player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING && 
@@ -1620,49 +1613,29 @@ for (let player of players) {
     
     ctx.save();
     
-    // Draw multiple slashing effects across the screen
-    const slashPositions = [
-      { x: WIDTH * 0.2, y: HEIGHT * 0.3, scale: 1.2, rotation: 0.3 },
-      { x: WIDTH * 0.7, y: HEIGHT * 0.1, scale: 1.0, rotation: -0.5 },
-      { x: WIDTH * 0.5, y: HEIGHT * 0.6, scale: 1.5, rotation: 0.1 },
-      { x: WIDTH * 0.1, y: HEIGHT * 0.8, scale: 0.8, rotation: 0.7 },
-      { x: WIDTH * 0.8, y: HEIGHT * 0.7, scale: 1.1, rotation: -0.2 }
-    ];
-    
-    ctx.globalAlpha = 0.8 + 0.2 * Math.sin(performance.now() / 100); // Flickering effect
-    
     if (vergilSlashingSprite.complete && vergilSlashingSprite.naturalWidth > 0) {
-      // Draw the actual slashing sprite at multiple positions
-      for (let slash of slashPositions) {
-        ctx.save();
-        ctx.translate(slash.x, slash.y);
-        ctx.scale(slash.scale, slash.scale);
-        ctx.rotate(slash.rotation);
-        ctx.drawImage(vergilSlashingSprite, -100, -100, 200, 200);
-        ctx.restore();
-      }
-    } else {
-      // Fallback slashing effect
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 8;
-      ctx.shadowColor = "#4a90e2";
-      ctx.shadowBlur = 20;
+      // Get camera info to cover the whole view
+      const camera = getCamera();
+      const viewW = canvas.width / camera.zoom;
+      const viewH = canvas.height / camera.zoom;
       
-      for (let slash of slashPositions) {
-        ctx.save();
-        ctx.translate(slash.x, slash.y);
-        ctx.rotate(slash.rotation);
-        ctx.scale(slash.scale, slash.scale);
+      // Position the big sprite at the player's location but cover the whole camera
+      const spriteSize = Math.max(viewW, viewH) * 1.5; // Make it big enough to cover camera
+      const spriteX = player.x + player.w/2 - spriteSize/2; // Center on player
+      const spriteY = player.y + player.h/2 - spriteSize/2; // Center on player
+      
+      // Animate the sprite using the slashing animation frames
+      const slashAnim = characterSprites.vergil.slashing;
+      if (slashAnim) {
+        const frameWidth = vergilSlashingSprite.naturalWidth / slashAnim.frames;
+        const frameHeight = vergilSlashingSprite.naturalHeight;
         
-        // Draw multiple slash lines
-        for (let i = 0; i < 5; i++) {
-          ctx.beginPath();
-          ctx.moveTo(-80 + i * 10, -60 + i * 5);
-          ctx.lineTo(80 - i * 10, 60 - i * 5);
-          ctx.stroke();
-        }
-        
-        ctx.restore();
+        ctx.globalAlpha = 0.9;
+        ctx.drawImage(
+          vergilSlashingSprite,
+          frameWidth * player.slashAnimationFrame, 0, frameWidth, frameHeight, // Source
+          spriteX, spriteY, spriteSize, spriteSize // Destination - big enough to cover camera
+        );
       }
     }
     
@@ -1870,7 +1843,6 @@ for (let player of players) {
       ctx.fillText(p.name, p.x + p.w/2, p.y - 28);
       ctx.restore();
     }
-    // NEW: Draw Judgment Cut charge indicator
 
     // Draw Block Bar Below Player (unchanged), block bar blockbar
     const barWidth = p.w;
@@ -2004,6 +1976,11 @@ for (let player of players) {
 // --- Main Game Loop ---
 function gameLoop() {
   updateCameraZoomEffect();
+  
+  // NEW: Update Vergil's slashing animation even when paused
+  for (let i = 0; i < players.length; ++i) {
+    const p = players[i];
+  }
   
   if (!gameState.paused) {
     for (let i = 0; i < players.length; ++i) {
