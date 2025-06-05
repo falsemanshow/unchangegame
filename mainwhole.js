@@ -511,6 +511,84 @@ function executeJudgmentCut(character) {
   }, 9000);
 }
 
+// NEW: Update snapshot with current Vergil state
+function updateSnapshotWithVergil(character) {
+    if (!character.snapCanvas || !character.snapCtx) return;
+    
+    const { cx, cy, zoom } = getCamera();
+    const viewW = character.snapCanvas.width;
+    const viewH = character.snapCanvas.height;
+    const viewLeft = cx - viewW / 2;
+    const viewTop = cy - viewH / 2;
+    
+    // Clear and redraw the entire snapshot
+    character.snapCtx.clearRect(0, 0, viewW, viewH);
+    character.snapCtx.save();
+    character.snapCtx.translate(-viewLeft, -viewTop);
+    
+    // BACKGROUND
+    if (bgImg.complete && bgImg.naturalWidth > 0) {
+        character.snapCtx.drawImage(bgImg, 0, 0, WIDTH, HEIGHT);
+    } else {
+        character.snapCtx.fillStyle = "#181c24";
+        character.snapCtx.fillRect(0, 0, WIDTH, HEIGHT);
+    }
+    character.snapCtx.fillStyle = "#6d4c41";
+    character.snapCtx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT - FLOOR_HEIGHT);
+
+    // PLATFORMS
+    platforms.forEach(plat => {
+        character.snapCtx.fillStyle = PLATFORM_COLOR;
+        character.snapCtx.fillRect(plat.x, plat.y, plat.w, PLATFORM_HEIGHT);
+        character.snapCtx.strokeStyle = PLATFORM_EDGE;
+        character.snapCtx.lineWidth = 3;
+        character.snapCtx.strokeRect(plat.x, plat.y, plat.w, PLATFORM_HEIGHT);
+    });
+
+    // PLAYERS - Draw with current animation states
+    for (let player of players) {
+        if (!player.alive) continue;
+        
+        // Draw shadow
+        character.snapCtx.globalAlpha = 0.18;
+        character.snapCtx.beginPath();
+        character.snapCtx.ellipse(player.x + player.w / 2, player.y + player.h - 4, player.w / 2.5, 7, 0, 0, 2 * Math.PI);
+        character.snapCtx.fillStyle = "#000";
+        character.snapCtx.fill();
+        character.snapCtx.globalAlpha = 1;
+        
+        // Draw actual sprite with CURRENT animation frame
+        let anim = getAnimForPlayer(player);
+        let spritesheet = anim && spritesheetCache[anim.src];
+        
+        if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
+            const scaleX = player.w / anim.w;
+            const scaleY = player.h / anim.h;
+            
+            if (player.facing === 1) {
+                character.snapCtx.save();
+                character.snapCtx.translate(player.x + player.w/2, player.y + player.h/2);
+                character.snapCtx.scale(-scaleX, scaleY);
+                character.snapCtx.translate(-anim.w/2, -anim.h/2);
+                character.snapCtx.drawImage(
+                    spritesheet,
+                    anim.w * player.animFrame, 0, anim.w, anim.h, // Current frame!
+                    0, 0, anim.w, anim.h
+                );
+                character.snapCtx.restore();
+            } else {
+                character.snapCtx.drawImage(
+                    spritesheet,
+                    anim.w * player.animFrame, 0, anim.w, anim.h, // Current frame!
+                    player.x, player.y, player.w, player.h
+                );
+            }
+        }
+    }
+    
+    character.snapCtx.restore();
+}
+
 // NEW: Utility functions
 function getControls(pid) {
   return pid === 0
@@ -671,23 +749,32 @@ character.slashAnimationTimer = 0;
                     }
                 };
                 
-                const polys = helpers.shatterPolygons.call(helpers, effect.lines);
-                character.judgementCutEffect.shards = polys.map(poly => {
-                    let cx=0, cy=0;
-                    for (let p of poly) { cx+=p[0]; cy+=p[1]; }
-                    cx/=poly.length; cy/=poly.length;
-                    
-                    let dir = Math.random() < 0.5 ? -0.8 : 0.8;
-                    return {
-                        poly,
-                        x: 0, y: 0,
-                        vx: dir * (18 + Math.random()*10),
-                        vy: (Math.random()-0.5)*10,
-                        g: 1.10 + Math.random()*0.2,
-                        angle: (Math.random()-0.5)*0.2,
-                        vangle: (Math.random()-0.5)*0.12 + (cx-effect.viewWidth/2)*0.0003
-                    };
-                });
+const polys = helpers.shatterPolygons.call(helpers, effect.lines);
+character.judgementCutEffect.shards = polys.map(poly => {
+    let cx=0, cy=0;
+    for (let p of poly) { cx+=p[0]; cy+=p[1]; }
+    cx/=poly.length; cy/=poly.length;
+    
+    // shards size, edit size, adjust shards
+    const expandedPoly = poly.map(point => {
+        const dx = point[0] - cx;
+        const dy = point[1] - cy;
+        const expandFactor = 1.1; // Make shards 5% bigger
+        return [cx + dx * expandFactor, cy + dy * expandFactor];
+    });
+    
+    let dir = Math.random() < 0.5 ? -0.8 : 0.8;
+    return {
+        poly: expandedPoly, // Use the expanded polygon
+x: (Math.random()-0.5) * 10, // Random horizontal offset between -2.5 and +2.5
+y: (Math.random()-0.5) * 10, // Random vertical offset between -2.5 and +2.5
+        vx: dir * (18 + Math.random()*10),
+        vy: (Math.random()-0.5)*10,
+        g: 1.10 + Math.random()*0.2,
+        angle: (Math.random()-0.5)*0.2,
+        vangle: (Math.random()-0.5)*0.12 + (cx-effect.viewWidth/2)*0.0003
+    };
+});
             }
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION);
         
@@ -699,6 +786,7 @@ character.slashAnimationTimer = 0;
                 character.animState = "sheathing";
                 character.animFrame = 0;
                 character.animTimer = 0;
+                character.updateShardsInRealTime = true;
                 console.log("Vergil reappears and sheaths his sword!");
             }
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 200);
@@ -1956,16 +2044,16 @@ for (let p of players) {
       effectCtx.closePath();
       effectCtx.clip();
       effectCtx.drawImage(p.snapCanvas, 0, 0);
-      // NEW: Use the same blue color as the overlay
-      effectCtx.fillStyle = "rgba(0, 0, 0, 0.5)"; // #4a90e2 with transparency
+      // shards lines and color, shards, lines and shards, shards and lines, shards color
+      effectCtx.fillStyle = "rgba(0, 0, 0, 0.2)"; // #4a90e2 with transparency
       effectCtx.fill();
-      effectCtx.strokeStyle = "rgb(0, 170, 255)"; // Same blue for border
-      effectCtx.lineWidth = 2;
+      effectCtx.strokeStyle = "rgb(0, 0, 0)"; // Same blue for border
+      effectCtx.lineWidth = 0.1;
       effectCtx.globalAlpha = 0.4;
       effectCtx.stroke();
       effectCtx.restore();
     }
-    ctx.globalAlpha = 0.8;
+    ctx.globalAlpha = 1;
     ctx.drawImage(p.effectCanvas, effect.cameraX, effect.cameraY);
     ctx.globalAlpha = 1;
   }
@@ -2009,6 +2097,22 @@ function gameLoop() {
       updatePlayerAnimState(p, i);
       updateAnimation(p);
 
+              // reads sprite sheathing real time on shards
+        if (p.updateShardsInRealTime && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
+            updateSnapshotWithVergil(p);
+        }
+
+        // NEW: End sheathing animation and return to normal
+setTimeout(() => {
+    if (character.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
+        character.judgementCutPhase = null;
+        character.animState = "idle";
+        character.animFrame = 0;
+        character.animTimer = 0;
+        character.updateShardsInRealTime = false; // NEW: Stop real-time updates
+        console.log("Judgment Cut complete!");
+    }
+}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1500);
       if (p.block >= BLOCK_MAX - 0.1 && !p.blockWasFull) {
         p.blockGlowTimer = 30;
       }
