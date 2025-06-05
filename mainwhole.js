@@ -1565,7 +1565,7 @@ const characterSprites = {
          fall:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing:  { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
-     charging:  { src: "vergil-charging.png", frames: 8, w: 100, h: 100, speed: 10 }, 
+     charging:  { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 }, 
   },
 };
 
@@ -2059,7 +2059,58 @@ for (let p of players) {
   }
 }
   
-  ctx.restore();
+ ctx.restore();
+
+// NEW: Draw sheathing Vergil on top of everything (including shards)
+ctx.save();
+ctx.translate(WIDTH/2, HEIGHT/2);
+ctx.scale(camera.zoom, camera.zoom);
+ctx.translate(-camera.cx, -camera.cy);
+
+for(let i=0; i<players.length; i++) {
+    let p = players[i];
+    
+    // Only draw Vergil during sheathing phase
+    if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
+        
+        // Draw Vergil's sheathing animation on top of everything
+        let anim = getAnimForPlayer(p);
+        let spritesheet = anim && spritesheetCache[anim.src];
+        
+        if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
+            const scaleX = p.w / anim.w;
+            const scaleY = p.h / anim.h;
+            
+            // Add dramatic effect - slight glow/emphasis
+            ctx.save();
+            ctx.shadowColor = "#ffffff";
+            ctx.shadowBlur = 8;
+            
+            if (p.facing === 1) {
+                ctx.save();
+                ctx.translate(p.x + p.w/2, p.y + p.h/2);
+                ctx.scale(-scaleX, scaleY);
+                ctx.translate(-anim.w/2, -anim.h/2);
+                ctx.drawImage(
+                    spritesheet,
+                    anim.w * p.animFrame, 0, anim.w, anim.h,
+                    0, 0, anim.w, anim.h
+                );
+                ctx.restore();
+            } else {
+                ctx.drawImage(
+                    spritesheet,
+                    anim.w * p.animFrame, 0, anim.w, anim.h,
+                    p.x, p.y, p.w, p.h
+                );
+            }
+            
+            ctx.restore();
+        }
+    }
+}
+
+ctx.restore();
 
   // Draw winner text
   if(winner !== null) {
