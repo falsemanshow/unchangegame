@@ -42,6 +42,21 @@ function updateBlocking(p, pid) {
   return false;
 }
 
+const VERGIL_JUDGMENT_CUT_PHASES = {
+    PREPARING: 'preparing',
+    SLASHING: 'slashing', // NEW: When everything is blue and Vergil is invisible
+    LINES: 'lines',
+    SLIDE: 'slide',
+    FALL: 'fall',
+    SHEATHING: 'sheathing' // NEW: When Vergil reappears and sheaths sword
+};
+// NEW: Judgment Cut Charge System
+const JUDGMENT_CUT_CHARGE = {
+    MIN_CHARGE_TIME: 1000, // 1 second minimum charge
+    MAX_CHARGE_TIME: 3000, // 3 seconds for full charge
+    CHARGE_INDICATOR_RADIUS: 30
+};
+
 const WIDTH = 900, HEIGHT = 600;
 const GRAVITY = 0.7;
 const FRICTION = 0.7;
@@ -360,6 +375,143 @@ function updateCameraZoomEffect() {
     }
 }
 
+// NEW: Execute Judgment Cut function
+function executeJudgmentCut(character) {
+  pauseGame('judgement_cut');
+  
+  // Get current camera state
+  const { cx, cy, zoom } = getCamera();
+  
+  // Calculate camera view dimensions
+  const viewW = canvas.width / zoom;
+  const viewH = canvas.height / zoom;
+  
+  // Create snapshot canvas to match the camera view size
+  if (!character.snapCanvas) {
+      character.snapCanvas = document.createElement('canvas');
+      character.snapCtx = character.snapCanvas.getContext('2d');
+  }
+  
+  // Set snapshot canvas to camera view size
+  character.snapCanvas.width = viewW;
+  character.snapCanvas.height = viewH;
+  
+  // Calculate what area of the world is visible
+  const viewLeft = cx - viewW / 2;
+  const viewTop = cy - viewH / 2;
+  
+  // Take snapshot of only the visible camera area
+  character.snapCtx.clearRect(0, 0, viewW, viewH);
+  character.snapCtx.save();
+  
+  // Translate to show only the camera view area
+  character.snapCtx.translate(-viewLeft, -viewTop);
+  
+  // BACKGROUND
+  if (bgImg.complete && bgImg.naturalWidth > 0) {
+    character.snapCtx.drawImage(bgImg, 0, 0, WIDTH, HEIGHT);
+  } else {
+    character.snapCtx.fillStyle = "#181c24";
+    character.snapCtx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
+  character.snapCtx.fillStyle = "#6d4c41";
+  character.snapCtx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT - FLOOR_HEIGHT);
+
+  // PLATFORMS
+  platforms.forEach(plat => {
+      character.snapCtx.fillStyle = PLATFORM_COLOR;
+      character.snapCtx.fillRect(plat.x, plat.y, plat.w, PLATFORM_HEIGHT);
+      character.snapCtx.strokeStyle = PLATFORM_EDGE;
+      character.snapCtx.lineWidth = 3;
+      character.snapCtx.strokeRect(plat.x, plat.y, plat.w, PLATFORM_HEIGHT);
+  });
+
+  // PLAYERS - Draw all players with proper scaling
+  for (let player of players) {
+      if (!player.alive) continue;
+      
+      // Draw shadow
+      character.snapCtx.globalAlpha = 0.18;
+      character.snapCtx.beginPath();
+      character.snapCtx.ellipse(player.x + player.w / 2, player.y + player.h - 4, player.w / 2.5, 7, 0, 0, 2 * Math.PI);
+      character.snapCtx.fillStyle = "#000";
+      character.snapCtx.fill();
+      character.snapCtx.globalAlpha = 1;
+      
+      // ENHANCED: Draw actual sprite with scaling
+      let anim = getAnimForPlayer(player);
+      let spritesheet = anim && spritesheetCache[anim.src];
+      
+      if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
+        // Calculate scale factors
+        const scaleX = player.w / anim.w;
+        const scaleY = player.h / anim.h;
+        
+        if (player.facing === 1) {
+          character.snapCtx.save();
+          character.snapCtx.translate(player.x + player.w/2, player.y + player.h/2);
+          character.snapCtx.scale(-scaleX, scaleY);
+          character.snapCtx.translate(-anim.w/2, -anim.h/2);
+          character.snapCtx.drawImage(
+            spritesheet,
+            anim.w * player.animFrame, 0, anim.w, anim.h,
+            0, 0, anim.w, anim.h
+          );
+          character.snapCtx.restore();
+        } else {
+          // Scale sprite to fit player's collision box
+          character.snapCtx.drawImage(
+            spritesheet,
+            anim.w * player.animFrame, 0, anim.w, anim.h,
+            player.x, player.y, player.w, player.h
+          );
+        }
+      } else {
+        // Fallback to colored rectangle
+        character.snapCtx.fillStyle = player.color;
+        character.snapCtx.strokeStyle = "#fff";
+        character.snapCtx.lineWidth = 3;
+        character.snapCtx.fillRect(player.x, player.y, player.w, player.h);
+        character.snapCtx.strokeRect(player.x, player.y, player.w, player.h);
+      }
+      
+      // Draw blocking/dizzy effects if present
+      if (player.blocking && player.block > 0) {
+        character.snapCtx.save();
+        character.snapCtx.globalAlpha = 0.5;
+        character.snapCtx.strokeStyle = "#b0bec5";
+        character.snapCtx.lineWidth = 7;
+        character.snapCtx.beginPath();
+        character.snapCtx.roundRect(player.x-4, player.y-4, player.w+8, player.h+8, 18);
+        character.snapCtx.stroke();
+        character.snapCtx.restore();
+      }
+      
+      if (player.dizzy > 0) {
+        character.snapCtx.save();
+        character.snapCtx.globalAlpha = 0.5;
+        character.snapCtx.strokeStyle = "#ffd740";
+        character.snapCtx.lineWidth = 4;
+        character.snapCtx.beginPath();
+        character.snapCtx.arc(player.x+player.w/2, player.y-14, 19, 0, 2*Math.PI);
+        character.snapCtx.stroke();
+        character.snapCtx.restore();
+      }
+  }
+  
+  character.snapCtx.restore();
+  
+  // Trigger the effect after 2 seconds
+  setTimeout(() => {
+      AbilityLibrary.judgementCut(character);
+  }, 2000);
+  
+  setTimeout(() => {
+      // Resume the game when shards start falling
+      resumeGame();
+  }, 9000);
+}
+
 // NEW: Utility functions
 function getControls(pid) {
   return pid === 0
@@ -372,12 +524,12 @@ function knockback(attacker, defender, strengthX, strengthY) {
   defender.vy = strengthY;
 }
 
-// NEW: Judgment Cut Ability
+// Judgment Cut Ability
 const AbilityLibrary = {
     judgementCut: function(character, costPoints = 0) {
         if (character.judgementCutCooldown > 0) return false;
         
-        // Zoom
+        // Start zoom and blue screen effect
         startCameraZoomEffect();
         
         // Get current camera state
@@ -397,6 +549,12 @@ const AbilityLibrary = {
         
         // Set cooldown
         character.judgementCutCooldown = 120;
+        
+        // NEW: Set Vergil to preparing phase initially
+        character.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.PREPARING;
+        character.isInvisibleDuringJudgmentCut = false;
+        character.slashAnimationFrame = 0;
+        character.slashAnimationTimer = 0;
         
         // STEP 1: Show lines immediately
         const effect = {
@@ -448,6 +606,20 @@ const AbilityLibrary = {
                 character.judgementCutEffect.visibleLines = effect.lines.length;
             }
         }, 3 * JUDGEMENT_CUT_CONSTANTS.FIRST_THREE_INTERVAL + JUDGEMENT_CUT_CONSTANTS.REMAINING_LINES_DELAY);
+        
+        // NEW: Start slashing phase - Vergil becomes invisible and huge slashes appear
+// NEW: Make Vergil invisible when screen turns blue (before lines appear)
+character.isInvisibleDuringJudgmentCut = true;
+console.log("Vergil disappears as the screen turns blue!");
+
+// NEW: Start slashing phase - huge slashes appear
+setTimeout(() => {
+    if (character.judgementCutEffect) {
+        character.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SLASHING;
+        character.judgementCutEffect.phase = 'slashing';
+        console.log("Massive slashes begin!");
+    }
+}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION - 300);
         
         // STEP 2: After lines display duration, hide lines and prepare shards
         setTimeout(() => {
@@ -534,6 +706,18 @@ const AbilityLibrary = {
             }
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION);
         
+        // NEW: End slashing phase and start sheathing
+        setTimeout(() => {
+            if (character.judgementCutEffect) {
+                character.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SHEATHING;
+                character.isInvisibleDuringJudgmentCut = false;
+                character.animState = "sheathing";
+                character.animFrame = 0;
+                character.animTimer = 0;
+                console.log("Vergil reappears and sheaths his sword!");
+            }
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 200);
+        
         // Shard animation
         setTimeout(() => {
             if (character.judgementCutEffect) {
@@ -541,6 +725,17 @@ const AbilityLibrary = {
                 character.judgementCutEffect.startTime = performance.now();
             }
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 500);
+        
+        // NEW: End sheathing animation and return to normal
+        setTimeout(() => {
+            if (character.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
+                character.judgementCutPhase = null;
+                character.animState = "idle";
+                character.animFrame = 0;
+                character.animTimer = 0;
+                console.log("Judgment Cut complete!");
+            }
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1500);
         
         // Deal damage to opponents in range (immediate)
         for (let i = 0; i < players.length; i++) {
@@ -616,150 +811,26 @@ document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 document.addEventListener("keydown", function(e) {
   const k = e.key.toLowerCase();
   
-  // NEW: Handle Vergil's Judgment Cut special ability
-  for (let pid = 0; pid < 2; pid++) {
-    const p = players[pid];
-    if (!p.alive) continue;
+// NEW: Handle Vergil's Judgment Cut charge start
+for (let pid = 0; pid < 2; pid++) {
+  const p = players[pid];
+  if (!p.alive) continue;
+  
+  const controls = getControls(pid);
+  if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
+    // Start charging
+    p.judgmentCutCharging = true;
+    p.judgmentCutChargeStart = performance.now();
+    p.judgmentCutChargeLevel = 0;
     
-    const controls = getControls(pid);
-    if (k === controls.special && p.charId === 'vergil') {
-      pauseGame('judgement_cut');
-      
-      // Get current camera state
-      const { cx, cy, zoom } = getCamera();
-      
-      // Calculate camera view dimensions
-      const viewW = canvas.width / zoom;
-      const viewH = canvas.height / zoom;
-      
-      // Create snapshot canvas to match the camera view size
-      if (!p.snapCanvas) {
-          p.snapCanvas = document.createElement('canvas');
-          p.snapCtx = p.snapCanvas.getContext('2d');
-      }
-      
-      // Set snapshot canvas to camera view size
-      p.snapCanvas.width = viewW;
-      p.snapCanvas.height = viewH;
-      
-      // Calculate what area of the world is visible
-      const viewLeft = cx - viewW / 2;
-      const viewTop = cy - viewH / 2;
-      
-      // Take snapshot of only the visible camera area
-      p.snapCtx.clearRect(0, 0, viewW, viewH);
-      p.snapCtx.save();
-      
-      // Translate to show only the camera view area
-      p.snapCtx.translate(-viewLeft, -viewTop);
-      
-      // BACKGROUND
-if (bgImg.complete && bgImg.naturalWidth > 0) {
-  p.snapCtx.drawImage(bgImg, 0, 0, WIDTH, HEIGHT);
-} else {
-  p.snapCtx.fillStyle = "#181c24";
-  p.snapCtx.fillRect(0, 0, WIDTH, HEIGHT);
-}
-p.snapCtx.fillStyle = "#6d4c41";
-p.snapCtx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT - FLOOR_HEIGHT);
-
-      // PLATFORMS
-      platforms.forEach(plat => {
-          p.snapCtx.fillStyle = PLATFORM_COLOR;
-          p.snapCtx.fillRect(plat.x, plat.y, plat.w, PLATFORM_HEIGHT);
-          p.snapCtx.strokeStyle = PLATFORM_EDGE;
-          p.snapCtx.lineWidth = 3;
-          p.snapCtx.strokeRect(plat.x, plat.y, plat.w, PLATFORM_HEIGHT);
-      });
-
-      // PLAYERS - FIX: Properly render sprites instead of rectangles
-  // Update the player rendering section in your keydown handler:
-// PLAYERS - Draw all players with proper scaling
-for (let player of players) {
-    if (!player.alive) continue;
+    // Set charging animation
+    p.animState = "charging";
+    p.animFrame = 0;
+    p.animTimer = 0;
     
-    // Draw shadow
-    p.snapCtx.globalAlpha = 0.18;
-    p.snapCtx.beginPath();
-    p.snapCtx.ellipse(player.x + player.w / 2, player.y + player.h - 4, player.w / 2.5, 7, 0, 0, 2 * Math.PI);
-    p.snapCtx.fillStyle = "#000";
-    p.snapCtx.fill();
-    p.snapCtx.globalAlpha = 1;
-    
-    // ENHANCED: Draw actual sprite with scaling
-    let anim = getAnimForPlayer(player);
-    let spritesheet = anim && spritesheetCache[anim.src];
-    
-    if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
-      // Calculate scale factors
-      const scaleX = player.w / anim.w;
-      const scaleY = player.h / anim.h;
-      
-      if (player.facing === 1) {
-        p.snapCtx.save();
-        p.snapCtx.translate(player.x + player.w/2, player.y + player.h/2);
-        p.snapCtx.scale(-scaleX, scaleY);
-        p.snapCtx.translate(-anim.w/2, -anim.h/2);
-        p.snapCtx.drawImage(
-          spritesheet,
-          anim.w * player.animFrame, 0, anim.w, anim.h,
-          0, 0, anim.w, anim.h
-        );
-        p.snapCtx.restore();
-      } else {
-        // Scale sprite to fit player's collision box
-        p.snapCtx.drawImage(
-          spritesheet,
-          anim.w * player.animFrame, 0, anim.w, anim.h,
-          player.x, player.y, player.w, player.h
-        );
-      }
-    } else {
-      // Fallback to colored rectangle
-      p.snapCtx.fillStyle = player.color;
-      p.snapCtx.strokeStyle = "#fff";
-      p.snapCtx.lineWidth = 3;
-      p.snapCtx.fillRect(player.x, player.y, player.w, player.h);
-      p.snapCtx.strokeRect(player.x, player.y, player.w, player.h);
-    }
-    
-    // Draw blocking/dizzy effects if present (unchanged)
-    if (player.blocking && player.block > 0) {
-      p.snapCtx.save();
-      p.snapCtx.globalAlpha = 0.5;
-      p.snapCtx.strokeStyle = "#b0bec5";
-      p.snapCtx.lineWidth = 7;
-      p.snapCtx.beginPath();
-      p.snapCtx.roundRect(player.x-4, player.y-4, player.w+8, player.h+8, 18);
-      p.snapCtx.stroke();
-      p.snapCtx.restore();
-    }
-    
-    if (player.dizzy > 0) {
-      p.snapCtx.save();
-      p.snapCtx.globalAlpha = 0.5;
-      p.snapCtx.strokeStyle = "#ffd740";
-      p.snapCtx.lineWidth = 4;
-      p.snapCtx.beginPath();
-      p.snapCtx.arc(player.x+player.w/2, player.y-14, 19, 0, 2*Math.PI);
-      p.snapCtx.stroke();
-      p.snapCtx.restore();
-    }
-}
-      
-      p.snapCtx.restore();
-      
-      // Trigger the effect after 2 seconds
-      setTimeout(() => {
-          AbilityLibrary.judgementCut(p);
-      }, 2000);
-      
-      setTimeout(() => {
-          // Resume the game when shards start falling
-          resumeGame();
-      }, 9000);
-    }
+    console.log(`${p.name} begins charging Judgment Cut...`);
   }
+}
 
   // ... rest of the keydown handler code remains the same
   for (let pid = 0; pid < 2; pid++) {
@@ -860,6 +931,31 @@ document.addEventListener("keyup", function(e) {
     let now = performance.now();
     if (k === controls.left) dashTapState[pid].lastReleaseTime.left = now;
     if (k === controls.right) dashTapState[pid].lastReleaseTime.right = now;
+    
+    // NEW: Handle Judgment Cut release
+const playerControls = getControls(pid);
+if (k === playerControls.special) {
+  const p = players[pid];
+  if (p.charId === 'vergil' && p.judgmentCutCharging) {
+    const chargeTime = now - p.judgmentCutChargeStart;
+    
+    if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
+      // Execute Judgment Cut
+      p.judgmentCutCharging = false;
+      p.judgmentCutChargeLevel = 0;
+      executeJudgmentCut(p);
+      console.log(`${p.name} releases Judgment Cut after ${chargeTime}ms charge!`);
+    } else {
+      // Not charged enough - return to idle
+      p.judgmentCutCharging = false;
+      p.judgmentCutChargeLevel = 0;
+      p.animState = "idle";
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} didn't charge long enough for Judgment Cut.`);
+    }
+  }
+}
   }
 });
 
@@ -987,11 +1083,96 @@ function updatePlayer(p, pid) {
   if (!p.alive) return;
 
   // NEW: Vergil-specific updates
-  if (p.charId === 'vergil') {
+// NEW: Vergil-specific updates
+if (p.charId === 'vergil') {
     // Update Vergil's Judgment Cut cooldown
     if (p.judgementCutCooldown > 0) {
         p.judgementCutCooldown--;
     }
+    
+    // NEW: Handle charging animation and level
+    if (p.judgmentCutCharging) {
+        const chargeTime = performance.now() - p.judgmentCutChargeStart;
+        p.judgmentCutChargeLevel = Math.min(chargeTime / JUDGMENT_CUT_CHARGE.MAX_CHARGE_TIME, 1.0);
+    }
+
+       // NEW: Update slashing animation during slashing phase
+    if (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+        p.slashAnimationTimer++;
+        if (p.slashAnimationTimer >= 3) {
+            p.slashAnimationTimer = 0;
+            p.slashAnimationFrame++;
+            const slashAnim = characterSprites.vergil.slashing;
+            if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
+                p.slashAnimationFrame = 0;
+            }
+        }
+    }
+    
+    // Handle teleport effects
+    if (p.teleportTrail && p.teleportTrail.duration > 0) {
+        p.teleportTrail.duration--;
+        p.teleportTrail.alpha *= 0.92;
+        if (p.teleportTrail.duration <= 0) {
+            p.teleportTrail = null;
+        }
+    }
+    
+    // Handle teleport transparency
+    if (p.isTeleporting) {
+        if (p.dash > 0) {
+            // Still dashing - keep semi-transparent and flickering
+            p.teleportAlpha = 0.2 + 0.3 * Math.sin(performance.now() / 50);
+        } else {
+            // Dash finished - fade back to normal
+            p.teleportAlpha += 0.15;
+            if (p.teleportAlpha >= 1.0) {
+                p.teleportAlpha = 1.0;
+                p.isTeleporting = false;
+            }
+        }
+    }
+
+    // Handle Judgment Cut effect animations
+    if (p.judgementCutEffect) {
+        const effect = p.judgementCutEffect;
+        
+        if (effect.phase === 'slide') {
+            const t = performance.now() - effect.startTime;
+            
+            for (let s of effect.shards) {
+                s.x += s.vx * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
+                s.y += s.vy * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
+                s.angle += s.vangle * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
+            }
+            
+            if (t > JUDGEMENT_CUT_CONSTANTS.SLIDE_DURATION) {
+                effect.phase = 'fall';
+                
+                for (let s of effect.shards) {
+                    s.vy = JUDGEMENT_CUT_CONSTANTS.FALL_INITIAL_VY + Math.random()*2;
+                    s.vx = (Math.random()-0.5) * JUDGEMENT_CUT_CONSTANTS.FALL_VX_RANGE;
+                }
+            }
+        } else if (effect.phase === 'fall') {
+            for (let s of effect.shards) {
+                s.x += s.vx;
+                s.y += s.vy;
+                s.vy += s.g;
+                s.angle += s.vangle;
+            }
+            const maxY = effect.viewHeight + 100;
+            if (effect.shards.every(s => s.y > maxY)) {
+                p.judgementCutEffect = null;
+            }
+        }
+    }
+ // Don't allow movement during Judgment Cut phases or while charging
+if (p.charId === 'vergil' && (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
+                              p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING ||
+                              p.judgmentCutCharging)) {
+  return; // Skip all movement updates during these phases
+}
     
     // Handle teleport effects
     if (p.teleportTrail && p.teleportTrail.duration > 0) {
@@ -1144,6 +1325,27 @@ function getAnimForPlayer(p) {
 function updatePlayerAnimState(p, pid) {
   const prevState = p.animState;
   const other = players[1 - pid];
+  
+  // NEW: Handle Judgment Cut charging animation
+  if (p.charId === 'vergil' && p.judgmentCutCharging) {
+    if (p.animState !== "charging") {
+      p.animState = "charging";
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+    return; // Don't change animation state during charging
+  }
+  
+  // NEW: Handle Judgment Cut sheathing animation
+  if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
+    if (p.animState !== "sheathing") {
+      p.animState = "sheathing";
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+    return; // Don't change animation state during sheathing
+  }
+  
   if (p.alive && other && !other.alive && getAnimForPlayer({...p, animState:"victory"})) {
     p.animState = "victory"; return;
   }
@@ -1242,6 +1444,9 @@ bgImg.src = "underground.jpg";
 const vergilTeleportTrailSprite = new Image();
 vergilTeleportTrailSprite.src = "vergil-teleport-trail.png";
 
+const vergilSlashingSprite = new Image();
+vergilSlashingSprite.src = "vergil-judgment-cut-slashes.png"; 
+
 // Handle sprite, change sprite, images, png file for characters, image handler, sprite handler
 const characterSprites = {
   gold: {
@@ -1280,6 +1485,9 @@ const characterSprites = {
          blocking:  { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 8 },
          jump:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
          fall:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+    sheathing: { src: "vergil-sheathing.png", frames: 6, w: 100, h: 100, speed: 8 }, 
+    slashing:  { src: "vergil-slashing.png", frames: 12, w: 552, h: 584, speed: 3 },
+     charging:  { src: "vergil-charging.png", frames: 8, w: 100, h: 100, speed: 10 }, 
   },
 };
 
@@ -1311,6 +1519,13 @@ const players = [
     dizzy: 0,
     blockAnimationFinished: false,
     blockStartTime: 0,
+    judgementCutPhase: null,
+isInvisibleDuringJudgmentCut: false,
+slashAnimationFrame: 0,
+slashAnimationTimer: 0,
+judgmentCutCharging: false,
+judgmentCutChargeStart: 0,
+judgmentCutChargeLevel: 0,
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -1324,6 +1539,13 @@ const players = [
     dizzy: 0,
     blockAnimationFinished: false, 
     blockStartTime: 0,
+    judgementCutPhase: null,
+isInvisibleDuringJudgmentCut: false,
+slashAnimationFrame: 0,
+slashAnimationTimer: 0,
+judgmentCutCharging: false,
+judgmentCutChargeStart: 0,
+judgmentCutChargeLevel: 0,
   }
 ];
 let winner = null;
@@ -1358,33 +1580,105 @@ function draw() {
   }
   ctx.fillStyle = "#6d4c41";
   ctx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT-FLOOR_HEIGHT);
-
   // Draw particles under players
   drawParticles(ctx);
+// NEW: Visual feedback for pause state with stronger blue overlay during slashing
+if (gameState.paused && gameState.pauseReason === 'judgement_cut') {
+  ctx.save();
+  
+  // Check if any Vergil is in slashing phase for stronger effect
+  let isSlashingPhase = false;
+  for (let player of players) {
+    if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+      isSlashingPhase = true;
+      break;
+    }
+  }
+  
+  ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing
+  ctx.fillStyle = "#4a90e2";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 36px Arial";
+  ctx.textAlign = "center";
+  ctx.shadowColor = "#4a90e2";
+  ctx.shadowBlur = 10;
+  
+  ctx.font = "18px Arial";
+  ctx.shadowBlur = 5;
+  ctx.restore();
+}
 
-  // NEW: Visual feedback for pause state
-  if (gameState.paused && gameState.pauseReason === 'judgement_cut') {
+// NEW: Draw huge slashing animation during slashing phase
+for (let player of players) {
+  if (player.charId === 'vergil' && 
+      player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING && 
+      player.judgementCutEffect && 
+      player.judgementCutEffect.phase === 'slashing') {
+    
     ctx.save();
-    ctx.globalAlpha = 0.15;
-    ctx.fillStyle = "#4a90e2";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
     
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 36px Arial";
-    ctx.textAlign = "center";
-    ctx.shadowColor = "#4a90e2";
-    ctx.shadowBlur = 10;
+    // Draw multiple slashing effects across the screen
+    const slashPositions = [
+      { x: WIDTH * 0.2, y: HEIGHT * 0.3, scale: 1.2, rotation: 0.3 },
+      { x: WIDTH * 0.7, y: HEIGHT * 0.1, scale: 1.0, rotation: -0.5 },
+      { x: WIDTH * 0.5, y: HEIGHT * 0.6, scale: 1.5, rotation: 0.1 },
+      { x: WIDTH * 0.1, y: HEIGHT * 0.8, scale: 0.8, rotation: 0.7 },
+      { x: WIDTH * 0.8, y: HEIGHT * 0.7, scale: 1.1, rotation: -0.2 }
+    ];
     
-    ctx.font = "18px Arial";
-    ctx.shadowBlur = 5;
+    ctx.globalAlpha = 0.8 + 0.2 * Math.sin(performance.now() / 100); // Flickering effect
+    
+    if (vergilSlashingSprite.complete && vergilSlashingSprite.naturalWidth > 0) {
+      // Draw the actual slashing sprite at multiple positions
+      for (let slash of slashPositions) {
+        ctx.save();
+        ctx.translate(slash.x, slash.y);
+        ctx.scale(slash.scale, slash.scale);
+        ctx.rotate(slash.rotation);
+        ctx.drawImage(vergilSlashingSprite, -100, -100, 200, 200);
+        ctx.restore();
+      }
+    } else {
+      // Fallback slashing effect
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 8;
+      ctx.shadowColor = "#4a90e2";
+      ctx.shadowBlur = 20;
+      
+      for (let slash of slashPositions) {
+        ctx.save();
+        ctx.translate(slash.x, slash.y);
+        ctx.rotate(slash.rotation);
+        ctx.scale(slash.scale, slash.scale);
+        
+        // Draw multiple slash lines
+        for (let i = 0; i < 5; i++) {
+          ctx.beginPath();
+          ctx.moveTo(-80 + i * 10, -60 + i * 5);
+          ctx.lineTo(80 - i * 10, 60 - i * 5);
+          ctx.stroke();
+        }
+        
+        ctx.restore();
+      }
+    }
+    
     ctx.restore();
   }
+}
 
   // Draw players with enhanced sprite scaling
   for(let i=0; i<players.length; i++) {
     let p = players[i];
     if(!p.alive && getAnimForPlayer(p) && p.animState !== "defeat") continue;
+
+      // NEW: Skip drawing Vergil if he's invisible during Judgment Cut
+  if (p.charId === 'vergil' && p.isInvisibleDuringJudgmentCut) {
+    continue; // Don't draw Vergil when he's invisible
+  }
 
     // Draw Vergil's teleport trail first (behind character)
    if (p.charId === 'vergil' && p.teleportTrail && p.teleportTrail.duration > 0) {
@@ -1448,7 +1742,7 @@ function draw() {
     ctx.beginPath();
     let arrowCenterX = p.x + p.w/2;
     let arrowTipY = p.y - 12;
-    let arrowHeight = 12, arrowWidth = 20;
+    let arrowHeight = 8, arrowWidth = 16;
     ctx.moveTo(arrowCenterX, arrowTipY);
     ctx.lineTo(arrowCenterX - arrowWidth/2, arrowTipY - arrowHeight);
     ctx.lineTo(arrowCenterX + arrowWidth/2, arrowTipY - arrowHeight);
@@ -1456,7 +1750,7 @@ function draw() {
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = i === 0 ? "#42a5f5" : "#ef5350";
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 1;
     ctx.fill();
     ctx.stroke();
     ctx.globalAlpha = 1;
@@ -1567,17 +1861,18 @@ function draw() {
     // Draw player name
     if (p.name) {
       ctx.save();
-      ctx.font = "bold 22px Arial";
+      ctx.font = "bold 15px Arial";
       ctx.textAlign = "center";
       ctx.strokeStyle = "#23243a";
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 3;
       ctx.strokeText(p.name, p.x + p.w/2, p.y - 28);
       ctx.fillStyle = p.color;
       ctx.fillText(p.name, p.x + p.w/2, p.y - 28);
       ctx.restore();
     }
+    // NEW: Draw Judgment Cut charge indicator
 
-    // Draw Block Bar Below Player (unchanged)
+    // Draw Block Bar Below Player (unchanged), block bar blockbar
     const barWidth = p.w;
     const barHeight = 10;
     const barX = p.x;
@@ -1637,7 +1932,7 @@ function draw() {
       ctx.save();
       ctx.globalAlpha = 0.9;
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.shadowColor = "#3EB7FA";
       ctx.shadowBlur = 10;
 
@@ -1683,13 +1978,13 @@ function draw() {
         effectCtx.drawImage(p.snapCanvas, 0, 0);
         effectCtx.fillStyle = "rgba(0, 127, 255, 0.1)";
         effectCtx.fill();
-        effectCtx.strokeStyle = "#00bfff";
+        effectCtx.strokeStyle = "#fffff";
         effectCtx.lineWidth = 1;
-        effectCtx.globalAlpha = 0.4;
+        effectCtx.globalAlpha = 0.2;
         effectCtx.stroke();
         effectCtx.restore();
       }
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.8;
       ctx.drawImage(p.effectCanvas, effect.cameraX, effect.cameraY);
       ctx.globalAlpha = 1;
     }
