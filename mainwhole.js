@@ -703,13 +703,14 @@ character.slashAnimationTimer = 0;
             }
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 200);
         
-        // Shard animation
-        setTimeout(() => {
-            if (character.judgementCutEffect) {
-                character.judgementCutEffect.phase = 'slide';
-                character.judgementCutEffect.startTime = performance.now();
-            }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 500);
+     // Shard animation - when shards start sliding, the blue overlay will disappear
+setTimeout(() => {
+    if (character.judgementCutEffect) {
+        character.judgementCutEffect.phase = 'slide';
+        character.judgementCutEffect.startTime = performance.now();
+        console.log("Shards start breaking - blue overlay ends!");
+    }
+}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 500);
         
         // NEW: End sheathing animation and return to normal
         setTimeout(() => {
@@ -1474,7 +1475,7 @@ const characterSprites = {
          blocking:  { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 8 },
          jump:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
          fall:      { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
-    sheathing: { src: "vergil-sheathing.png", frames: 6, w: 100, h: 100, speed: 8 }, 
+    sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing:  { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
      charging:  { src: "vergil-charging.png", frames: 8, w: 100, h: 100, speed: 10 }, 
   },
@@ -1571,32 +1572,35 @@ function draw() {
   ctx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT-FLOOR_HEIGHT);
   // Draw particles under players
   drawParticles(ctx);
-// NEW: Visual feedback for pause state with stronger blue overlay during slashing
+// NEW: Visual feedback for pause state with blue overlay until shards break
 if (gameState.paused && gameState.pauseReason === 'judgement_cut') {
   ctx.save();
   
   // Check if any Vergil is in slashing phase for stronger effect
   let isSlashingPhase = false;
+  let hasActiveEffect = false;
   for (let player of players) {
     if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
       isSlashingPhase = true;
+      hasActiveEffect = true;
       break;
+    }
+    // Also keep blue overlay during lines and preparing phases
+    if (player.judgementCutEffect && 
+        (player.judgementCutEffect.phase === 'lines' || 
+         player.judgementCutEffect.phase === 'preparing' ||
+         player.judgementCutEffect.phase === 'slide')) {
+      hasActiveEffect = true;
     }
   }
   
-  ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing
-  ctx.fillStyle = "#4a90e2";
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  // Only show blue overlay if there's an active judgment cut effect
+  if (hasActiveEffect) {
+    ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing
+    ctx.fillStyle = "#4a90e2";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
   
-  ctx.globalAlpha = 0.9;
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 36px Arial";
-  ctx.textAlign = "center";
-  ctx.shadowColor = "#4a90e2";
-  ctx.shadowBlur = 10;
-  
-  ctx.font = "18px Arial";
-  ctx.shadowBlur = 5;
   ctx.restore();
 }
 
@@ -1917,41 +1921,42 @@ if (player.charId === 'vergil' &&
     }
   }
 
-  // NEW: Draw Judgment Cut shards
-  for (let p of players) {
-    if (p.judgementCutEffect && p.effectCtx) {
-      const effect = p.judgementCutEffect;
-      const effectCtx = p.effectCtx;
-      effectCtx.clearRect(0, 0, effect.viewWidth, effect.viewHeight);
-      for (let s of effect.shards) {
-        effectCtx.save();
-        let cx=0, cy=0;
-        for (let pt of s.poly) { cx+=pt[0]; cy+=pt[1]; }
-        cx/=s.poly.length; cy/=s.poly.length;     
-        effectCtx.translate(cx + s.x, cy + s.y);
-        effectCtx.rotate(s.angle);
-        effectCtx.translate(-cx, -cy);
-        effectCtx.beginPath();
-        effectCtx.moveTo(s.poly[0][0], s.poly[0][1]);
-        for (let j=1; j<s.poly.length; ++j) {
-          effectCtx.lineTo(s.poly[j][0], s.poly[j][1]);
-        }
-        effectCtx.closePath();
-        effectCtx.clip();
-        effectCtx.drawImage(p.snapCanvas, 0, 0);
-        effectCtx.fillStyle = "rgba(0, 127, 255, 0.1)";
-        effectCtx.fill();
-        effectCtx.strokeStyle = "#fffff";
-        effectCtx.lineWidth = 1;
-        effectCtx.globalAlpha = 0.2;
-        effectCtx.stroke();
-        effectCtx.restore();
+// NEW: Draw Judgment Cut shards with blue tint
+for (let p of players) {
+  if (p.judgementCutEffect && p.effectCtx) {
+    const effect = p.judgementCutEffect;
+    const effectCtx = p.effectCtx;
+    effectCtx.clearRect(0, 0, effect.viewWidth, effect.viewHeight);
+    for (let s of effect.shards) {
+      effectCtx.save();
+      let cx=0, cy=0;
+      for (let pt of s.poly) { cx+=pt[0]; cy+=pt[1]; }
+      cx/=s.poly.length; cy/=s.poly.length;     
+      effectCtx.translate(cx + s.x, cy + s.y);
+      effectCtx.rotate(s.angle);
+      effectCtx.translate(-cx, -cy);
+      effectCtx.beginPath();
+      effectCtx.moveTo(s.poly[0][0], s.poly[0][1]);
+      for (let j=1; j<s.poly.length; ++j) {
+        effectCtx.lineTo(s.poly[j][0], s.poly[j][1]);
       }
-      ctx.globalAlpha = 0.8;
-      ctx.drawImage(p.effectCanvas, effect.cameraX, effect.cameraY);
-      ctx.globalAlpha = 1;
+      effectCtx.closePath();
+      effectCtx.clip();
+      effectCtx.drawImage(p.snapCanvas, 0, 0);
+      // NEW: Use the same blue color as the overlay
+      effectCtx.fillStyle = "rgba(74, 144, 226, 0.3)"; // #4a90e2 with transparency
+      effectCtx.fill();
+      effectCtx.strokeStyle = "#4a90e2"; // Same blue for border
+      effectCtx.lineWidth = 2;
+      effectCtx.globalAlpha = 0.4;
+      effectCtx.stroke();
+      effectCtx.restore();
     }
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(p.effectCanvas, effect.cameraX, effect.cameraY);
+    ctx.globalAlpha = 1;
   }
+}
   
   ctx.restore();
 
