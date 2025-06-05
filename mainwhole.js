@@ -83,16 +83,16 @@ const DIZZY_FRAMES = 38;
 const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
 const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
 
-// NEW: Judgment Cut Constants
+// judgement cut adjust , jce adjust
 const JUDGEMENT_CUT_CONSTANTS = {
-    SLIDE_DURATION: 5000,
-    SLIDE_SPEED: 1,
-    FALL_INITIAL_VY: -7,
-    FALL_VX_RANGE: 3,
-    LINE_DISPLAY_DURATION: 1100,
-    LINE_APPEAR_INTERVAL: 50,
-    FIRST_THREE_INTERVAL: 50,
-    REMAINING_LINES_DELAY: 200
+    SLIDE_DURATION: 3000,           // Reduced from 5000 to 3000
+    SLIDE_SPEED: 1.2,               // Slightly faster sliding
+    FALL_INITIAL_VY: -8,           // Faster fall
+    FALL_VX_RANGE: 4,              // More fall spread
+    LINE_DISPLAY_DURATION: 800,    // Reduced from 1100 to 800ms
+    LINE_APPEAR_INTERVAL: 30,      // Faster line appearance (was 50)
+    FIRST_THREE_INTERVAL: 30,      // Faster first 3 lines (was 50)
+    REMAINING_LINES_DELAY: 100     // Shorter delay (was 200)
 };
 
 // NEW: Game State for pause/resume functionality
@@ -111,9 +111,9 @@ let cameraZoomEffect = {
     phase: 'idle',
     startTime: 0,
     duration: {
-        zoomIn: 6300,
+        zoomIn: 4500,
         hold: 400,
-        zoomOut: 700
+        zoomOut: 500
     }
 };
 
@@ -500,15 +500,15 @@ function executeJudgmentCut(character) {
   
   character.snapCtx.restore();
   
-  // Trigger the effect after 2 seconds
+  // Trigger the effect after 1.5 seconds
   setTimeout(() => {
       AbilityLibrary.judgementCut(character);
-  }, 2000);
+  }, 1500);
   
   setTimeout(() => {
       // Resume the game when shards start falling
       resumeGame();
-  }, 9000);
+  }, 6500);
 }
 
 // NEW: Update snapshot with current Vergil state
@@ -789,7 +789,7 @@ y: (Math.random()-0.5) * 10, // Random vertical offset between -2.5 and +2.5
                 character.updateShardsInRealTime = true;
                 console.log("Vergil reappears and sheaths his sword!");
             }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 200);
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 150);
         
      // Shard animation - when shards start sliding, the blue overlay will disappear
 setTimeout(() => {
@@ -798,7 +798,7 @@ setTimeout(() => {
         character.judgementCutEffect.startTime = performance.now();
         console.log("Shards start breaking - blue overlay ends!");
     }
-}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 500);
+}, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 300);
         
         // NEW: End sheathing animation and return to normal
         setTimeout(() => {
@@ -809,7 +809,7 @@ setTimeout(() => {
                 character.animTimer = 0;
                 console.log("Judgment Cut complete!");
             }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1500);
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1000);
         
         // Deal damage to opponents in range (immediate)
         for (let i = 0; i < players.length; i++) {
@@ -831,11 +831,6 @@ setTimeout(() => {
         }
         
         return true;
-        // NEW: Make Vergil visible again after the effect completes
-setTimeout(() => {
-    character.isInvisibleDuringJudgmentCut = false;
-    console.log("Vergil reappears after Judgment Cut!");
-}, 8000); // Adjust timing as needed
 
 return true;
     }
@@ -1655,7 +1650,7 @@ for (let player of players) {
 }
   ctx.save();
     if (applyBWEffect) {
-    ctx.filter = "grayscale(100%) contrast(130%) brightness(1)";
+  ctx.filter = "grayscale(100%) contrast(105%) brightness(1.1) sepia(100%) hue-rotate(160deg)";
   }
   ctx.clearRect(0,0,WIDTH,HEIGHT);
   ctx.translate(WIDTH/2, HEIGHT/2);
@@ -1734,6 +1729,7 @@ if (player.charId === 'vergil' &&
         );
       }
     }
+    
     
     ctx.restore();
   }
@@ -2081,10 +2077,9 @@ for(let i=0; i<players.length; i++) {
             const scaleX = p.w / anim.w;
             const scaleY = p.h / anim.h;
             
-            // Add dramatic effect - slight glow/emphasis
+            // adjust black and white
             ctx.save();
-            ctx.shadowColor = "#ffffff";
-            ctx.shadowBlur = 8;
+                    ctx.filter = "grayscale(100%) contrast(105%) brightness(1.1) sepia(100%) hue-rotate(160deg)"; 
             
             if (p.facing === 1) {
                 ctx.save();
