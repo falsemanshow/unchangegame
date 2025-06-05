@@ -1546,7 +1546,29 @@ const ctx = canvas.getContext("2d");
 
 function draw() {
   const camera = getCamera();
+    // NEW: Check if we should apply black and white effect
+ // NEW: Check if we should apply black and white effect until shards fall
+let applyBWEffect = false;
+for (let player of players) {
+  // Apply during slashing phase
+  if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+    applyBWEffect = true;
+    break;
+  }
+  
+  // Apply during lines, preparing, and slide phases (until shards start falling)
+  if (player.judgementCutEffect && 
+      (player.judgementCutEffect.phase === 'lines' || 
+       player.judgementCutEffect.phase === 'preparing' ||
+       player.judgementCutEffect.phase === 'slide')) {
+    applyBWEffect = true;
+    break;
+  }
+}
   ctx.save();
+    if (applyBWEffect) {
+    ctx.filter = "grayscale(100%) contrast(130%) brightness(1)";
+  }
   ctx.clearRect(0,0,WIDTH,HEIGHT);
   ctx.translate(WIDTH/2, HEIGHT/2);
   ctx.scale(camera.zoom, camera.zoom);
@@ -1573,13 +1595,12 @@ function draw() {
   // Draw particles under players
   drawParticles(ctx);
 // NEW: Blue overlay during slashing and lines phases
+// NEW: Blue overlay during entire Judgment Cut sequence
 let showBlueOverlay = false;
-let isSlashingPhase = false;
 
 for (let player of players) {
-  // Show blue overlay during slashing phase (when game is paused)
+  // Show blue overlay during slashing phase
   if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
-    isSlashingPhase = true;
     showBlueOverlay = true;
   }
   
@@ -1589,24 +1610,14 @@ for (let player of players) {
   }
 }
 
-// Draw blue overlay 
+// Draw blue overlay with consistent intensity
 if (showBlueOverlay) {
   ctx.save();
-  ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing, lighter during lines
-  ctx.fillStyle = "#4a90e2";
+  ctx.globalAlpha = 0.5; // Same blue intensity throughout entire Judgment Cut
+  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   ctx.restore();
 }
-
-// Draw blue overlay regardless of pause state
-if (showBlueOverlay) {
-  ctx.save();
-  ctx.globalAlpha = isSlashingPhase ? 0.4 : 0.15; // Stronger blue during slashing
-  ctx.fillStyle = "#4a90e2";
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.restore();
-}
-
 // NEW: Draw huge slashing animation during slashing phase
 for (let player of players) {
 if (player.charId === 'vergil' && 
@@ -1946,9 +1957,9 @@ for (let p of players) {
       effectCtx.clip();
       effectCtx.drawImage(p.snapCanvas, 0, 0);
       // NEW: Use the same blue color as the overlay
-      effectCtx.fillStyle = "rgba(74, 144, 226, 0.3)"; // #4a90e2 with transparency
+      effectCtx.fillStyle = "rgba(0, 0, 0, 0.5)"; // #4a90e2 with transparency
       effectCtx.fill();
-      effectCtx.strokeStyle = "#4a90e2"; // Same blue for border
+      effectCtx.strokeStyle = "rgb(0, 170, 255)"; // Same blue for border
       effectCtx.lineWidth = 2;
       effectCtx.globalAlpha = 0.4;
       effectCtx.stroke();
