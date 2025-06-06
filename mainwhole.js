@@ -30,12 +30,11 @@ function updateBlocking(p, pid) {
   }
   p._wasBlocking = p.blocking;
 
-  if (p.dizzy > 0) {
-    p.dizzy--;
-    p.vx *= FRICTION;
-    if (Math.abs(p.vx) < 0.3) p.vx = 0;
-    return true;
-  }
+ if (p.dizzy > 0) {
+  p.dizzy--;
+
+  return true;
+}
   return false;
 }
 
