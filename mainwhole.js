@@ -68,8 +68,11 @@ const VERGIL_WEAPONS = {
 
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
 const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 38;
-const UNIVERSAL_DASH_KNOCKBACK_X = 18; // New universal dash knockback
+const UNIVERSAL_DASH_KNOCKBACK_X = 50; // New universal dash knockback
 const UNIVERSAL_DASH_KNOCKBACK_Y = -6;
+const BOUNCE_FRICTION = 0.85;
+const HITSTUN_FRAMES = 20; // How long player can't move after being hit
+const HEAVY_HITSTUN_FRAMES = 35; // Longer hitstun for strong attacks
 const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
 const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
 
@@ -94,7 +97,7 @@ let cameraZoomEffect = {
 
 const impactEffects = [];
 
-const characterImpactEffects = {
+const characterImpactEffects = {//effects
  vergil: {
     dash: { sprite: "vergil-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 }, directionalOffset: { x: 8, y: 0 } },
     'beowulf-dash': { sprite: "vergil-beowulf-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 }, directionalOffset: { x: 15, y: 0 } }
@@ -459,8 +462,8 @@ function updateSnapshotWithVergil(character) {
 
 function getControls(pid) {
   return pid === 0
-    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', attack: 'r' }
-    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', attack: 'u' };
+    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', attack: 'r', weaponSwitch: 'q' }
+    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', attack: 'u', weaponSwitch: 'i' };
 }
 
 function knockback(attacker, defender, strengthX, strengthY) {
@@ -854,7 +857,7 @@ if (k === controls.attack && p.charId === 'vergil' && p.currentWeapon === VERGIL
     const p = players[pid];
     if(!p.alive) continue;
     
-    if (k === controls.left && !keys[controls.right] && p.dashCooldown === 0) {
+       if (k === controls.left && !keys[controls.right] && p.dashCooldown === 0 && !p.inHitstun) {
       let now = performance.now();
       if (dashTapState[pid].lastTapDir === 'left' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.left < DASH_WINDOW) {
         if (p.charId === 'vergil') {
@@ -874,7 +877,7 @@ if (k === controls.attack && p.charId === 'vergil' && p.currentWeapon === VERGIL
         dashTapState[pid].lastTapTime = now;
       }
     }
-    if (k === controls.right && !keys[controls.left] && p.dashCooldown === 0) {
+      if (k === controls.right && !keys[controls.left] && p.dashCooldown === 0 && !p.inHitstun) {
       let now = performance.now();
       if (dashTapState[pid].lastTapDir === 'right' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.right < DASH_WINDOW) {
         if (p.charId === 'vergil') {
@@ -935,27 +938,62 @@ function handleDashAttack() {
   for (let i = 0; i < 2; ++i) {
     let p = players[i], opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
-if (p.dash > 0 && !p.hasDashHit) {
-  if (p.x < opp.x + opp.w && p.x + p.w > opp.x && p.y < opp.y + opp.h && p.y + p.h > opp.y) {
-    // Yamato pass-through attack doesn't collide
-    if (p.yamatoPassThrough) {
-      // Deal damage but don't stop dash
-      if (opp.justHit === 0) {
-        interruptJudgmentCut(opp);
-        opp.hp -= DASH_DAMAGE;
-        opp.justHit = 16;
-        createImpactEffect(p, opp, 'dash');
+    
+    if (p.dash > 0 && !p.hasDashHit) {
+      if (p.x < opp.x + opp.w && p.x + p.w > opp.x && p.y < opp.y + opp.h && p.y + p.h > opp.y) {
         
-        if (opp.hp <= 0) { 
-          opp.hp = 0; 
-          opp.alive = false; 
-          winner = p.id; 
+        // VERGIL WITH YAMATO - Original pass-through behavior (normal dash)
+        if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+          if (opp.justHit === 0) {
+            interruptJudgmentCut(opp);
+            opp.hp -= DASH_DAMAGE;
+            opp.justHit = 16;
+                      opp.hitstun = HEAVY_HITSTUN_FRAMES;
+          opp.inHitstun = true;
+            createImpactEffect(p, opp, 'dash');
+            
+            // Original slight knockback (not the strong bounce)
+            if (opp.dizzy > 0) {
+              let dir = (p.x + p.w/2 < opp.x + opp.w/2) ? 1 : -1;
+              opp.vx = dir * DIZZY_KNOCKBACK_X;
+              opp.vy = DIZZY_KNOCKBACK_Y;
+            } else {
+              opp.vx = (p.facing || 1) * 8;
+              opp.vy = -8;
+            }
+            
+            if (opp.hp <= 0) { 
+              opp.hp = 0; 
+              opp.alive = false; 
+              winner = p.id; 
+            }
+            
+            console.log(`${p.name} slashed through ${opp.name} with Yamato! ⚔️`);
+          }
+          p.hasDashHit = true;
+          continue;
         }
         
-        console.log(`${p.name} passed through ${opp.name} with Yamato!`);
-      }
-      continue; // Don't stop the dash, pass through
-    }
+        // YAMATO SPECIAL ATTACK (R/U keys) - Pass-through attack
+        if (p.yamatoPassThrough) {
+          if (opp.justHit === 0) {
+            interruptJudgmentCut(opp);
+            opp.hp -= DASH_DAMAGE;
+            opp.justHit = 16;
+                      opp.hitstun = HEAVY_HITSTUN_FRAMES;
+          opp.inHitstun = true;
+            createImpactEffect(p, opp, 'dash');
+            
+            if (opp.hp <= 0) { 
+              opp.hp = 0; 
+              opp.alive = false; 
+              winner = p.id; 
+            }
+            console.log(`${p.name} used Yamato Special Pass-Through! ⚔️💨`);
+          }
+          continue; // Don't stop dash, pass through
+        }
+        
         let isBlocking = false;
         if (opp.blocking && opp.block > 0 && !opp.dizzy) {
           if (opp.facing === -Math.sign(p.vx || p.facing)) {
@@ -964,9 +1002,7 @@ if (p.dash > 0 && !p.hasDashHit) {
         }
         
         if (isBlocking) {
-          // Even when blocking, interrupt Judgment Cut charging
           interruptJudgmentCut(opp);
-          
           p.dizzy = DIZZY_FRAMES;
           p.vx = opp.facing * BLOCK_PUSHBACK_X;
           p.vy = BLOCK_PUSHBACK_Y;
@@ -976,30 +1012,46 @@ if (p.dash > 0 && !p.hasDashHit) {
         }
         
         if (opp.justHit === 0 && (!opp.blocking || !isBlocking || opp.block <= 0)) {
-          // Interrupt Judgment Cut if opponent is charging
           interruptJudgmentCut(opp);
-          
           opp.hp -= DASH_DAMAGE;
           opp.justHit = 16;
+                    opp.hitstun = HEAVY_HITSTUN_FRAMES;
+          opp.inHitstun = true;
           
-          // UNIVERSAL KNOCKBACK SYSTEM - All characters now knock back opponents
-          const pushDirection = (p.x + p.w/2 < opp.x + opp.w/2) ? 1 : -1;
+          // UNIVERSAL BOUNCE SYSTEM - All characters EXCEPT Vergil with Yamato
+         const pushDirection = p.facing; // Use attacker's facing direction
           
           if (opp.dizzy > 0) {
-            // Stronger knockback when opponent is dizzy
-            opp.vx = pushDirection * DIZZY_KNOCKBACK_X;
-            opp.vy = DIZZY_KNOCKBACK_Y;
+            // Extra strong bounce when dizzy
+            opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X * 1.5;
+            opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y - 3;
           } else {
-            // Standard universal knockback for all characters
+            // Strong universal bounce for all characters
             opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X;
             opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y;
           }
           
-          // Create appropriate impact effect
+          opp.isBeingKnockedBack = true;
+          
+          // Attacker gets small recoil (realistic collision)
+          p.vx *= 0.3;
+          
+          // Add bouncing visual effect
+          opp.bounceEffect = {
+            duration: 25,
+            intensity: Math.abs(opp.vx) * 0.5,
+            alpha: 1.0,
+            bounceCount: 0,
+            maxBounces: 2
+          };
+          
+          // Create impact effect based on weapon
           if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
             createImpactEffect(p, opp, 'beowulf-dash');
+            console.log(`💥 ${p.name} punched ${opp.name} with Beowulf! Force: ${Math.abs(opp.vx).toFixed(1)}`);
           } else {
             createImpactEffect(p, opp, 'dash');
+            console.log(`💥 ${p.name} sent ${opp.name} flying! Force: ${Math.abs(opp.vx).toFixed(1)}`);
           }
           
           if (opp.hp <= 0) { opp.hp = 0; opp.alive = false; winner = p.id; }
@@ -1165,16 +1217,31 @@ if (effect.phase === 'slide') {
 
   if (updateBlocking(p, pid)) return;
 
+  // Update hitstun
+  if (p.hitstun > 0) {
+    p.hitstun--;
+    if (p.hitstun <= 0) {
+      p.inHitstun = false;
+    }
+  }
+
   if (p.dash > 0) {
     p.dash--;
   } else {
-    if (keys[controls.left] && !keys[controls.right] && !p.blocking) {
-      p.vx = -PLAYER_SPEED; p.facing = -1;
-    }
-    if (keys[controls.right] && !keys[controls.left] && !p.blocking) {
-      p.vx = PLAYER_SPEED; p.facing = 1;
-    }
-    if ((!keys[controls.left] && !keys[controls.right]) || p.blocking) {
+    // Player can't move during hitstun
+    if (!p.inHitstun) {
+      if (keys[controls.left] && !keys[controls.right] && !p.blocking) {
+        p.vx = -PLAYER_SPEED; p.facing = -1;
+      }
+      if (keys[controls.right] && !keys[controls.left] && !p.blocking) {
+        p.vx = PLAYER_SPEED; p.facing = 1;
+      }
+      if ((!keys[controls.left] && !keys[controls.right]) || p.blocking) {
+        p.vx *= FRICTION;
+        if (Math.abs(p.vx) < 0.3) p.vx = 0;
+      }
+    } else {
+      // During hitstun, only apply friction to knockback velocity
       p.vx *= FRICTION;
       if (Math.abs(p.vx) < 0.3) p.vx = 0;
     }
@@ -1183,7 +1250,7 @@ if (effect.phase === 'slide') {
   let slowFallActive = false;
   if (!p.onGround && keys[controls.up]) slowFallActive = true;
   
-  if (keys[controls.up]) {
+    if (keys[controls.up] && !p.inHitstun) {
     if ((p.onGround || p.jumps < MAX_JUMPS) && !p.jumpHeld && !p.blocking) {
       p.vy = -JUMP_VEL; p.jumps++; p.jumpHeld = true;
     }
@@ -1207,20 +1274,58 @@ if (effect.phase === 'slide') {
 
   if (p.y + p.h >= FLOOR_HEIGHT) {
     p.y = FLOOR_HEIGHT - p.h;
-    p.vy = 0;
+    
+    // Add ground bounce if being knocked back
+    if (p.isBeingKnockedBack && Math.abs(p.vy) > 5) {
+      p.vy = -p.vy * 0.4; // Bounce off ground
+      if (p.bounceEffect && p.bounceEffect.bounceCount < p.bounceEffect.maxBounces) {
+        p.bounceEffect.bounceCount++;
+        console.log(`${p.name} bounced off the ground!`);
+      }
+    } else {
+      p.vy = 0;
+    }
+    
     p.onGround = true;
     p.jumps = 0;
   } else {
     for (let plat of platforms) {
       if (p.vy >= 0 && p.x + p.w > plat.x && p.x < plat.x + plat.w && p.y + p.h > plat.y && p.y + p.h - p.vy <= plat.y + 3) {
         p.y = plat.y - p.h;
-        p.vy = 0;
+        
+        // Add platform bounce if being knocked back
+        if (p.isBeingKnockedBack && Math.abs(p.vy) > 5) {
+          p.vy = -p.vy * 0.3; // Smaller bounce than ground
+          if (p.bounceEffect && p.bounceEffect.bounceCount < p.bounceEffect.maxBounces) {
+            p.bounceEffect.bounceCount++;
+          }
+        } else {
+          p.vy = 0;
+        }
+        
         p.onGround = true;
         p.jumps = 0;
       }
     }
   }
   if (p.y < 0) { p.y = 0; p.vy = 0; }
+    // Handle bounce physics
+  if (p.isBeingKnockedBack) {
+    p.vx *= BOUNCE_FRICTION;
+    if (Math.abs(p.vx) < 2) {
+      p.isBeingKnockedBack = false;
+    }
+  }
+  
+  // Update bounce effect
+  if (p.bounceEffect) {
+    p.bounceEffect.duration--;
+    p.bounceEffect.alpha *= 0.9;
+    p.bounceEffect.intensity *= 0.95;
+    if (p.bounceEffect.duration <= 0) {
+      p.bounceEffect = null;
+    }
+  }
 }
 
 function getAnimForPlayer(p) {
@@ -1434,11 +1539,13 @@ const players = [
     blockStartTime: 0, judgementCutPhase: null, isInvisibleDuringJudgmentCut: false,
     slashAnimationFrame: 0, slashAnimationTimer: 0, judgmentCutCharging: false,
     judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0, updateShardsInRealTime: false,
-       updateShardsInRealTime: false,
     currentWeapon: VERGIL_WEAPONS.YAMATO,
-    beowulfPushEffect: null,    currentWeapon: VERGIL_WEAPONS.YAMATO,
     yamatoPassThrough: false,
-    yamatoPassThroughTimer: 0
+    yamatoPassThroughTimer: 0,
+    bounceEffect: null,
+    isBeingKnockedBack: false,
+    hitstun: 0,
+    inHitstun: false
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -1447,16 +1554,19 @@ const players = [
     downDropTimer: 0, jumpHeld: false, alive: true, id: 1, name: "P2",
     charId: "chicken", animState: "idle", animFrame: 0, animTimer: 0, justHit: 0,
     block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0, blockWasFull: false,
-    hasDashHit: false, blockAnimationFinished: false, blockStartTime: 0,
-    judgementCutPhase: null, isInvisibleDuringJudgmentCut: false,
+    judgementCutCooldown: 0, effectCanvas: null, effectCtx: null, snapCanvas: null, 
+    snapCtx: null, judgementCutEffect: null, teleportTrail: null, isTeleporting: false, 
+    teleportAlpha: 1.0, hasDashHit: false, blockAnimationFinished: false,
+    blockStartTime: 0, judgementCutPhase: null, isInvisibleDuringJudgmentCut: false,
     slashAnimationFrame: 0, slashAnimationTimer: 0, judgmentCutCharging: false,
     judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0, updateShardsInRealTime: false,
-       updateShardsInRealTime: false,
     currentWeapon: VERGIL_WEAPONS.YAMATO,
-    beowulfPushEffect: null,
-        currentWeapon: VERGIL_WEAPONS.YAMATO,
     yamatoPassThrough: false,
-    yamatoPassThroughTimer: 0
+    yamatoPassThroughTimer: 0,
+    bounceEffect: null,
+    isBeingKnockedBack: false,
+    hitstun: 0,
+    inHitstun: false
   }
 ];
 let winner = null;
@@ -1717,7 +1827,43 @@ function draw() {
       ctx.globalAlpha = 1;
       ctx.restore();
     }
-
+        // Draw bounce effect
+    if (p.bounceEffect) {
+      ctx.save();
+      ctx.globalAlpha = p.bounceEffect.alpha * 0.6;
+      
+      // Bounce impact waves
+      for (let i = 0; i < 3; i++) {
+        const waveRadius = (p.bounceEffect.intensity + i * 8) * (1 - p.bounceEffect.duration / 25);
+        ctx.strokeStyle = i === 0 ? "#ffeb3b" : i === 1 ? "#ff9800" : "#f44336";
+        ctx.lineWidth = 3 - i;
+        ctx.beginPath();
+        ctx.arc(p.x + p.w/2, p.y + p.h/2, waveRadius, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+      
+      // Motion lines showing direction of bounce
+      if (p.isBeingKnockedBack) {
+        const lineLength = Math.abs(p.vx) * 2;
+        const direction = p.vx > 0 ? 1 : -1;
+        
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const startX = p.x + p.w/2 - (direction * lineLength);
+          const startY = p.y + p.h/2 + (i - 2) * 8;
+          const endX = p.x + p.w/2 - (direction * lineLength * 0.3);
+          const endY = startY;
+          
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
+        }
+      }
+      
+      ctx.restore();
+    }
    // Draw player name and weapon indicator
 if (p.name) {
   ctx.save();
