@@ -462,8 +462,8 @@ function updateSnapshotWithVergil(character) {
 
 function getControls(pid) {
   return pid === 0
-    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', attack: 'r', weaponSwitch: 'q' }
-    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', attack: 'u', weaponSwitch: 'i' };
+    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', weaponSwitch: 'q' }
+    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', weaponSwitch: 'i' };
 }
 
 function knockback(attacker, defender, strengthX, strengthY) {
@@ -539,11 +539,19 @@ function dealJudgmentCutDamage(effect) {
                 // Create impact effect
                 createImpactEffect(character, opponent, 'dash');
                 
-                if (opponent.hp <= 0) { 
-                    opponent.hp = 0; 
-                    opponent.alive = false; 
-                    winner = character.id; 
-                }
+               if (opponent.hp <= 0) { 
+        opponent.hp = 0; 
+        opponent.alive = false; 
+        
+        // Check for draw
+        if (character.hp <= 0) {
+            character.hp = 0;
+            character.alive = false;
+            winner = "draw";
+        } else {
+            winner = character.id; 
+        }
+    }
             }
         }
     }
@@ -832,24 +840,6 @@ if (k === weaponSwitchKey && p.charId === 'vergil' && p.onGround && !p.judgmentC
   p.animFrame = 0;
   p.animTimer = 0;
 }
-// Yamato Pass-Through Attack (R key for player 1, U key for player 2)
-if (k === controls.attack && p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO && p.dashCooldown === 0 && p.onGround) {
-  // Yamato special dash - passes through opponent
-  p.yamatoPassThrough = true;
-  p.yamatoPassThroughTimer = 20; // Duration of pass-through effect
-  
-  if (p.charId === 'vergil') {
-    p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
-    p.isTeleporting = true;
-    p.teleportAlpha = 0.3;
-    p.vx = p.facing * DASH_SPEED * 1.5; // Faster than normal dash
-  }
-  
-  p.dash = DASH_FRAMES;
-  p.dashCooldown = DASH_COOLDOWN;
-  spawnDashEffects(p);
-  console.log(`${p.name} used Yamato Pass-Through Attack!`);
-}
   }
 
   for (let pid = 0; pid < 2; pid++) {
@@ -935,131 +925,190 @@ document.addEventListener("keyup", function(e) {
 });
 
 function handleDashAttack() {
+  // Check if both players are dashing and colliding simultaneously
+  let simultaneousCollision = false;
+  let p1 = players[0], p2 = players[1];
+  
+  if (p1.alive && p2.alive && p1.dash > 0 && p2.dash > 0 && !p1.hasDashHit && !p2.hasDashHit) {
+    if (p1.x < p2.x + p2.w && p1.x + p1.w > p2.x && p1.y < p2.y + p2.h && p1.y + p1.h > p2.y) {
+      simultaneousCollision = true;
+    }
+  }
+  
+  if (simultaneousCollision) {
+    // Handle simultaneous collision fairly
+    handleSimultaneousDashCollision(p1, p2);
+    return;
+  }
+  
+  // Normal single-player dash handling
   for (let i = 0; i < 2; ++i) {
     let p = players[i], opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
     
     if (p.dash > 0 && !p.hasDashHit) {
       if (p.x < opp.x + opp.w && p.x + p.w > opp.x && p.y < opp.y + opp.h && p.y + p.h > opp.y) {
-        
-        // VERGIL WITH YAMATO - Original pass-through behavior (normal dash)
-        if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-          if (opp.justHit === 0) {
-            interruptJudgmentCut(opp);
-            opp.hp -= DASH_DAMAGE;
-            opp.justHit = 16;
-                      opp.hitstun = HEAVY_HITSTUN_FRAMES;
-          opp.inHitstun = true;
-            createImpactEffect(p, opp, 'dash');
-            
-            // Original slight knockback (not the strong bounce)
-            if (opp.dizzy > 0) {
-              let dir = (p.x + p.w/2 < opp.x + opp.w/2) ? 1 : -1;
-              opp.vx = dir * DIZZY_KNOCKBACK_X;
-              opp.vy = DIZZY_KNOCKBACK_Y;
-            } else {
-              opp.vx = (p.facing || 1) * 8;
-              opp.vy = -8;
-            }
-            
-            if (opp.hp <= 0) { 
-              opp.hp = 0; 
-              opp.alive = false; 
-              winner = p.id; 
-            }
-            
-            console.log(`${p.name} slashed through ${opp.name} with Yamato! ⚔️`);
-          }
-          p.hasDashHit = true;
-          continue;
-        }
-        
-        // YAMATO SPECIAL ATTACK (R/U keys) - Pass-through attack
-        if (p.yamatoPassThrough) {
-          if (opp.justHit === 0) {
-            interruptJudgmentCut(opp);
-            opp.hp -= DASH_DAMAGE;
-            opp.justHit = 16;
-                      opp.hitstun = HEAVY_HITSTUN_FRAMES;
-          opp.inHitstun = true;
-            createImpactEffect(p, opp, 'dash');
-            
-            if (opp.hp <= 0) { 
-              opp.hp = 0; 
-              opp.alive = false; 
-              winner = p.id; 
-            }
-            console.log(`${p.name} used Yamato Special Pass-Through! ⚔️💨`);
-          }
-          continue; // Don't stop dash, pass through
-        }
-        
-        let isBlocking = false;
-        if (opp.blocking && opp.block > 0 && !opp.dizzy) {
-          if (opp.facing === -Math.sign(p.vx || p.facing)) {
-            isBlocking = true;
-          }
-        }
-        
-        if (isBlocking) {
-          interruptJudgmentCut(opp);
-          p.dizzy = DIZZY_FRAMES;
-          p.vx = opp.facing * BLOCK_PUSHBACK_X;
-          p.vy = BLOCK_PUSHBACK_Y;
-          p.hasDashHit = true;
-          createImpactEffect(p, opp, 'block');
-          continue;
-        }
-        
-        if (opp.justHit === 0 && (!opp.blocking || !isBlocking || opp.block <= 0)) {
-          interruptJudgmentCut(opp);
-          opp.hp -= DASH_DAMAGE;
-          opp.justHit = 16;
-                    opp.hitstun = HEAVY_HITSTUN_FRAMES;
-          opp.inHitstun = true;
-          
-          // UNIVERSAL BOUNCE SYSTEM - All characters EXCEPT Vergil with Yamato
-         const pushDirection = p.facing; // Use attacker's facing direction
-          
-          if (opp.dizzy > 0) {
-            // Extra strong bounce when dizzy
-            opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X * 1.5;
-            opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y - 3;
-          } else {
-            // Strong universal bounce for all characters
-            opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X;
-            opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y;
-          }
-          
-          opp.isBeingKnockedBack = true;
-          
-          // Attacker gets small recoil (realistic collision)
-          p.vx *= 0.3;
-          
-          // Add bouncing visual effect
-          opp.bounceEffect = {
-            duration: 25,
-            intensity: Math.abs(opp.vx) * 0.5,
-            alpha: 1.0,
-            bounceCount: 0,
-            maxBounces: 2
-          };
-          
-          // Create impact effect based on weapon
-          if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-            createImpactEffect(p, opp, 'beowulf-dash');
-            console.log(`💥 ${p.name} punched ${opp.name} with Beowulf! Force: ${Math.abs(opp.vx).toFixed(1)}`);
-          } else {
-            createImpactEffect(p, opp, 'dash');
-            console.log(`💥 ${p.name} sent ${opp.name} flying! Force: ${Math.abs(opp.vx).toFixed(1)}`);
-          }
-          
-          if (opp.hp <= 0) { opp.hp = 0; opp.alive = false; winner = p.id; }
-          p.hasDashHit = true;
-        }
+        handleSingleDashHit(p, opp);
       }
     }
     if (p.dash === 0) p.hasDashHit = false;
+  }
+}
+
+function handleSimultaneousDashCollision(p1, p2) {
+  console.log("⚡ Simultaneous dash collision detected!");
+  
+  // Both players check blocking simultaneously
+  let p1Blocking = p2.blocking && p2.block > 0 && !p2.dizzy && (p2.facing === -Math.sign(p1.vx || p1.facing));
+  let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && (p1.facing === -Math.sign(p2.vx || p2.facing));
+  
+  if (p1Blocking && p2Blocking) {
+    // Both blocking - both get pushed back
+    p1.dizzy = DIZZY_FRAMES;
+    p2.dizzy = DIZZY_FRAMES;
+    p1.vx = p2.facing * BLOCK_PUSHBACK_X;
+    p2.vx = p1.facing * BLOCK_PUSHBACK_X;
+    p1.vy = p2.vy = BLOCK_PUSHBACK_Y;
+    createImpactEffect(p1, p2, 'block');
+    createImpactEffect(p2, p1, 'block');
+  } else if (p1Blocking) {
+    // Only P2 blocked
+    p2.dizzy = DIZZY_FRAMES;
+    p2.vx = p1.facing * BLOCK_PUSHBACK_X;
+    p2.vy = BLOCK_PUSHBACK_Y;
+    createImpactEffect(p2, p1, 'block');
+  } else if (p2Blocking) {
+    // Only P1 blocked
+    p1.dizzy = DIZZY_FRAMES;
+    p1.vx = p2.facing * BLOCK_PUSHBACK_X;
+    p1.vy = BLOCK_PUSHBACK_Y;
+    createImpactEffect(p1, p2, 'block');
+  } else {
+    // Neither blocking - clash!
+    if (p1.justHit === 0 && p2.justHit === 0) {
+      // Equal damage to both
+      p1.hp -= DASH_DAMAGE;
+      p2.hp -= DASH_DAMAGE;
+      p1.justHit = p2.justHit = 16;
+      p1.hitstun = p2.hitstun = HITSTUN_FRAMES;
+      p1.inHitstun = p2.inHitstun = true;
+      
+      // Equal knockback in opposite directions
+      const clashKnockback = 25;
+      p1.vx = -clashKnockback;
+      p2.vx = clashKnockback;
+      p1.vy = p2.vy = -8;
+      
+      createImpactEffect(p1, p2, 'dash');
+      createImpactEffect(p2, p1, 'dash');
+      
+       // Check for simultaneous death (draw)
+      if (p1.hp <= 0 && p2.hp <= 0) {
+        p1.hp = p2.hp = 0;
+        p1.alive = p2.alive = false;
+        winner = "draw"; // Special draw state
+        console.log("💀 DOUBLE KO! It's a draw!");
+      } else if (p1.hp <= 0) {
+        p1.hp = 0;
+        p1.alive = false;
+        winner = 1;
+      } else if (p2.hp <= 0) {
+        p2.hp = 0;
+        p2.alive = false;
+        winner = 0;
+      }
+      
+      console.log("💥 DASH CLASH! Both players take damage!");
+    }
+  }
+  
+  p1.hasDashHit = p2.hasDashHit = true;
+}
+
+function handleSingleDashHit(p, opp) {
+  // CHECK FOR BLOCKING FIRST
+  let isBlocking = false;
+  if (opp.blocking && opp.block > 0 && !opp.dizzy) {
+    if (opp.facing === -Math.sign(p.vx || p.facing)) {
+      isBlocking = true;
+    }
+  }
+  
+  if (isBlocking) {
+    interruptJudgmentCut(opp);
+    p.dizzy = DIZZY_FRAMES;
+    p.vx = opp.facing * BLOCK_PUSHBACK_X;
+    p.vy = BLOCK_PUSHBACK_Y;
+    p.hasDashHit = true;
+    createImpactEffect(p, opp, 'block');
+    return;
+  }
+  
+  // DAMAGE PHASE
+  if (opp.justHit === 0) {
+    interruptJudgmentCut(opp);
+    opp.hp -= DASH_DAMAGE;
+    opp.justHit = 16;
+    opp.hitstun = HEAVY_HITSTUN_FRAMES;
+    opp.inHitstun = true;
+    
+    // Apply weapon-specific knockback
+    if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+      createImpactEffect(p, opp, 'dash');
+      if (opp.dizzy > 0) {
+        opp.vx = p.facing * DIZZY_KNOCKBACK_X;
+        opp.vy = DIZZY_KNOCKBACK_Y;
+      } else {
+        opp.vx = p.facing * 8;
+        opp.vy = -8;
+      }
+      console.log(`${p.name} slashed ${opp.name} with Yamato! ⚔️`);
+    } else {
+      // Universal knockback system
+      const pushDirection = p.facing;
+      if (opp.dizzy > 0) {
+        opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X * 1.5;
+        opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y - 3;
+      } else {
+        opp.vx = pushDirection * UNIVERSAL_DASH_KNOCKBACK_X;
+        opp.vy = UNIVERSAL_DASH_KNOCKBACK_Y;
+      }
+      
+      opp.isBeingKnockedBack = true;
+      p.vx *= 0.3; // Attacker recoil
+      
+      opp.bounceEffect = {
+        duration: 25,
+        intensity: Math.abs(opp.vx) * 0.5,
+        alpha: 1.0,
+        bounceCount: 0,
+        maxBounces: 2
+      };
+      
+      if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        createImpactEffect(p, opp, 'beowulf-dash');
+        console.log(`💥 ${p.name} punched ${opp.name} with Beowulf! Force: ${Math.abs(opp.vx).toFixed(1)}`);
+      } else {
+        createImpactEffect(p, opp, 'dash');
+        console.log(`💥 ${p.name} sent ${opp.name} flying! Force: ${Math.abs(opp.vx).toFixed(1)}`);
+      }
+    }
+    
+        if (opp.hp <= 0) { 
+      opp.hp = 0; 
+      opp.alive = false; 
+      
+      // Check if attacker also died (rare but possible with recoil damage)
+      if (p.hp <= 0) {
+        p.hp = 0;
+        p.alive = false;
+        winner = "draw";
+        console.log("💀 DOUBLE KO! Both players defeated!");
+      } else {
+        winner = p.id;
+      }
+    }
+    p.hasDashHit = true;
   }
 }
 
@@ -1074,7 +1123,13 @@ function updateUI() {
   document.getElementById("p2nameui").style.color = players[1].color;
   
   if(winner !== null) {
-    document.getElementById("winner").textContent = `Winner: ${players[winner].name || `Player ${winner+1}`}`;
+    if (winner === "draw") {
+      document.getElementById("winner").textContent = "DRAW - Both Players Defeated!";
+      document.getElementById("winner").style.color = "#ff6b6b";
+    } else {
+      document.getElementById("winner").textContent = `Winner: ${players[winner].name || `Player ${winner+1}`}`;
+      document.getElementById("winner").style.color = "#ffeb3b";
+    }
   } else {
     document.getElementById("winner").textContent = "";
   }
@@ -1139,14 +1194,7 @@ function updatePlayer(p, pid) {
 
   if (p.charId === 'vergil') {
     if (p.judgementCutCooldown > 0) p.judgementCutCooldown--;
-        // Update Beowulf push effect
-// Update Yamato pass-through effect
-if (p.yamatoPassThroughTimer > 0) {
-  p.yamatoPassThroughTimer--;
-  if (p.yamatoPassThroughTimer <= 0) {
-    p.yamatoPassThrough = false;
-  }
-}
+
     if (p.judgmentCutCharging) {
         const chargeTime = performance.now() - p.judgmentCutChargeStart;
         p.judgmentCutChargeLevel = Math.min(chargeTime / JUDGMENT_CUT_CHARGE.MAX_CHARGE_TIME, 1.0);
@@ -1772,20 +1820,29 @@ function draw() {
       ctx.restore();
     }
 
-    // Draw player sprite with dynamic scaling
     let anim = getAnimForPlayer(p);
     let spritesheet = anim && spritesheetCache[anim.src];
     
     ctx.save();
     
-    // Apply Vergil's teleport transparency
+        // Apply Vergil's teleport transparency
     if (p.charId === 'vergil' && p.teleportAlpha < 1.0) {
       ctx.globalAlpha = p.teleportAlpha;
+    }
+    
+    // MINECRAFT-STYLE RED DAMAGE FLICKER (Sprite Only)
+    if (p.justHit > 0 || p.inHitstun) {
+      const flickerIntensity = Math.sin(performance.now() / 100) > 0 ? 1 : 0;
+      if (flickerIntensity > 0) {
+        // Apply red filter to the sprite itself
+        ctx.filter = "saturate(0) sepia(1) saturate(5) hue-rotate(315deg) brightness(1.1)";
+      }
     }
     
     if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
       const scaleX = p.w / anim.w;
       const scaleY = p.h / anim.h;
+      
       
       if (p.facing === 1) {
         ctx.save();
@@ -1797,8 +1854,19 @@ function draw() {
       } else {
         ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, p.x, p.y, p.w, p.h);
       }
-    } else {
-      ctx.fillStyle = p.color;
+    
+        } else {
+      if (p.justHit > 0 || p.inHitstun) {
+        const flickerIntensity = Math.sin(performance.now() / 80) > 0 ? 1 : 0;
+        if (flickerIntensity > 0) {
+          ctx.fillStyle = "#ff4444"; // Red tint
+        } else {
+          ctx.fillStyle = p.color;
+        }
+      } else {
+        ctx.fillStyle = p.color;
+      }
+      
       ctx.strokeStyle = PLAYER_OUTLINE;
       ctx.lineWidth = 3;
       ctx.fillRect(p.x, p.y, p.w, p.h);
@@ -1818,15 +1886,8 @@ function draw() {
     
     ctx.restore();
 
-    // Draw hit effect
-    if (p.justHit > 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.2 + 0.2 * Math.sin(performance.now()/30);
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(p.x-3, p.y-3, p.w+6, p.h+6);
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    }
+    //test white rect lies here before
+
         // Draw bounce effect
     if (p.bounceEffect) {
       ctx.save();
@@ -2063,16 +2124,23 @@ for (let p of players) {
 if(winner !== null) {
   ctx.font = "44px Arial";
   ctx.textAlign = "center";
-  ctx.fillStyle = "#ffeb3b";
-  ctx.fillText(`${players[winner].name || `Player ${winner+1}`} Wins!`, WIDTH/2, HEIGHT/2);
-}
-  // Draw winner text
-  if(winner !== null) {
-    ctx.font = "44px Arial";
-    ctx.textAlign = "center";
+  
+  if (winner === "draw") {
+    ctx.fillStyle = "#ff6b6b";
+    ctx.strokeStyle = "#2c2c2c";
+    ctx.lineWidth = 3;
+    ctx.strokeText("DRAW!", WIDTH/2, HEIGHT/2 - 20);
+    ctx.fillText("DRAW!", WIDTH/2, HEIGHT/2 - 20);
+    
+    ctx.font = "28px Arial";
+    ctx.fillStyle = "#ffeb3b";
+    ctx.strokeText("Both Players Defeated!", WIDTH/2, HEIGHT/2 + 20);
+    ctx.fillText("Both Players Defeated!", WIDTH/2, HEIGHT/2 + 20);
+  } else {
     ctx.fillStyle = "#ffeb3b";
     ctx.fillText(`${players[winner].name || `Player ${winner+1}`} Wins!`, WIDTH/2, HEIGHT/2);
   }
+}
 }
 
 function gameLoop() {
