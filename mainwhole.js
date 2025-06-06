@@ -63,9 +63,9 @@ const DASH_COOLDOWN = 36, DASH_FRAMES = 8, DASH_DAMAGE = 10;
 const JUDGMENT_CUT_TRIGGER_RANGE = 150; 
 const VERGIL_WEAPONS = {
     YAMATO: 'yamato',
-    BEOWULF: 'beowulf'
+    BEOWULF: 'beowulf',
+    MIRAGE_BLADE: 'mirage_blade'
 };
-
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
 const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 38;
 const UNIVERSAL_DASH_KNOCKBACK_X = 50; // New universal dash knockback
@@ -225,6 +225,135 @@ function drawImpactEffects(ctx) {
       ctx.restore();
     }
   }
+}
+function executeBeowulfUppercut(player, chargeTime) {
+  player.beowulfCharging = false;
+  player.beowulfChargeType = null;
+  
+  // Charge level affects power (300ms to 1500ms)
+  const maxChargeTime = 1500;
+  const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
+  const minSpeed = 12; // Was 8 - much faster launch
+  const maxSpeed = 18; // Was 14 - very explosive launch
+  const uppercutSpeed = minSpeed + (chargeRatio * (maxSpeed - minSpeed));
+  
+  player.vy = -uppercutSpeed; // Speed scales from -12 to -20 (FAST!)
+  player.vx = 0; // NO horizontal movement - straight up only
+  player.dash = DASH_FRAMES; // Give dash frames for hit detection
+  player.dashCooldown = DASH_COOLDOWN;
+  
+  // Special uppercut state
+  player.isUppercutting = true;
+  player.uppercutPower = chargeRatio;
+  player.animState = "beowulf-uppercut";
+  player.animFrame = 0;
+  player.animTimer = 0;
+  
+  console.log(`${player.name} unleashes Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% 👊⬆️💥`);
+}
+
+function handleBeowulfDiveKick(player) {
+  // Check if hit ground
+  if (player.onGround && player.beowulfDiveKick) {
+    player.beowulfDiveKick = false;
+    player.isDiveKicking = false; // Stop maintaining momentum
+    player.beowulfGroundImpact = true;
+    
+    // Create explosion effect at impact point
+    const impactX = player.x + player.w/2;
+    const impactY = player.y + player.h;
+    
+    // Damage and knockup enemies in radius
+    for (let i = 0; i < players.length; i++) {
+      const opponent = players[i];
+      if (opponent !== player && opponent.alive) {
+        const dx = (opponent.x + opponent.w/2) - impactX;
+        const dy = (opponent.y + opponent.h/2) - impactY;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        
+        if (distance <= player.beowulfImpactRadius) {
+          // Hit opponent
+          if (opponent.justHit === 0) {
+            const damage = 15; // Fixed damage
+            opponent.hp -= damage;
+            opponent.justHit = 20;
+            opponent.hitstun = HEAVY_HITSTUN_FRAMES;
+            opponent.inHitstun = true;
+            
+            // Knockup effect
+            const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
+            opponent.vy = -knockupForce;
+            opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.5);
+            
+            createImpactEffect(player, opponent, 'beowulf-dash');
+            
+            if (opponent.hp <= 0) {
+              opponent.hp = 0;
+              opponent.alive = false;
+              winner = player.id;
+            }
+            
+            console.log(`${player.name}'s Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
+          }
+        }
+      }
+    }
+    
+    // Create explosion particles
+    for (let i = 0; i < 12; i++) {
+      particles.push({
+        type: "explosion",
+        x: impactX + (Math.random() - 0.5) * player.beowulfImpactRadius,
+        y: impactY + (Math.random() - 0.5) * 30,
+        life: 25,
+        vx: (Math.random() - 0.5) * 8,
+        vy: Math.random() * -5 - 2
+      });
+    }
+    
+    // Reset to normal state
+    setTimeout(() => {
+      player.beowulfGroundImpact = false;
+      player.animState = "idle";
+      player.animFrame = 0;
+      player.animTimer = 0;
+    }, 300);
+    
+    console.log(`${player.name}'s Diagonal Dive Kick creates ground explosion! 💥🌊`);
+  }
+}
+
+function handleBeowulfUppercutHit(attacker, opponent) {
+  if (attacker.isUppercutting && opponent.justHit === 0) {
+    const damage = 12 + (attacker.uppercutPower * 8); // 12-20 damage based on charge
+    opponent.hp -= damage;
+    opponent.justHit = 20;
+    opponent.hitstun = HEAVY_HITSTUN_FRAMES;
+    opponent.inHitstun = true;
+    
+     // MATCH VELOCITIES - Both players get same upward speed for combo potential
+    const knockupPower = 15 + (attacker.uppercutPower * 10); // 15-25 upward force
+    
+    // Give opponent the SAME upward velocity as attacker
+    opponent.vy = attacker.vy; // Exact same upward speed
+    opponent.vx = attacker.facing * (6 + attacker.uppercutPower * 4); // Slight horizontal push
+    
+    createImpactEffect(attacker, opponent, 'beowulf-dash');
+    
+    if (opponent.hp <= 0) {
+      opponent.hp = 0;
+      opponent.alive = false;
+      winner = attacker.id;
+    }
+    
+    // End uppercut state
+    attacker.isUppercutting = false;
+    attacker.uppercutPower = 0;
+    
+    console.log(`${attacker.name}'s Rising Uppercut launches ${opponent.name} skyward! 👊⬆️💫`);
+    return true;
+  }
+  return false;
 }
 
 function pauseGame(reason) {
@@ -497,6 +626,45 @@ function interruptJudgmentCut(player) {
   }
   return false;
 }
+
+function handleDiveKickFlightDamage(attacker) {
+  if (!attacker.beowulfDiveKick || !attacker.isDiveKicking) return;
+  
+  // Check collision with all other players
+  for (let i = 0; i < players.length; i++) {
+    const opponent = players[i];
+    if (opponent === attacker || !opponent.alive) continue;
+    
+    // Simple collision check
+    if (attacker.x < opponent.x + opponent.w &&
+        attacker.x + attacker.w > opponent.x &&
+        attacker.y < opponent.y + opponent.h &&
+        attacker.y + attacker.h > opponent.y) {
+      
+      // Hit during flight
+      if (opponent.justHit === 0) {
+        const flightDamage = 12;
+        opponent.hp -= flightDamage;
+        opponent.justHit = 20;
+        opponent.hitstun = 15;
+        opponent.inHitstun = true;
+        
+        // Knockback
+        opponent.vy = -5;
+        opponent.vx = attacker.beowulfDiveDirection * 8;
+        
+        // Check if defeated
+        if (opponent.hp <= 0) {
+          opponent.hp = 0;
+          opponent.alive = false;
+          winner = attacker.id;
+        }
+        
+        console.log(`${attacker.name}'s Dive Kick hits ${opponent.name} during flight! Damage: ${flightDamage}`);
+      }
+    }
+  }
+}
 function isOpponentInJudgmentCutRange(caster) {
     for (let i = 0; i < players.length; i++) {
         const opponent = players[i];
@@ -535,9 +703,6 @@ function dealJudgmentCutDamage(effect) {
                 const knockbackX = (opponent.x < character.x ? -1 : 1) * 15;
                 const knockbackY = -12;
                 knockback(character, opponent, knockbackX, knockbackY);
-                
-                // Create impact effect
-                createImpactEffect(character, opponent, 'dash');
                 
                if (opponent.hp <= 0) { 
         opponent.hp = 0; 
@@ -806,34 +971,71 @@ document.addEventListener("keydown", function(e) {
     if (!p.alive) continue;
     
 const controls = getControls(pid);
-if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0 && p.onGround) {
-  // Yamato can use Judgment Cut, Beowulf has different special
+if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
   if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-    if (isOpponentInJudgmentCutRange(p)) {
-      p.judgmentCutCharging = true;
-      p.judgmentCutChargeStart = performance.now();
-      p.judgmentCutChargeLevel = 0;
-      p.animState = "charging";
+    // YAMATO - Judgment Cut (only on ground)
+    if (p.onGround) {
+      if (isOpponentInJudgmentCutRange(p)) {
+        p.judgmentCutCharging = true;
+        p.judgmentCutChargeStart = performance.now();
+        p.judgmentCutChargeLevel = 0;
+        p.animState = "charging";
+        p.animFrame = 0;
+        p.animTimer = 0;
+      } else {
+        rangeWarningText.show = true;
+        rangeWarningText.timer = 60;
+      }
+    }
+  } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    // BEOWULF SPECIAL ATTACKS
+    if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+      // GROUND: Rising Uppercut
+      p.beowulfCharging = true;
+      p.beowulfChargeStart = performance.now();
+      p.beowulfChargeType = 'uppercut';
+      p.animState = "beowulf-charging";
       p.animFrame = 0;
       p.animTimer = 0;
-    } else {
-      rangeWarningText.show = true;
-      rangeWarningText.timer = 60;
+      console.log(`${p.name} is charging Beowulf Rising Uppercut! 👊⬆️`);
+      } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+      // Check if high enough for Kamen Rider kick
+      const currentHeight = GROUND - (p.y + p.h); // Calculate current height above ground
+      
+      if (currentHeight >= 100) {
+        // AIR: Dive Kick - SUPER DIAGONAL like Kamen Rider
+        p.beowulfDiveKick = true;
+        p.beowulfDiveDirection = p.facing; // Store facing direction
+        p.vy = 16; // Fast downward speed
+        p.vx = p.facing * 18; // MUCH stronger horizontal for steep diagonal
+        p.isDiveKicking = true; // Special state to maintain momentum
+        p.animState = "beowulf-divekick";
+        p.animFrame = 0;
+        p.animTimer = 0;
+        console.log(`${p.name} performs SUPER DIAGONAL Kamen Rider Kick! 👊💥`);
+      } else {
+        console.log(`${p.name} not high enough for Kamen Rider kick! Need 100px height 🚫`);
+      }
     }
-  } else {
-    // Beowulf special attack (you can add different ability here later)
-    console.log("Beowulf special attack - Coming Soon!");
+  }
+     else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
+    // MIRAGE BLADE SPECIAL ATTACKS - Coming Soon!
+    console.log(`${p.name} tries to use Mirage Blade special - Not implemented yet! ✨`);
   }
 }
-// Weapon switching for Vergil (Q key for player 1, I key for player 2)
+// Weapon switching for Vergil (Q key for player 1, I key for player 2) - WORKS IN AIR TOO!
 const weaponSwitchKey = pid === 0 ? 'q' : 'i';
-if (k === weaponSwitchKey && p.charId === 'vergil' && p.onGround && !p.judgmentCutCharging) {
+if (k === weaponSwitchKey && p.charId === 'vergil' && !p.judgmentCutCharging && !p.beowulfCharging && !p.beowulfDiveKick) {
+  // Cycle through 3 weapons: Yamato → Beowulf → Mirage Blade → Yamato
   if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
     p.currentWeapon = VERGIL_WEAPONS.BEOWULF;
-    console.log(`${p.name} switched to Beowulf (Gauntlets)!`);
+    console.log(`${p.name} switched to Beowulf (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+  } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    p.currentWeapon = VERGIL_WEAPONS.MIRAGE_BLADE;
+    console.log(`${p.name} switched to Mirage Blade (Magic)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
   } else {
     p.currentWeapon = VERGIL_WEAPONS.YAMATO;
-    console.log(`${p.name} switched to Yamato (Sword)!`);
+    console.log(`${p.name} switched to Yamato (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
   }
   
   // Reset animation to show weapon change
@@ -920,6 +1122,24 @@ document.addEventListener("keyup", function(e) {
           p.animTimer = 0;
         }
       }
+      // ADD BEOWULF UPPERCUT RELEASE
+      if (p.charId === 'vergil' && p.beowulfCharging && p.beowulfChargeType === 'uppercut') {
+        const chargeTime = now - p.beowulfChargeStart;
+const minChargeTime = 200; // Quick tap for short uppercut
+const maxChargeTime = 1500; // Hold for max height
+        if (chargeTime >= minChargeTime) {
+          // Execute Rising Uppercut
+          executeBeowulfUppercut(p, chargeTime);
+        } else {
+          // Cancel if not charged enough
+          p.beowulfCharging = false;
+          p.beowulfChargeType = null;
+          p.animState = "idle";
+          p.animFrame = 0;
+          p.animTimer = 0;
+        }
+      }
+    
     }
   }
 });
@@ -1026,6 +1246,12 @@ function handleSimultaneousDashCollision(p1, p2) {
 }
 
 function handleSingleDashHit(p, opp) {
+  if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.isUppercutting) {
+    if (handleBeowulfUppercutHit(p, opp)) {
+      p.hasDashHit = true;
+      return;
+    }
+  }
   // CHECK FOR BLOCKING FIRST
   let isBlocking = false;
   if (opp.blocking && opp.block > 0 && !opp.dizzy) {
@@ -1177,6 +1403,32 @@ function drawParticles(ctx) {
       ctx.arc(e.x, e.y, 14, 0, 2 * Math.PI);
       ctx.fill();
       ctx.restore();
+    } else if (e.type === "explosion") {
+      ctx.save();
+      ctx.globalAlpha = e.life/25 * 0.8;
+      ctx.fillStyle = "#ff6b35";
+      ctx.strokeStyle = "#ffeb3b";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 8, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      e.x += e.vx;
+      e.y += e.vy;
+      e.vy += 0.3; // Gravity on explosion particles
+      ctx.restore();
+    } else if (e.type === "failedKick") {
+      ctx.save();
+      ctx.globalAlpha = e.life/30 * 0.8;
+      ctx.font = "bold 12px Arial";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ff4444";
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 2;
+      ctx.strokeText(e.text, e.x, e.y);
+      ctx.fillText(e.text, e.x, e.y);
+      e.y -= 1; // Float upward
+      ctx.restore();
     }
   }
 }
@@ -1192,8 +1444,26 @@ const platforms = [
 function updatePlayer(p, pid) {
   if (!p.alive) return;
 
-  if (p.charId === 'vergil') {
+      if (p.charId === 'vergil') {
     if (p.judgementCutCooldown > 0) p.judgementCutCooldown--;
+    
+    // ADD BEOWULF UPDATES
+    if (p.beowulfDiveKick) {
+      handleBeowulfDiveKick(p);
+      handleDiveKickFlightDamage(p); // Check for damage during flight
+    }
+    
+    // MAINTAIN SUPER DIAGONAL MOMENTUM
+    if (p.isDiveKicking && p.beowulfDiveKick) {
+      // Keep VERY strong diagonal movement during dive
+      p.vy = Math.max(p.vy, 14); // Faster downward speed
+      p.vx = p.beowulfDiveDirection * 16; // Much stronger horizontal speed
+    }
+    
+    if (p.isUppercutting && p.dash <= 0) {
+      p.isUppercutting = false;
+      p.uppercutPower = 0;
+    }
 
     if (p.judgmentCutCharging) {
         const chargeTime = performance.now() - p.judgmentCutChargeStart;
@@ -1409,6 +1679,23 @@ if (p.charId === 'vergil' && p.judgmentCutCharging) {
   }
   return;
 }
+
+// ADD BEOWULF CHARGING STATE
+if (p.charId === 'vergil' && p.beowulfCharging && p.beowulfChargeType === 'uppercut') {
+  // If not on ground while charging uppercut, cancel
+  if (!p.onGround) {
+    p.beowulfCharging = false;
+    p.beowulfChargeType = null;
+    return;
+  }
+  
+  if (p.animState !== "beowulf-charging") {
+    p.animState = "beowulf-charging";
+    p.animFrame = 0;
+    p.animTimer = 0;
+  }
+  return;
+}
   
   if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
     if (p.animState !== "sheathing") {
@@ -1538,7 +1825,7 @@ const characterSprites = {
     victory: { src: "chicken-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
   },
 vergil: {
-    // Yamato (sword) sprites
+    // Yamato sprite
     idle: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     dash: { src: "vergil-dash.png", frames: 3, w: 100, h: 100, speed: 4 },
     walk: { src: "vergil-walk.png", frames: 3, w: 100, h: 100, speed: 6 },
@@ -1549,15 +1836,21 @@ vergil: {
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
-    
-    // Beowulf (gauntlet) sprites
+    // Beowulf sprite
     'beowulf-idle': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
     'beowulf-block': { src: "vergil-beowulf-block.png", frames: 3, w: 100, h: 100, speed: 6 },
     'beowulf-blocking': { src: "vergil-beowulf-blocking.png", frames: 2, w: 100, h: 100, speed: 8 },
     'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 }
+    'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+       'beowulf-charging': { src: "vergil-beowulf-charging.png", frames: 4, w: 100, h: 100, speed: 8 },
+    'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
+    'beowulf-divekick': { src: "vergil-beowulf-divekick.png", frames: 3, w: 100, h: 100, speed: 4 },
+    //Mirage Blade sprite
+      'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
+    'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
 }
 };
 
@@ -1593,7 +1886,16 @@ const players = [
     bounceEffect: null,
     isBeingKnockedBack: false,
     hitstun: 0,
-    inHitstun: false
+    inHitstun: false,
+        // Beowulf special attack properties
+    beowulfCharging: false,
+    beowulfChargeStart: 0,
+    beowulfChargeType: null, // 'uppercut' or null
+    beowulfDiveKick: false,
+    beowulfDiveDirection: 1,
+    beowulfGroundImpact: false,
+    beowulfImpactRadius: 80,
+        isDiveKicking: false // NEW: Maintains diagonal momentum
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -1614,7 +1916,16 @@ const players = [
     bounceEffect: null,
     isBeingKnockedBack: false,
     hitstun: 0,
-    inHitstun: false
+    inHitstun: false,
+        // Beowulf special attack properties
+    beowulfCharging: false,
+    beowulfChargeStart: 0,
+    beowulfChargeType: null, // 'uppercut' or null
+    beowulfDiveKick: false,
+    beowulfDiveDirection: 1,
+    beowulfGroundImpact: false,
+    beowulfImpactRadius: 80,
+        isDiveKicking: false // NEW: Maintains diagonal momentum
   }
 ];
 let winner = null;
@@ -1938,7 +2249,13 @@ if (p.name) {
   
   // Draw weapon indicator for Vergil
   if (p.charId === 'vergil') {
-    const weaponText = p.currentWeapon === VERGIL_WEAPONS.YAMATO ? "⚔️" : "👊";
+    let weaponText = "⚔️"; // Default Yamato
+    if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+      weaponText = "👊";
+    } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
+      weaponText = "🗡️"; // Or use ✨ or 🔮 for magic blade
+    }
+    
     ctx.font = "12px Arial";
     ctx.strokeText(weaponText, p.x + p.w/2, p.y - 12);
     ctx.fillStyle = "#fff";
