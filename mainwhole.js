@@ -233,11 +233,12 @@ function executeBeowulfUppercut(player, chargeTime) {
   // Charge level affects power (300ms to 1500ms)
   const maxChargeTime = 1500;
   const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
-  const minSpeed = 12; // Was 8 - much faster launch
-  const maxSpeed = 18; // Was 14 - very explosive launch
-  const uppercutSpeed = minSpeed + (chargeRatio * (maxSpeed - minSpeed));
   
-  player.vy = -uppercutSpeed; // Speed scales from -12 to -20 (FAST!)
+  const minHeight = 8;
+  const maxHeight = 14;
+  const uppercutHeight = minHeight + (chargeRatio * (maxHeight - minHeight));
+  
+  player.vy = -uppercutHeight; // Height scales from -8 to -14
   player.vx = 0; // NO horizontal movement - straight up only
   player.dash = DASH_FRAMES; // Give dash frames for hit detection
   player.dashCooldown = DASH_COOLDOWN;
@@ -625,45 +626,6 @@ function interruptJudgmentCut(player) {
     return true;
   }
   return false;
-}
-
-function handleDiveKickFlightDamage(attacker) {
-  if (!attacker.beowulfDiveKick || !attacker.isDiveKicking) return;
-  
-  // Check collision with all other players
-  for (let i = 0; i < players.length; i++) {
-    const opponent = players[i];
-    if (opponent === attacker || !opponent.alive) continue;
-    
-    // Simple collision check
-    if (attacker.x < opponent.x + opponent.w &&
-        attacker.x + attacker.w > opponent.x &&
-        attacker.y < opponent.y + opponent.h &&
-        attacker.y + attacker.h > opponent.y) {
-      
-      // Hit during flight
-      if (opponent.justHit === 0) {
-        const flightDamage = 12;
-        opponent.hp -= flightDamage;
-        opponent.justHit = 20;
-        opponent.hitstun = 15;
-        opponent.inHitstun = true;
-        
-        // Knockback
-        opponent.vy = -5;
-        opponent.vx = attacker.beowulfDiveDirection * 8;
-        
-        // Check if defeated
-        if (opponent.hp <= 0) {
-          opponent.hp = 0;
-          opponent.alive = false;
-          winner = attacker.id;
-        }
-        
-        console.log(`${attacker.name}'s Dive Kick hits ${opponent.name} during flight! Damage: ${flightDamage}`);
-      }
-    }
-  }
 }
 function isOpponentInJudgmentCutRange(caster) {
     for (let i = 0; i < players.length; i++) {
@@ -1444,16 +1406,15 @@ const platforms = [
 function updatePlayer(p, pid) {
   if (!p.alive) return;
 
-      if (p.charId === 'vergil') {
+    if (p.charId === 'vergil') {
     if (p.judgementCutCooldown > 0) p.judgementCutCooldown--;
     
     // ADD BEOWULF UPDATES
     if (p.beowulfDiveKick) {
       handleBeowulfDiveKick(p);
-      handleDiveKickFlightDamage(p); // Check for damage during flight
     }
     
-    // MAINTAIN SUPER DIAGONAL MOMENTUM
+     // MAINTAIN SUPER DIAGONAL MOMENTUM
     if (p.isDiveKicking && p.beowulfDiveKick) {
       // Keep VERY strong diagonal movement during dive
       p.vy = Math.max(p.vy, 14); // Faster downward speed
