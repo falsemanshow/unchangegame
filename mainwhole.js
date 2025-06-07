@@ -54,7 +54,8 @@ const JUDGMENT_CUT_CHARGE = {
 };
 
 const WIDTH = 900, HEIGHT = 600;
-const GRAVITY = 0.7, FRICTION = 0.7, GROUND = HEIGHT - 60;
+const GRAVITY = 0.7
+, FRICTION = 0.7, GROUND = HEIGHT - 60;
 const PLATFORM_HEIGHT = 20, PLAYER_SIZE = 50, PLAYER_SPEED = 5;
 const DASH_SPEED = 13, DASH_WINDOW = 250, JUMP_VEL = 15, MAX_JUMPS = 2;
 const PLAYER_HP = 120, PLATFORM_COLOR = "#ffd54f", PLATFORM_EDGE = "#ffb300";
@@ -313,6 +314,12 @@ function handleBeowulfDiveKick(player) {
                     opponent.justHit = 20;
                     opponent.hitstun = HEAVY_HITSTUN_FRAMES;
                     opponent.inHitstun = true;
+                    // Set air hitstun if hit in air
+if (!opponent.onGround) {
+  opponent.airHitstun = true;
+} else {
+  opponent.airHitstun = false;
+}
 
                     // Normal knockup effect
                     const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
@@ -388,6 +395,9 @@ function handleBeowulfUppercutHit(attacker, opponent) {
 // Stack hitstun - add to existing hitstun instead of replacing
 opponent.hitstun = Math.max(opponent.hitstun, HEAVY_HITSTUN_FRAMES);
 opponent.inHitstun = true;
+// Always set air hitstun for uppercut since it launches upward
+opponent.airHitstun = true;
+console.log(`${opponent.name} was launched by uppercut and will remain stunned until landing!`);
     
      // MATCH VELOCITIES - Both players get same upward speed for combo potential
     const knockupPower = 15 + (attacker.uppercutPower * 10); // 15-25 upward force
@@ -421,12 +431,10 @@ function handleMirageBladeAttack() {
     if (!p.alive || !opp.alive) continue;
     if (!p.mirageActive) continue;
 
-    // slash area: a rectangle in front of Vergil
+    // Use stored position for slash area
     const slashW = 200, slashH = 100;
-    const sx = p.facing > 0
-      ? p.x + p.w
-      : p.x - slashW;
-    const sy = p.y + (p.h - slashH) / 2;
+    const sx = p.mirageSlashX;
+    const sy = p.mirageSlashY;
 
     // check overlap
     if (sx < opp.x + opp.w && sx + slashW > opp.x &&
@@ -1063,15 +1071,20 @@ if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging &&
       }
     }
   }
-     else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
-        if (p.onGround && !p.mirageActive) {
-        // Activate Mirage Blade special
-        p.mirageActive = true;
-        p.mirageTimer = p.mirageDuration;
-        // TODO: load your big slash sprite into characterImpactEffects or a new cache
-        console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
-      }
+   else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
+  if (p.onGround && !p.mirageActive) {
+    // Activate Mirage Blade special
+    p.mirageActive = true;
+    p.mirageTimer = p.mirageDuration;
+    
+    // Store the initial position of the slash
+    const slashW = 200, slashH = 100;
+    p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
+    p.mirageSlashY = p.y + (p.h - slashH)/2;
+    
+    console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
   }
+}
 }
 // Weapon switching for Vergil (Q key for player 1, I key for player 2) - WORKS IN AIR TOO!
 const weaponSwitchKey = pid === 0 ? 'q' : 'i';
@@ -1286,11 +1299,18 @@ function handleSimultaneousDashCollision(p1, p2) {
   let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && (p1.facing === -Math.sign(p2.vx || p2.facing));
   
   if (p1Blocking && p2Blocking) {
- // Both blocking - both get pushed back
-p1.hitstun = DIZZY_FRAMES;
-p1.inHitstun = true;
-p2.hitstun = DIZZY_FRAMES;
-p2.inHitstun = true;
+    // Both blocking - both get pushed back
+    p1.hitstun = DIZZY_FRAMES;
+    p1.inHitstun = true;
+    p2.hitstun = DIZZY_FRAMES;
+    p2.inHitstun = true;
+    
+    // Set air hitstun if hit in air
+    if (!p1.onGround) p1.airHitstun = true;
+    else p1.airHitstun = false;
+
+    if (!p2.onGround) p2.airHitstun = true;
+    else p2.airHitstun = false;
     p1.vx = p2.facing * BLOCK_PUSHBACK_X;
     p2.vx = p1.facing * BLOCK_PUSHBACK_X;
     p1.vy = p2.vy = BLOCK_PUSHBACK_Y;
@@ -1386,6 +1406,13 @@ p.inHitstun = true;
  // Stack hitstun - add to existing hitstun instead of replacing
 opp.hitstun = Math.max(opp.hitstun, HEAVY_HITSTUN_FRAMES);
 opp.inHitstun = true;
+// Check if opponent was hit in the air
+if (!opp.onGround) {
+  opp.airHitstun = true;
+  console.log(`${opp.name} was hit in mid-air and will remain stunned until landing!`);
+} else {
+  opp.airHitstun = false;
+}
     
     // Apply weapon-specific knockback
     if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
@@ -1647,13 +1674,25 @@ if (effect.phase === 'slide') {
 
   if (updateBlocking(p, pid)) return;
 
-  // Update hitstun
+// Update hitstun
+if (p.inHitstun) {
   if (p.hitstun > 0) {
     p.hitstun--;
-    if (p.hitstun <= 0) {
-      p.inHitstun = false;
-    }
   }
+  
+  // If we're in air hitstun, only end it when we land
+  if (p.airHitstun) {
+    if (p.onGround) {
+      // Player has landed, end the hitstun
+      p.inHitstun = false;
+      p.airHitstun = false;
+      console.log(`${p.name} recovered from air hitstun after landing!`);
+    }
+  } else if (p.hitstun <= 0) {
+    // Normal ground hitstun ends when counter reaches 0
+    p.inHitstun = false;
+  }
+}
 
   if (p.dash > 0) {
     p.dash--;
@@ -1980,7 +2019,7 @@ for (const charId in characterSprites) {
     }
   }
 }
-
+//player initialization
 const players = [
   {
     x: WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -2014,6 +2053,8 @@ const players = [
     mirageTimer: 0,              // countdown till slash disappears
     mirageDuration: 60,          // frames the slash stays on screen
     pauseTimer: 0,  
+    mirageSlashX: 0,      // Store X position of slash when activated
+mirageSlashY: 0, airHitstun: false,
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -2048,6 +2089,8 @@ const players = [
     mirageTimer: 0,              // countdown till slash disappears
     mirageDuration: 60,          // frames the slash stays on screen
     pauseTimer: 0,  
+    mirageSlashX: 0,      // Store X position of slash when activated
+mirageSlashY: 0, airHitstun: false,
   }
 ];
 let winner = null;
@@ -2433,16 +2476,14 @@ if (p.name) {
     ctx.globalAlpha = 1;
     ctx.restore();
   }
-    for (let p of players) {
-    if (p.charId === 'vergil' && p.mirageActive) {
-      // draw big slash sprite at p.x±offset, p.y+offset
-      const img = mirageSlashSprite; // load this Image() elsewhere
-      const slashW = 200, slashH = 100;
-      const drawX = p.facing > 0 ? p.x + p.w : p.x - slashW;
-      const drawY = p.y + (p.h - slashH)/2;
-      ctx.drawImage(img, drawX, drawY, slashW, slashH);
-    }
+   for (let p of players) {
+  if (p.charId === 'vergil' && p.mirageActive) {
+    // draw big slash sprite at stored position
+    const img = mirageSlashSprite;
+    const slashW = 200, slashH = 100;
+    ctx.drawImage(img, p.mirageSlashX, p.mirageSlashY, slashW, slashH);
   }
+}
 
   drawParticles(ctx);
   drawImpactEffects(ctx);
