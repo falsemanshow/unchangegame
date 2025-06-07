@@ -275,9 +275,7 @@ function handleBeowulfDiveKick(player) {
          if (distance <= player.beowulfImpactRadius) {
           // Hit opponent
           if (opponent.justHit === 0) {
-            // CHECK FOR BLOCKING FIRST
-         // ... inside handleBeowulfDiveKick, inside the loop, inside if (opponent.justHit === 0)
-                  // CHECK FOR BLOCKING FIRST
+
                   let isBlocking = false;
                   if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
                     // Ground impact can be blocked from any direction
@@ -1164,6 +1162,59 @@ const maxChargeTime = 1500; // Hold for max height
     }
   }
 });
+
+function handleDiveKickAttack() {
+  for (let i = 0; i < 2; i++) {
+    const p = players[i];
+    const opp = players[1 - i];
+    if (!p.alive || !opp.alive) continue;
+
+    // Only care when Vergil is in dive-kick state
+    if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick) {
+      // Simple AABB check
+      if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
+          p.y < opp.y + opp.h && p.y + p.h > opp.y) {
+
+        // CHECK FOR BLOCK: defender must be crouching on ground
+        if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
+          // Block the dive-kick
+          p.beowulfDiveKick = false;
+          p.isDiveKicking = false;
+
+          p.vy = -4;
+          p.hitstun = HITSTUN_FRAMES;
+          p.inHitstun = true;
+
+          createImpactEffect(opp, p, 'block');
+          console.log(`${opp.name} blocked ${p.name}'s dive kick! 🛡️`);
+        } else {
+          // Normal unblocked mid-air hit
+          const damage = 12;
+          opp.hp -= damage;
+          opp.justHit = 20;
+          opp.hitstun = HEAVY_HITSTUN_FRAMES;
+          opp.inHitstun = true;
+
+          opp.vy = -10;
+
+          // End dive-kick state
+          p.beowulfDiveKick = false;
+          p.isDiveKicking = false;
+
+          createImpactEffect(p, opp, 'beowulf-dash');
+          console.log(`${p.name}'s dive kick hits ${opp.name}! 💥`);
+          
+          // Check for KO
+          if (opp.hp <= 0) {
+            opp.hp = 0;
+            opp.alive = false;
+            winner = p.id;
+          }
+        }
+      }
+    }
+  }
+}
 
 function handleDashAttack() {
   // Check if both players are dashing and colliding simultaneously
@@ -2524,6 +2575,7 @@ function gameLoop() {
       if (p.blockGlowTimer > 0) p.blockGlowTimer--;
     }
     handleDashAttack();
+        handleDiveKickAttack();
     updateImpactEffects();
   }
   
