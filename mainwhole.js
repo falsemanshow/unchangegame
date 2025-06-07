@@ -276,58 +276,61 @@ function handleBeowulfDiveKick(player) {
           // Hit opponent
           if (opponent.justHit === 0) {
             // CHECK FOR BLOCKING FIRST
-            let isBlocking = false;
-            if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
-              // Ground impact can be blocked from any direction
-              isBlocking = true;
-            }
-            
-            if (isBlocking) {
-              // Dive kick ground explosion blocked
-              const damage = 5; // Reduced damage when blocked
-              opponent.hp -= damage;
-              opponent.justHit = 20;
-              opponent.hitstun = HITSTUN_FRAMES; // Less hitstun than normal
-              opponent.inHitstun = true;
-              
-              // Reduced knockup when blocked
-              const knockupForce = Math.max(2, 6 - (distance / player.beowulfImpactRadius) * 3);
-              opponent.vy = -knockupForce;
-              opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.3);
-              
-              createImpactEffect(player, opponent, 'block');
-              console.log(`${opponent.name} blocked ${player.name}'s dive kick explosion! 🛡️💥`);
-            } else {
-              // Normal unblocked damage
-              const damage = 15; // Full damage
-              opponent.hp -= damage;
-              opponent.justHit = 20;
-              opponent.hitstun = HEAVY_HITSTUN_FRAMES;
-              opponent.inHitstun = true;
-              
-              // Normal knockup effect
-              const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
-              opponent.vy = -knockupForce;
-              opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.5);
-              
-              createImpactEffect(player, opponent, 'beowulf-dash');
-              console.log(`${player.name}'s Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
-            }
-            
-            // Knockup effect
-            const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
-            opponent.vy = -knockupForce;
-            opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.5);
-            
-            createImpactEffect(player, opponent, 'beowulf-dash');
-            
-            if (opponent.hp <= 0) {
-              opponent.hp = 0;
-              opponent.alive = false;
-              winner = player.id;
-            }
-            
-            console.log(`${player.name}'s Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
+         // ... inside handleBeowulfDiveKick, inside the loop, inside if (opponent.justHit === 0)
+                  // CHECK FOR BLOCKING FIRST
+                  let isBlocking = false;
+                  if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
+                    // Ground impact can be blocked from any direction
+                    isBlocking = true;
+                  }
+
+                  if (isBlocking) {
+                    // Dive kick ground explosion blocked
+                    const damage = 5; // Reduced damage when blocked
+                    opponent.hp -= damage;
+                    opponent.justHit = 20;
+                    opponent.hitstun = HITSTUN_FRAMES; // Less hitstun than normal
+                    opponent.inHitstun = true;
+
+                    // Reduced knockup when blocked
+                    const knockupForce = Math.max(2, 6 - (distance / player.beowulfImpactRadius) * 3);
+                    opponent.vy = -knockupForce;
+                    opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.3);
+
+                    createImpactEffect(player, opponent, 'block'); // Correct impact effect for block
+                    console.log(`${opponent.name} blocked ${player.name}'s dive kick explosion! 🛡️💥`);
+
+                    // Check for KO from chip damage
+                    if (opponent.hp <= 0) {
+                      opponent.hp = 0;
+                      opponent.alive = false;
+                      winner = player.id; // Or handle draw if player also KO'd
+                       // Potentially add a specific log for KO by block
+                    }
+
+                  } else { // Attack was NOT blocked
+                    // Normal unblocked damage
+                    const damage = 15; // Full damage
+                    opponent.hp -= damage;
+                    opponent.justHit = 20;
+                    opponent.hitstun = HEAVY_HITSTUN_FRAMES;
+                    opponent.inHitstun = true;
+
+                    // Normal knockup effect
+                    const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
+                    opponent.vy = -knockupForce;
+                    opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.5);
+
+                    createImpactEffect(player, opponent, 'beowulf-dash'); // Correct impact effect for hit
+                    console.log(`${player.name}'s Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
+
+                    // Check for KO from unblocked hit
+                    if (opponent.hp <= 0) {
+                      opponent.hp = 0;
+                      opponent.alive = false;
+                      winner = player.id;
+                    }
+                  }
           }
         }
       }
