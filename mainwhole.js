@@ -414,6 +414,32 @@ opponent.inHitstun = true;
   return false;
 }
 
+function handleMirageBladeAttack() {
+  for (let i = 0; i < 2; i++) {
+    const p = players[i];
+    const opp = players[1 - i];
+    if (!p.alive || !opp.alive) continue;
+    if (!p.mirageActive) continue;
+
+    // slash area: a rectangle in front of Vergil
+    const slashW = 200, slashH = 100;
+    const sx = p.facing > 0
+      ? p.x + p.w
+      : p.x - slashW;
+    const sy = p.y + (p.h - slashH) / 2;
+
+    // check overlap
+    if (sx < opp.x + opp.w && sx + slashW > opp.x &&
+        sy < opp.y + opp.h && sy + slashH > opp.y) {
+      // freeze opponent
+      opp.pauseTimer = 120;   // pause for 2 seconds (60fps)
+      p.mirageActive = false; // one hit per activation
+      createImpactEffect(p, opp, 'dash');
+      console.log(`${p.name}'s Mirage Blade slash freezes ${opp.name}! ❄️⏳`);
+    }
+  }
+}
+
 function pauseGame(reason) {
     gameState.paused = true;
     gameState.pauseReason = reason;
@@ -1038,8 +1064,13 @@ if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging &&
     }
   }
      else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
-    // MIRAGE BLADE SPECIAL ATTACKS - Coming Soon!
-    console.log(`${p.name} tries to use Mirage Blade special - Not implemented yet! ✨`);
+        if (p.onGround && !p.mirageActive) {
+        // Activate Mirage Blade special
+        p.mirageActive = true;
+        p.mirageTimer = p.mirageDuration;
+        // TODO: load your big slash sprite into characterImpactEffects or a new cache
+        console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
+      }
   }
 }
 // Weapon switching for Vergil (Q key for player 1, I key for player 2) - WORKS IN AIR TOO!
@@ -1520,6 +1551,10 @@ const platforms = [
 ];
 
 function updatePlayer(p, pid) {
+    if (p.pauseTimer > 0) {
+    p.pauseTimer--;
+    return;
+  }
   if (!p.alive) return;
 
     if (p.charId === 'vergil') {
@@ -1860,6 +1895,9 @@ function updateAnimation(p) {
   }
 }
 
+const mirageSlashSprite = new Image(); 
+mirageSlashSprite.src = 'void-slash.png'
+
 const blockBarBorderImg = new Image();
 blockBarBorderImg.src = "gold-block-border.png";
 
@@ -1967,12 +2005,15 @@ const players = [
         // Beowulf special attack properties
     beowulfCharging: false,
     beowulfChargeStart: 0,
-    beowulfChargeType: null, // 'uppercut' or null
+    beowulfChargeType: null, 
     beowulfDiveKick: false,
     beowulfDiveDirection: 1,
     beowulfGroundImpact: false,
     beowulfImpactRadius: 80,
-        isDiveKicking: false // NEW: Maintains diagonal momentum
+        isDiveKicking: false,       mirageActive: false,         // is the big slash active?
+    mirageTimer: 0,              // countdown till slash disappears
+    mirageDuration: 60,          // frames the slash stays on screen
+    pauseTimer: 0,  
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -2002,7 +2043,11 @@ const players = [
     beowulfDiveDirection: 1,
     beowulfGroundImpact: false,
     beowulfImpactRadius: 80,
-        isDiveKicking: false // NEW: Maintains diagonal momentum
+        isDiveKicking: false,
+            mirageActive: false,         // is the big slash active?
+    mirageTimer: 0,              // countdown till slash disappears
+    mirageDuration: 60,          // frames the slash stays on screen
+    pauseTimer: 0,  
   }
 ];
 let winner = null;
@@ -2388,6 +2433,16 @@ if (p.name) {
     ctx.globalAlpha = 1;
     ctx.restore();
   }
+    for (let p of players) {
+    if (p.charId === 'vergil' && p.mirageActive) {
+      // draw big slash sprite at p.x±offset, p.y+offset
+      const img = mirageSlashSprite; // load this Image() elsewhere
+      const slashW = 200, slashH = 100;
+      const drawX = p.facing > 0 ? p.x + p.w : p.x - slashW;
+      const drawY = p.y + (p.h - slashH)/2;
+      ctx.drawImage(img, drawX, drawY, slashW, slashH);
+    }
+  }
 
   drawParticles(ctx);
   drawImpactEffects(ctx);
@@ -2576,6 +2631,7 @@ function gameLoop() {
     }
     handleDashAttack();
         handleDiveKickAttack();
+          handleMirageBladeAttack();
     updateImpactEffects();
   }
   
