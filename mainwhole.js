@@ -235,7 +235,7 @@ function executeBeowulfUppercut(player, chargeTime) {
   const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
   
   const minHeight = 10;//uppercut height adjust
-  const maxHeight = 14;
+  const maxHeight = 18;
   const uppercutHeight = minHeight + (chargeRatio * (maxHeight - minHeight));
   
   player.vy = -uppercutHeight; // Height scales from -8 to -14
@@ -1071,6 +1071,19 @@ if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging &&
         // TODO: load your big slash sprite into characterImpactEffects or a new cache
         console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
       }
+      if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE && p.onGround) {
+    const slashW = 200, slashH = 100;
+    const sx = p.facing > 0 ? p.x + p.w : p.x - slashW;
+    const sy = p.y + (p.h - slashH)/2;
+    mirageSlashes.push({
+      x: sx, y: sy,
+      w: slashW, h: slashH,
+      life: p.mirageDuration,
+      frameTimer: 0, currentFrame: 0,
+      owner: p.id
+    });
+    console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
+  }
   }
 }
 // Weapon switching for Vergil (Q key for player 1, I key for player 2) - WORKS IN AIR TOO!
@@ -1543,15 +1556,15 @@ function drawParticles(ctx) {
 }
 
 const platforms = [
-  {x: WIDTH/2 - 70, y: GROUND-110, w: 140},
+  /*{x: WIDTH/2 - 70, y: GROUND-110, w: 140},
   {x: WIDTH/4 - 60, y: GROUND-200, w: 120},
   {x: 3*WIDTH/4 - 60, y: GROUND-200, w: 120},
   {x: 60, y: GROUND-80, w: 120},
-  {x: WIDTH-180, y: GROUND-80, w: 120}
+  {x: WIDTH-180, y: GROUND-80, w: 120}*/
 ];
 
 function updatePlayer(p, pid) {
-    if (p.pauseTimer > 0) {
+  if (p.pauseTimer > 0) {
     p.pauseTimer--;
     return;
   }
@@ -1897,6 +1910,8 @@ function updateAnimation(p) {
 
 const mirageSlashSprite = new Image(); 
 mirageSlashSprite.src = 'void-slash.png'
+const mirageSlashes = [];
+const MIRAGE_FRAMES = 6, MIRAGE_SPEED = 5;
 
 const blockBarBorderImg = new Image();
 blockBarBorderImg.src = "gold-block-border.png";
@@ -2056,6 +2071,49 @@ let rangeWarningText = { show: false, timer: 0 };
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+// ─── Update and draw the static slash effects ──────────────────────────────
+function updateMirageSlashes() {
+  for (let i = mirageSlashes.length-1; i >= 0; i--) {
+    const s = mirageSlashes[i];
+    // animate frames
+    s.frameTimer++;
+    if (s.frameTimer >= MIRAGE_SPEED) {
+      s.frameTimer = 0;
+      s.currentFrame = (s.currentFrame + 1) % MIRAGE_FRAMES;
+    }
+    // expire
+    s.life--;
+    if (s.life <= 0) mirageSlashes.splice(i,1);
+  }
+}
+
+function drawMirageSlashes(ctx) {
+  for (const s of mirageSlashes) {
+    ctx.drawImage(
+      mirageSlashSprite,
+      s.currentFrame * s.w, 0, s.w, s.h,
+      s.x, s.y, s.w, s.h
+    );
+  }
+}
+
+// ─── Freezing on hit ───────────────────────────────────────────────────────
+function handleMirageBladeAttack() {
+  for (let i = mirageSlashes.length-1; i >= 0; i--) {
+    const s = mirageSlashes[i];
+    for (const opp of players) {
+      if (!opp.alive || opp.id === s.owner) continue;
+      if (s.x < opp.x+opp.w && s.x+s.w > opp.x &&
+          s.y < opp.y+opp.h && s.y+s.h > opp.y) {
+        opp.pauseTimer = 120;      // freeze for 2s
+        mirageSlashes.splice(i,1);
+        console.log(`${players[s.owner].name}'s Mirage Blade freezes ${opp.name}! ❄️⏳`);
+        break;
+      }
+    }
+  }
+}
+
 function draw() {
   const camera = getCamera();
   
@@ -2103,7 +2161,9 @@ function draw() {
   ctx.fillStyle = "#6d4c41";
   ctx.fillRect(0, FLOOR_HEIGHT, WIDTH, HEIGHT-FLOOR_HEIGHT);
   
+   drawMirageSlashes(ctx);
   drawParticles(ctx);
+  drawImpactEffects(ctx);
 
   // Blue overlay during slashing and lines phases
   let showBlueOverlay = false;
@@ -2611,13 +2671,12 @@ function gameLoop() {
     }
   }
   
-  if (!gameState.paused) {
-    for (let i = 0; i < players.length; ++i) {
-      const p = players[i];
-      if (p.justHit > 0) p.justHit--;
-      updatePlayer(p, i);
-      updatePlayerAnimState(p, i);
-      updateAnimation(p);
+   if (!gameState.paused) {
+    for (let i = 0; i < players.length; i++) {
+      if (players[i].justHit>0) players[i].justHit--;
+      updatePlayer(players[i], i);
+      updatePlayerAnimState(players[i], i);
+      updateAnimation(players[i]);
 
       if (p.updateShardsInRealTime && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
           updateSnapshotWithVergil(p);
@@ -2629,9 +2688,10 @@ function gameLoop() {
       p.blockWasFull = p.block >= BLOCK_MAX - 0.1;
       if (p.blockGlowTimer > 0) p.blockGlowTimer--;
     }
-    handleDashAttack();
-        handleDiveKickAttack();
-          handleMirageBladeAttack();
+   handleDashAttack();
+    handleDiveKickAttack();
+    handleMirageBladeAttack();
+    updateMirageSlashes();
     updateImpactEffects();
   }
   
