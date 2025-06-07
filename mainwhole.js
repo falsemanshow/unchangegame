@@ -231,10 +231,10 @@ function executeBeowulfUppercut(player, chargeTime) {
   player.beowulfChargeType = null;
   
   // Charge level affects power (300ms to 1500ms)
-  const maxChargeTime = 1500;
+  const maxChargeTime = 800;
   const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
   
-  const minHeight = 8;
+  const minHeight = 10;//uppercut height adjust
   const maxHeight = 14;
   const uppercutHeight = minHeight + (chargeRatio * (maxHeight - minHeight));
   
@@ -272,14 +272,47 @@ function handleBeowulfDiveKick(player) {
         const dy = (opponent.y + opponent.h/2) - impactY;
         const distance = Math.sqrt(dx*dx + dy*dy);
         
-        if (distance <= player.beowulfImpactRadius) {
+         if (distance <= player.beowulfImpactRadius) {
           // Hit opponent
           if (opponent.justHit === 0) {
-            const damage = 15; // Fixed damage
-            opponent.hp -= damage;
-            opponent.justHit = 20;
-            opponent.hitstun = HEAVY_HITSTUN_FRAMES;
-            opponent.inHitstun = true;
+            // CHECK FOR BLOCKING FIRST
+            let isBlocking = false;
+            if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
+              // Ground impact can be blocked from any direction
+              isBlocking = true;
+            }
+            
+            if (isBlocking) {
+              // Dive kick ground explosion blocked
+              const damage = 5; // Reduced damage when blocked
+              opponent.hp -= damage;
+              opponent.justHit = 20;
+              opponent.hitstun = HITSTUN_FRAMES; // Less hitstun than normal
+              opponent.inHitstun = true;
+              
+              // Reduced knockup when blocked
+              const knockupForce = Math.max(2, 6 - (distance / player.beowulfImpactRadius) * 3);
+              opponent.vy = -knockupForce;
+              opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.3);
+              
+              createImpactEffect(player, opponent, 'block');
+              console.log(`${opponent.name} blocked ${player.name}'s dive kick explosion! 🛡️💥`);
+            } else {
+              // Normal unblocked damage
+              const damage = 15; // Full damage
+              opponent.hp -= damage;
+              opponent.justHit = 20;
+              opponent.hitstun = HEAVY_HITSTUN_FRAMES;
+              opponent.inHitstun = true;
+              
+              // Normal knockup effect
+              const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
+              opponent.vy = -knockupForce;
+              opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.5);
+              
+              createImpactEffect(player, opponent, 'beowulf-dash');
+              console.log(`${player.name}'s Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
+            }
             
             // Knockup effect
             const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
@@ -326,6 +359,28 @@ function handleBeowulfDiveKick(player) {
 
 function handleBeowulfUppercutHit(attacker, opponent) {
   if (attacker.isUppercutting && opponent.justHit === 0) {
+    // CHECK FOR BLOCKING FIRST
+    let isBlocking = false;
+    if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
+      if (opponent.facing === -Math.sign(attacker.vx || attacker.facing)) {
+        isBlocking = true;
+      }
+    }
+    
+    if (isBlocking) {
+      // Uppercut blocked - attacker gets stunned
+      attacker.hitstun = DIZZY_FRAMES;
+      attacker.inHitstun = true;
+      attacker.vx = opponent.facing * BLOCK_PUSHBACK_X;
+      attacker.vy = BLOCK_PUSHBACK_Y;
+      attacker.isUppercutting = false;
+      attacker.uppercutPower = 0;
+      createImpactEffect(attacker, opponent, 'block');
+      console.log(`${opponent.name} blocked ${attacker.name}'s Rising Uppercut! 🛡️👊`);
+      return true;
+    }
+    
+    // Normal uppercut hit logic continues...
     const damage = 12 + (attacker.uppercutPower * 8); // 12-20 damage based on charge
     opponent.hp -= damage;
     opponent.justHit = 20;
