@@ -3,7 +3,7 @@ function updateBlocking(p, pid) {
   const controls = pid === 0 ? {down: 's'} : {down: 'l'};
   if (p._wasBlocking === undefined) p._wasBlocking = false;
   
-  if (p.onGround && !p.dizzy && keys[controls.down]) {
+ if (p.onGround && !p.dizzy && !p.inHitstun && keys[controls.down]) {
     if (!p._wasBlocking && p.block < BLOCK_MAX) {
       p.blocking = false;
       p.blockAnimationFinished = false;
@@ -67,7 +67,7 @@ const VERGIL_WEAPONS = {
     MIRAGE_BLADE: 'mirage_blade'
 };
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
-const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 38;
+const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
 const UNIVERSAL_DASH_KNOCKBACK_X = 50; // New universal dash knockback
 const UNIVERSAL_DASH_KNOCKBACK_Y = -6;
 const BOUNCE_FRICTION = 0.85;
@@ -329,8 +329,9 @@ function handleBeowulfUppercutHit(attacker, opponent) {
     const damage = 12 + (attacker.uppercutPower * 8); // 12-20 damage based on charge
     opponent.hp -= damage;
     opponent.justHit = 20;
-    opponent.hitstun = HEAVY_HITSTUN_FRAMES;
-    opponent.inHitstun = true;
+// Stack hitstun - add to existing hitstun instead of replacing
+opponent.hitstun = Math.max(opponent.hitstun, HEAVY_HITSTUN_FRAMES);
+opponent.inHitstun = true;
     
      // MATCH VELOCITIES - Both players get same upward speed for combo potential
     const knockupPower = 15 + (attacker.uppercutPower * 10); // 15-25 upward force
@@ -964,8 +965,8 @@ if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging &&
       // Check if high enough for Kamen Rider kick
       const currentHeight = GROUND - (p.y + p.h); // Calculate current height above ground
       
-      if (currentHeight >= 100) {
-        // AIR: Dive Kick - SUPER DIAGONAL like Kamen Rider
+      if (currentHeight >= 50) {//starfall condition
+        
         p.beowulfDiveKick = true;
         p.beowulfDiveDirection = p.facing; // Store facing direction
         p.vy = 16; // Fast downward speed
@@ -1145,9 +1146,11 @@ function handleSimultaneousDashCollision(p1, p2) {
   let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && (p1.facing === -Math.sign(p2.vx || p2.facing));
   
   if (p1Blocking && p2Blocking) {
-    // Both blocking - both get pushed back
-    p1.dizzy = DIZZY_FRAMES;
-    p2.dizzy = DIZZY_FRAMES;
+ // Both blocking - both get pushed back
+p1.hitstun = DIZZY_FRAMES;
+p1.inHitstun = true;
+p2.hitstun = DIZZY_FRAMES;
+p2.inHitstun = true;
     p1.vx = p2.facing * BLOCK_PUSHBACK_X;
     p2.vx = p1.facing * BLOCK_PUSHBACK_X;
     p1.vy = p2.vy = BLOCK_PUSHBACK_Y;
@@ -1172,8 +1175,10 @@ function handleSimultaneousDashCollision(p1, p2) {
       p1.hp -= DASH_DAMAGE;
       p2.hp -= DASH_DAMAGE;
       p1.justHit = p2.justHit = 16;
-      p1.hitstun = p2.hitstun = HITSTUN_FRAMES;
-      p1.inHitstun = p2.inHitstun = true;
+  // Stack hitstun for both players
+p1.hitstun = Math.max(p1.hitstun, HITSTUN_FRAMES);
+p2.hitstun = Math.max(p2.hitstun, HITSTUN_FRAMES);
+p1.inHitstun = p2.inHitstun = true;
       
       // Equal knockback in opposite directions
       const clashKnockback = 25;
@@ -1216,7 +1221,7 @@ function handleSingleDashHit(p, opp) {
   }
   // CHECK FOR BLOCKING FIRST
   let isBlocking = false;
-  if (opp.blocking && opp.block > 0 && !opp.dizzy) {
+ if (opp.blocking && opp.block > 0 && !opp.inHitstun) {
     if (opp.facing === -Math.sign(p.vx || p.facing)) {
       isBlocking = true;
     }
@@ -1224,7 +1229,8 @@ function handleSingleDashHit(p, opp) {
   
   if (isBlocking) {
     interruptJudgmentCut(opp);
-    p.dizzy = DIZZY_FRAMES;
+    p.hitstun = DIZZY_FRAMES;
+p.inHitstun = true;
     p.vx = opp.facing * BLOCK_PUSHBACK_X;
     p.vy = BLOCK_PUSHBACK_Y;
     p.hasDashHit = true;
@@ -1237,8 +1243,9 @@ function handleSingleDashHit(p, opp) {
     interruptJudgmentCut(opp);
     opp.hp -= DASH_DAMAGE;
     opp.justHit = 16;
-    opp.hitstun = HEAVY_HITSTUN_FRAMES;
-    opp.inHitstun = true;
+ // Stack hitstun - add to existing hitstun instead of replacing
+opp.hitstun = Math.max(opp.hitstun, HEAVY_HITSTUN_FRAMES);
+opp.inHitstun = true;
     
     // Apply weapon-specific knockback
     if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
@@ -1396,11 +1403,11 @@ function drawParticles(ctx) {
 }
 
 const platforms = [
-  {x: WIDTH/2 - 70, y: GROUND-90, w: 140},
-  {x: WIDTH/4 - 60, y: GROUND-180, w: 120},
-  {x: 3*WIDTH/4 - 60, y: GROUND-180, w: 120},
-  {x: 60, y: GROUND-60, w: 120},
-  {x: WIDTH-180, y: GROUND-60, w: 120}
+  {x: WIDTH/2 - 70, y: GROUND-110, w: 140},
+  {x: WIDTH/4 - 60, y: GROUND-200, w: 120},
+  {x: 3*WIDTH/4 - 60, y: GROUND-200, w: 120},
+  {x: 60, y: GROUND-80, w: 120},
+  {x: WIDTH-180, y: GROUND-80, w: 120}
 ];
 
 function updatePlayer(p, pid) {
@@ -1509,10 +1516,10 @@ if (effect.phase === 'slide') {
   } else {
     // Player can't move during hitstun
     if (!p.inHitstun) {
-      if (keys[controls.left] && !keys[controls.right] && !p.blocking) {
+      if (keys[controls.left] && !keys[controls.right] && !p.blocking && !p.inHitstun) {
         p.vx = -PLAYER_SPEED; p.facing = -1;
       }
-      if (keys[controls.right] && !keys[controls.left] && !p.blocking) {
+      if (keys[controls.right] && !keys[controls.left] && !p.blocking && !p.inHitstun) {
         p.vx = PLAYER_SPEED; p.facing = 1;
       }
       if ((!keys[controls.left] && !keys[controls.right]) || p.blocking) {
