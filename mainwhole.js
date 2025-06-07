@@ -74,7 +74,9 @@ const BOUNCE_FRICTION = 0.85;
 const HITSTUN_FRAMES = 20, HEAVY_HITSTUN_FRAMES = 35;
 const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
 const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
-const BEOWULF_DIVE_RECOVERY_TIME = 90; // 1.5 seconds at 60fps
+const BEOWULF_DIVE_RECOVERY_TIME = 90; 
+const MIRAGE_IDLE_SPIKE_DAMAGE = 8; // Damage per hit when landing on spiky idle
+const MIRAGE_IDLE_SPIKE_KNOCKUP = -12; // Upward velocity when hit by spikes
 
 const JUDGEMENT_CUT_CONSTANTS = {
     SLIDE_DURATION: 3000,
@@ -424,6 +426,60 @@ function handleMirageBladeAttack() {
       p.mirageActive = false;
       createImpactEffect(p, opp, 'dash');
       console.log(`${p.name}'s Mirage Blade slash freezes ${opp.name}! ❄️⏳`);
+    }
+  }
+}
+
+function handleMirageIdleSpikes() {
+  for (let i = 0; i < 2; i++) {
+    const p = players[i];
+    const opp = players[1 - i];
+    if (!p.alive || !opp.alive) continue;
+    
+    // Check if Vergil has Mirage Blade equipped and is in idle state
+    if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE && 
+        p.onGround && p.animState === "mirage-idle" && Math.abs(p.vx) < 1) {
+      
+      // Check if opponent is landing on top of Vergil (from above)
+      const isAbove = opp.y + opp.h <= p.y + 15; // Small tolerance for landing detection
+      const isOverlapping = opp.x < p.x + p.w && opp.x + opp.w > p.x;
+      const isDescending = opp.vy > 0; // Opponent is falling down
+      
+      if (isAbove && isOverlapping && isDescending && opp.justHit === 0) {
+        // Hit the spikes!
+        opp.hp -= MIRAGE_IDLE_SPIKE_DAMAGE;
+        opp.justHit = 15; // Shorter hit frames for continuous bouncing
+        opp.hitstun = 20; // Short hitstun to keep them bouncing
+        opp.inHitstun = true;
+        opp.airHitstun = false; // This is ground-based hitstun
+        
+        // Bounce them up
+        opp.vy = MIRAGE_IDLE_SPIKE_KNOCKUP;
+        opp.vx *= 0.8; // Slight horizontal dampening
+        
+        createImpactEffect(p, opp, 'dash');
+        
+        // Create spike particles
+        for (let j = 0; j < 6; j++) {
+          particles.push({
+            type: "spike",
+            x: p.x + p.w/2 + (Math.random() - 0.5) * p.w,
+            y: p.y - 5,
+            life: 20,
+            vx: (Math.random() - 0.5) * 4,
+            vy: Math.random() * -3 - 1
+          });
+        }
+        
+        console.log(`${opp.name} landed on ${p.name}'s Mirage Blade spikes! Ouch! 🗡️⬆️`);
+        
+        // Check for KO
+        if (opp.hp <= 0) {
+          opp.hp = 0;
+          opp.alive = false;
+          winner = p.id;
+        }
+      }
     }
   }
 }
@@ -1400,10 +1456,30 @@ function drawParticles(ctx) {
       e.y += e.vy;
       e.vy += 0.3;
       ctx.restore();
+    } else if (e.type === "spike") {
+      // New spike particle effect
+      ctx.save();
+      ctx.globalAlpha = e.life/20 * 0.9;
+      ctx.fillStyle = "#8e24aa"; // Purple color for magic spikes
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      
+      // Draw triangle spike
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y - 6);
+      ctx.lineTo(e.x - 3, e.y + 3);
+      ctx.lineTo(e.x + 3, e.y + 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      e.x += e.vx;
+      e.y += e.vy;
+      e.vy += 0.2; // Gravity on spike particles
+      ctx.restore();
     }
   }
 }
-
 const platforms = [];
 
 function updatePlayer(p, pid) {
@@ -1882,7 +1958,7 @@ const characterSprites = {
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     
     // Beowulf sprites
-    'beowulf-idle': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
     'beowulf-block': { src: "vergil-beowulf-block.png", frames: 3, w: 100, h: 100, speed: 6 },
@@ -1891,11 +1967,11 @@ const characterSprites = {
     'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-charging': { src: "vergil-beowulf-charging.png", frames: 4, w: 100, h: 100, speed: 8 },
     'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
-    'beowulf-divekick': { src: "vergil-beowulf-divekick.png", frames: 3, w: 100, h: 100, speed: 4 },
+    'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
     'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
     
     // Mirage Blade sprites
-    'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'mirage-idle': { src: "vergil-mirage-spiky-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
   }
@@ -2465,10 +2541,11 @@ function gameLoop() {
       p.blockWasFull = p.block >= BLOCK_MAX - 0.1;
       if (p.blockGlowTimer > 0) p.blockGlowTimer--;
     }
-    handleDashAttack();
-    handleDiveKickAttack();
-    handleMirageBladeAttack();
-    updateImpactEffects();
+   handleDashAttack();
+handleDiveKickAttack();
+handleMirageBladeAttack();
+handleMirageIdleSpikes(); // Add this line
+updateImpactEffects();
   }
   
   updateUI();
