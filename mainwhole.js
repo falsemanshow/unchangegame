@@ -71,7 +71,7 @@ const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
 const UNIVERSAL_DASH_KNOCKBACK_X = 50;
 const UNIVERSAL_DASH_KNOCKBACK_Y = -6;
 const BOUNCE_FRICTION = 0.85;
-const HITSTUN_FRAMES = 20, HEAVY_HITSTUN_FRAMES = 35;
+const HITSTUN_FRAMES = 20, HEAVY_HITSTUN_FRAMES = 200;
 const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
 const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
 const BEOWULF_DIVE_RECOVERY_TIME = 90; // 1.5 seconds at 60fps
@@ -306,7 +306,7 @@ function handleBeowulfDiveKick(player) {
                     const damage = 15;
                     opponent.hp -= damage;
                     opponent.justHit = 20;
-                    opponent.hitstun = HEAVY_HITSTUN_FRAMES;
+                    opponent.hitstun = HITSTUN_FRAMES;
                     opponent.inHitstun = true;
 
                     if (!opponent.onGround) {
@@ -363,7 +363,7 @@ function handleBeowulfUppercutHit(attacker, opponent) {
     
     if (isBlocking) {
       // Uppercut blocked - attacker gets stunned
-      attacker.hitstun = DIZZY_FRAMES;
+      attacker.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
       attacker.inHitstun = true;
       attacker.vx = opponent.facing * BLOCK_PUSHBACK_X;
       attacker.vy = BLOCK_PUSHBACK_Y;
@@ -1111,14 +1111,14 @@ function handleDiveKickAttack() {
           p.beowulfDiveKick = false;
           p.isDiveKicking = false;
           p.vy = -4;
-          p.hitstun = HITSTUN_FRAMES;
+          p.hitstun = HEAVY_HITSTUN_FRAMES;
           p.inHitstun = true;
           createImpactEffect(opp, p, 'block');
           console.log(`${opp.name} blocked ${p.name}'s dive kick! 🛡️`);
         } else {
           opp.hp -= 12;
           opp.justHit = 20;
-          opp.hitstun = HEAVY_HITSTUN_FRAMES;
+          opp.hitstun = HITSTUN_FRAMES;
           opp.inHitstun = true;
           opp.vy = -10;
           
@@ -1174,22 +1174,24 @@ function handleSimultaneousDashCollision(p1, p2) {
   let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && (p1.facing === -Math.sign(p2.vx || p2.facing));
   
   if (p1Blocking && p2Blocking) {
-    p1.hitstun = DIZZY_FRAMES;
+    p1.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
     p1.inHitstun = true;
-    p2.hitstun = DIZZY_FRAMES;
+    p2.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
     p2.inHitstun = true;
     p1.vx = p2.facing * BLOCK_PUSHBACK_X;
     p2.vx = p1.facing * BLOCK_PUSHBACK_X;
     p1.vy = p2.vy = BLOCK_PUSHBACK_Y;
     createImpactEffect(p1, p2, 'block');
     createImpactEffect(p2, p1, 'block');
-  } else if (p1Blocking) {
-    p2.dizzy = DIZZY_FRAMES;
+  } else if (p1Blocking) { // p2's dash was blocked by p1
+    p2.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
+    p2.inHitstun = true;
     p2.vx = p1.facing * BLOCK_PUSHBACK_X;
     p2.vy = BLOCK_PUSHBACK_Y;
     createImpactEffect(p2, p1, 'block');
-  } else if (p2Blocking) {
-    p1.dizzy = DIZZY_FRAMES;
+  } else if (p2Blocking) { // p1's dash was blocked by p2
+    p1.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
+    p1.inHitstun = true;
     p1.vx = p2.facing * BLOCK_PUSHBACK_X;
     p1.vy = BLOCK_PUSHBACK_Y;
     createImpactEffect(p1, p2, 'block');
@@ -1198,8 +1200,8 @@ function handleSimultaneousDashCollision(p1, p2) {
       p1.hp -= DASH_DAMAGE;
       p2.hp -= DASH_DAMAGE;
       p1.justHit = p2.justHit = 16;
-      p1.hitstun = Math.max(p1.hitstun, HITSTUN_FRAMES);
-      p2.hitstun = Math.max(p2.hitstun, HITSTUN_FRAMES);
+      p1.hitstun = Math.max(p1.hitstun, HITSTUN_FRAMES); // Standard hitstun for clash
+      p2.hitstun = Math.max(p2.hitstun, HITSTUN_FRAMES); // Standard hitstun for clash
       p1.inHitstun = p2.inHitstun = true;
       
       const clashKnockback = 25;
@@ -1244,8 +1246,8 @@ function handleSingleDashHit(p, opp) {
                      opp.facing === -Math.sign(p.vx || p.facing);
   
   if (isBlocking) {
-    interruptJudgmentCut(opp);
-    p.hitstun = DIZZY_FRAMES;
+    interruptJudgmentCut(opp); // The opponent (blocker) might be charging
+    p.hitstun = HEAVY_HITSTUN_FRAMES; // Attacker (p) gets HEAVY_HITSTUN_FRAMES, was HITSTUN_FRAMES
     p.inHitstun = true;
     p.vx = opp.facing * BLOCK_PUSHBACK_X;
     p.vy = BLOCK_PUSHBACK_Y;
@@ -1258,7 +1260,7 @@ function handleSingleDashHit(p, opp) {
     interruptJudgmentCut(opp);
     opp.hp -= DASH_DAMAGE;
     opp.justHit = 16;
-    opp.hitstun = Math.max(opp.hitstun, HEAVY_HITSTUN_FRAMES);
+    opp.hitstun = Math.max(opp.hitstun, HITSTUN_FRAMES); // Opponent takes heavy hitstun on successful hit
     opp.inHitstun = true;
     
     if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
@@ -1268,8 +1270,6 @@ function handleSingleDashHit(p, opp) {
         opp.vy = DIZZY_KNOCKBACK_Y;
       } else {
         opp.vx = p.facing * 8;
- // ... continuing from where I left off in handleSingleDashHit function
-
         opp.vy = -8;
       }
       console.log(`${p.name} slashed ${opp.name} with Yamato! ⚔️`);
