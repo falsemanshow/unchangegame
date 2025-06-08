@@ -1558,10 +1558,6 @@ if (effect.phase === 'slide') {
 
 // Update hitstun
 if (p.inHitstun) {
-  if (p.hitstun > 0) {
-    p.hitstun--;
-  }
-  
   // If we're in air hitstun from uppercut, only end it when we land
   if (p.airHitstun) {
     if (p.onGround) {
@@ -1572,9 +1568,14 @@ if (p.inHitstun) {
       console.log(`${p.name} recovered from uppercut stun after landing!`);
     }
     // Don't decrement hitstun counter for air hitstun - it only ends on landing
-  } else if (p.hitstun <= 0) {
-    // Normal ground hitstun ends when counter reaches 0
-    p.inHitstun = false;
+  } else {
+    // Normal hitstun logic - decreases over time
+    if (p.hitstun > 0) {
+      p.hitstun--;
+    }
+    if (p.hitstun <= 0) {
+      p.inHitstun = false;
+    }
   }
 }
 
