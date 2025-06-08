@@ -1,29 +1,43 @@
-//LOSING SANITY
-// GAME CONSTANTS 
-const WIDTH = 900, HEIGHT = 600;
-const GRAVITY = 0.6, FRICTION = 0.7, GROUND = HEIGHT - 60;
-const PLATFORM_HEIGHT = 20, PLAYER_SIZE = 50, PLAYER_SPEED = 5;
-const DASH_SPEED = 13, DASH_WINDOW = 250, JUMP_VEL = 15, MAX_JUMPS = 2;
-const PLAYER_HP = 120, PLATFORM_COLOR = "#ffd54f", PLATFORM_EDGE = "#ffb300";
-const PLAYER_OUTLINE = "#fff", FLOOR_HEIGHT = HEIGHT-30;
-const DASH_COOLDOWN = 36, DASH_FRAMES = 8, DASH_DAMAGE = 10;
-const JUDGMENT_CUT_TRIGGER_RANGE = 150;
-const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
-const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
-const UNIVERSAL_DASH_KNOCKBACK_X = 50;
-const UNIVERSAL_DASH_KNOCKBACK_Y = -6;
-const BOUNCE_FRICTION = 0.85;
-const HITSTUN_FRAMES = 20, HEAVY_HITSTUN_FRAMES = 35;
-const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
-const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
-const BEOWULF_DIVE_RECOVERY_TIME = 90; // 1.5 seconds at 60fps
+// Block function 
+function updateBlocking(p, pid) {
+  const controls = pid === 0 ? {down: 's'} : {down: 'l'};
+  if (p._wasBlocking === undefined) p._wasBlocking = false;
+  
+  if (p.onGround && !p.dizzy && !p.inHitstun && keys[controls.down]) {
+    if (!p._wasBlocking && p.block < BLOCK_MAX) {
+      p.blocking = false;
+      p.blockAnimationFinished = false;
+    } else if (p.block > 0) {
+      if (!p.blocking) {
+        p.blocking = true;
+        p.blockStartTime = performance.now();
+        p.blockAnimationFinished = false;
+      }
+      p.block -= BLOCK_DEPLETION;
+      if (p.block < 0) p.block = 0;
+    } else {
+      p.blocking = false;
+      p.blockAnimationFinished = false;
+    }
+  } else {
+    p.blocking = false;
+    p.blockAnimationFinished = false;
+  }
+  
+  if (!p.blocking && p.block < BLOCK_MAX) {
+    p.block += BLOCK_RECOVERY;
+    if (p.block > BLOCK_MAX) p.block = BLOCK_MAX;
+  }
+  p._wasBlocking = p.blocking;
 
-// Vergil specific constants
-const VERGIL_WEAPONS = {
-    YAMATO: 'yamato',
-    BEOWULF: 'beowulf',
-    MIRAGE_BLADE: 'mirage_blade'
-};
+  if (p.dizzy > 0) {
+    p.dizzy--;
+    p.vx *= FRICTION;
+    if (Math.abs(p.vx) < 0.3) p.vx = 0;
+    return true;
+  }
+  return false;
+}
 
 const VERGIL_JUDGMENT_CUT_PHASES = {
     PREPARING: 'preparing',
@@ -39,6 +53,29 @@ const JUDGMENT_CUT_CHARGE = {
     MAX_CHARGE_TIME: 3000,
 };
 
+const WIDTH = 900, HEIGHT = 600;
+const GRAVITY = 0.6, FRICTION = 0.7, GROUND = HEIGHT - 60;
+const PLATFORM_HEIGHT = 20, PLAYER_SIZE = 50, PLAYER_SPEED = 5;
+const DASH_SPEED = 13, DASH_WINDOW = 250, JUMP_VEL = 15, MAX_JUMPS = 2;
+const PLAYER_HP = 120, PLATFORM_COLOR = "#ffd54f", PLATFORM_EDGE = "#ffb300";
+const PLAYER_OUTLINE = "#fff", FLOOR_HEIGHT = HEIGHT-30;
+const DASH_COOLDOWN = 36, DASH_FRAMES = 8, DASH_DAMAGE = 10;
+const JUDGMENT_CUT_TRIGGER_RANGE = 150; 
+const VERGIL_WEAPONS = {
+    YAMATO: 'yamato',
+    BEOWULF: 'beowulf',
+    MIRAGE_BLADE: 'mirage_blade'
+};
+const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
+const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
+const UNIVERSAL_DASH_KNOCKBACK_X = 50;
+const UNIVERSAL_DASH_KNOCKBACK_Y = -6;
+const BOUNCE_FRICTION = 0.85;
+const HITSTUN_FRAMES = 20, HEAVY_HITSTUN_FRAMES = 35;
+const DIZZY_KNOCKBACK_X = 16, DIZZY_KNOCKBACK_Y = -9;
+const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
+const BEOWULF_DIVE_RECOVERY_TIME = 90; // 1.5 seconds at 60fps
+
 const JUDGEMENT_CUT_CONSTANTS = {
     SLIDE_DURATION: 3000,
     SLIDE_SPEED: 1.2,
@@ -49,127 +86,16 @@ const JUDGEMENT_CUT_CONSTANTS = {
     REMAINING_LINES_DELAY: 100
 };
 
-// GAME STATE AND GLOBAL VARIABLES
 let gameState = { paused: false, pauseReason: null, pauseStartTime: 0 };
-let winner = null;
-let rangeWarningText = { show: false, timer: 0 };
-const platforms = [];
-const particles = [];
-const impactEffects = [];
-const keys = {};
-const dashTapState = [
-  {lastTapDir: null, lastTapTime: 0, lastReleaseTime: {left:0, right:0}},
-  {lastTapDir: null, lastTapTime: 0, lastReleaseTime: {left:0, right:0}}
-];
 
-// Camera zoom effect for specific conditions
 let cameraZoomEffect = {
     active: false, startZoom: 1, targetZoom: 1.5, currentZoom: 1,
     phase: 'idle', startTime: 0,
     duration: { zoomIn: 4500, hold: 400, zoomOut: 500 }
 };
 
-//I forgor
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const impactEffects = [];
 
-// IMAGES AND SPRITES HANDLER
-
-//Effects and battlegrounds
-const mirageSlashSprite = new Image(); 
-mirageSlashSprite.src = 'void-slash.png';
-
-const blockBarBorderImg = new Image();
-blockBarBorderImg.src = "gold-block-border.png";
-
-const bgImg = new Image();
-bgImg.src = "underground.jpg";
-
-const vergilTeleportTrailSprite = new Image();
-vergilTeleportTrailSprite.src = "vergil-teleport-trail.png";
-
-const vergilSlashingSprite = new Image();
-vergilSlashingSprite.src = "vergil-judgment-cut-slashes.png";
-
-// Character sprite definitions
-const characterSprites = {
-  gold: {
-    //rubber chicken
-    idle: { src: "gold-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
-    walk: { src: "gold-walk.png", frames: 10, w: 50, h: 50, speed: 4 },
-    jump: { src: "gold-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
-    fall: { src: "gold-fall.png", frames: 1, w: 50, h: 50, speed: 7 },
-    attack: { src: "gold-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
-    attack_air: { src: "gold-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
-    block: { src: "gold-block.png", frames: 2, w: 38, h: 38, speed: 6 },
-    hit: { src: "gold-hit.png", frames: 2, w: 38, h: 38, speed: 8 },
-    dizzy: { src: "gold-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
-    dash: { src: "gold-dash.png", frames: 2, w: 50, h: 50, speed: 3 },
-    defeat: { src: "gold-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
-    victory: { src: "gold-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
-  },
-  chicken: {
-    // saging
-    idle: { src: "chicken-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
-    walk: { src: "chicken-walk.png", frames: 7, w: 50, h: 50, speed: 4 },
-    jump: { src: "chicken-jump.png", frames: 4, w: 50, h: 50, speed: 6 },
-    fall: { src: "chicken-fall.png", frames: 3, w: 50, h: 50, speed: 15 },
-    attack: { src: "chicken-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
-    attack_air: { src: "chicken-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
-    block: { src: "chicken-block.png", frames: 2, w: 50, h: 50, speed: 11 },
-    hit: { src: "chicken-hit.png", frames: 3, w: 50, h: 50, speed: 8 },
-    dizzy: { src: "chicken-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
-    dash: { src: "chicken-dash.png", frames: 3, w: 50, h: 50, speed: 4 },
-    defeat: { src: "chicken-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
-    victory: { src: "chicken-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
-  },
-  vergil: {
-    // Yamato sprites
-    idle: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
-    dash: { src: "vergil-dash.png", frames: 3, w: 100, h: 100, speed: 4 },
-    walk: { src: "vergil-walk.png", frames: 3, w: 100, h: 100, speed: 6 },
-    block: { src: "vergil-block.png", frames: 4, w: 100, h: 100, speed: 6 },
-    blocking: { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 8 },
-    jump: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
-    fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
-    sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
-    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
-    charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
-    
-    // Beowulf sprites
-    'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
-    'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
-    'beowulf-block': { src: "vergil-beowulf-block.png", frames: 3, w: 100, h: 100, speed: 6 },
-    'beowulf-blocking': { src: "vergil-beowulf-blocking.png", frames: 2, w: 100, h: 100, speed: 8 },
-    'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-charging': { src: "vergil-beowulf-charging.png", frames: 4, w: 100, h: 100, speed: 8 },
-    'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
-    'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
-    'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
-    
-    // Mirage Blade sprites
-    'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
-    'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
-  }
-};
-
-//cahche 
-const spritesheetCache = {};
-for (const charId in characterSprites) {
-  for (const state in characterSprites[charId]) {
-    const anim = characterSprites[charId][state];
-    if (!spritesheetCache[anim.src]) {
-      const img = new Image();
-      img.src = anim.src;
-      spritesheetCache[anim.src] = img;
-    }
-  }
-}
-
-//EFFECTS IMAGES HANLDER AND FUNCTIONS
 const characterImpactEffects = {
   vergil: {
     dash: { sprite: "vergil-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
@@ -294,256 +220,6 @@ function drawImpactEffects(ctx) {
   }
 }
 
-// PARTICLE EFFECTS SYSTEM
-function spawnDashEffects(player) {
-  if (player.charId !== 'vergil') {
-    particles.push({
-      type: "smoke",
-      x: player.x + player.w/2,
-      y: player.y + player.h,
-      life: 20
-    });
-  }
-}
-
-function updateParticles() {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    particles[i].life--;
-    if (particles[i].life <= 0) particles.splice(i, 1);
-  }
-}
-
-function drawParticles(ctx) {
-  for (const e of particles) {
-    if (e.type === "smoke") {
-      ctx.save();
-      ctx.globalAlpha = e.life/20 * 0.5;
-      ctx.fillStyle = "#bbb";
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, 14, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.restore();
-    } else if (e.type === "explosion") {
-      ctx.save();
-      ctx.globalAlpha = e.life/25 * 0.8;
-      ctx.fillStyle = "#ff6b35";
-      ctx.strokeStyle = "#ffeb3b";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, 8, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.stroke();
-      e.x += e.vx;
-      e.y += e.vy;
-      e.vy += 0.3;
-      ctx.restore();
-    }
-  }
-}
-
-// PLAYER INITIALIZATION
-const players = [
-  {
-    x: WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
-    color: "#4a90e2", facing: 1, hp: PLAYER_HP, jumps: 0, dash: 0,
-    dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 0, 
-    name: "Vergil", charId: "vergil", animState: "idle", animFrame: 0, animTimer: 0, 
-    justHit: 0, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0, 
-    blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false, 
-    blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null, 
-    isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0, 
-    judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
-    currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
-    hitstun: 0, inHitstun: false, beowulfCharging: false, beowulfChargeStart: 0,
-    beowulfChargeType: null, beowulfDiveKick: false, beowulfDiveDirection: 1,
-    beowulfGroundImpact: false, beowulfImpactRadius: 80, isDiveKicking: false,
-    isUppercutting: false, uppercutPower: 0, mirageActive: false, mirageTimer: 0,
-    mirageDuration: 60, pauseTimer: 0, mirageSlashX: 0, mirageSlashY: 0,
-    teleportTrail: null, isTeleporting: false, teleportAlpha: 1.0, airHitstun: false,
-    beowulfRecovering: false, beowulfRecoveryTimer: 0,
-  },
-  {
-    x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
-    color: "#ef5350", facing: -1, hp: PLAYER_HP, jumps: 0, dash: 0,
-    dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 1,
-    name: "P2", charId: "chicken", animState: "idle", animFrame: 0, animTimer: 0,
-    justHit: 0, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0,
-    blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false,
-    blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null,
-    isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0,
-    judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
-    currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
-    hitstun: 0, inHitstun: false, beowulfCharging: false, beowulfChargeStart: 0,
-    beowulfChargeType: null, beowulfDiveKick: false, beowulfDiveDirection: 1,
-    beowulfGroundImpact: false, beowulfImpactRadius: 80, isDiveKicking: false,
-    isUppercutting: false, uppercutPower: 0, mirageActive: false, mirageTimer: 0,
-    mirageDuration: 60, pauseTimer: 0, mirageSlashX: 0, mirageSlashY: 0,
-    teleportTrail: null, isTeleporting: false, teleportAlpha: 1.0, airHitstun: false,
-    beowulfRecovering: false, beowulfRecoveryTimer: 0,
-  }
-];
-
-//FUNCTIONS
-function getControls(pid) {
-  return pid === 0
-    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', weaponSwitch: 'q' }
-    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', weaponSwitch: 'i' };
-}
-
-function knockback(attacker, defender, strengthX, strengthY) {
-  defender.vx = (defender.x < attacker.x ? -1 : 1) * Math.abs(strengthX);
-  defender.vy = strengthY;
-}
-
-function getAnimForPlayer(p) {
-  let charAnim = characterSprites[p.charId];
-  if (!charAnim) return null;
-  
-  if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-    const beowulfAnimState = `beowulf-${p.animState}`;
-    if (charAnim[beowulfAnimState]) {
-      return charAnim[beowulfAnimState];
-    }
-  }
-  
-  return charAnim[p.animState];
-}
-
-function getCamera() {
-  const p1 = players[0], p2 = players[1];
-  const x1 = p1.x + p1.w / 2, y1 = p1.y + p1.h / 2;
-  const x2 = p2.x + p2.w / 2, y2 = p2.y + p2.h / 2;
-
-  let cx = (x1 + x2) / 2;
-  let cy = (y1 + y2) / 2;
-
-  const extra = 80;
-  const playersW = Math.abs(x2 - x1) + p1.w + p2.w + extra;
-  const playersH = Math.abs(y2 - y1) + p1.h + p2.h + extra;
-
-  const zoomW = canvas.width / playersW;
-  const zoomH = canvas.height / playersH;
-  let baseZoom = Math.min(zoomW, zoomH);
-
-  const minZoom = Math.max(canvas.width / WIDTH, canvas.height / HEIGHT);
-  const maxZoom = 1.8;
-  baseZoom = Math.max(minZoom, Math.min(maxZoom, baseZoom));
-
-  let finalZoom = baseZoom;
-  if (cameraZoomEffect.active) {
-      finalZoom = baseZoom * cameraZoomEffect.currentZoom;
-  }
-
-  const viewW = canvas.width / finalZoom, viewH = canvas.height / finalZoom;
-  cx = Math.max(viewW / 2, Math.min(WIDTH - viewW / 2, cx));
-  cy = Math.max(viewH / 2, Math.min(HEIGHT - viewH / 2, cy));
-
-  return { cx, cy, zoom: finalZoom };
-}
-
-// FOR GAME FUNCTIONS
-function pauseGame(reason) {
-    gameState.paused = true;
-    gameState.pauseReason = reason;
-    gameState.pauseStartTime = performance.now();
-}
-
-function resumeGame() {
-    gameState.paused = false;
-    gameState.pauseReason = null;
-}
-
-function startCameraZoomEffect() {
-    cameraZoomEffect.active = true;
-    cameraZoomEffect.phase = 'zoom_in';
-    cameraZoomEffect.startTime = performance.now();
-    cameraZoomEffect.startZoom = 1;
-    cameraZoomEffect.currentZoom = 1;
-}
-
-function updateCameraZoomEffect() {
-    if (!cameraZoomEffect.active) return;
-    
-    const now = performance.now();
-    const elapsed = now - cameraZoomEffect.startTime;
-    
-    switch (cameraZoomEffect.phase) {
-        case 'zoom_in':
-            const zoomProgress = Math.min(elapsed / cameraZoomEffect.duration.zoomIn, 1);
-            const easeProgress = 1 - Math.pow(1 - zoomProgress, 3);
-            cameraZoomEffect.currentZoom = 1 + (cameraZoomEffect.targetZoom - 1) * easeProgress;
-            
-            if (elapsed >= cameraZoomEffect.duration.zoomIn) {
-                cameraZoomEffect.phase = 'hold';
-                cameraZoomEffect.startTime = now;
-            }
-            break;
-            
-        case 'hold':
-            cameraZoomEffect.currentZoom = cameraZoomEffect.targetZoom;
-            
-            if (elapsed >= cameraZoomEffect.duration.hold) {
-                cameraZoomEffect.phase = 'zoom_out';
-                cameraZoomEffect.startTime = now;
-            }
-            break;
-            
-        case 'zoom_out':
-            const outProgress = Math.min(elapsed / cameraZoomEffect.duration.zoomOut, 1);
-            const easeOutProgress = Math.pow(outProgress, 2);
-            cameraZoomEffect.currentZoom = cameraZoomEffect.targetZoom - (cameraZoomEffect.targetZoom - 1) * easeOutProgress;
-            
-            if (elapsed >= cameraZoomEffect.duration.zoomOut) {
-                cameraZoomEffect.active = false;
-                cameraZoomEffect.phase = 'idle';
-                cameraZoomEffect.currentZoom = 1;
-            }
-            break;
-    }
-}
-
-// IM ABOUT TO PARRYING IT
-function updateBlocking(p, pid) {
-  const controls = pid === 0 ? {down: 's'} : {down: 'l'};
-  if (p._wasBlocking === undefined) p._wasBlocking = false;
-  
-  if (p.onGround && !p.dizzy && !p.inHitstun && keys[controls.down]) {
-    if (!p._wasBlocking && p.block < BLOCK_MAX) {
-      p.blocking = false;
-      p.blockAnimationFinished = false;
-    } else if (p.block > 0) {
-      if (!p.blocking) {
-        p.blocking = true;
-        p.blockStartTime = performance.now();
-        p.blockAnimationFinished = false;
-      }
-      p.block -= BLOCK_DEPLETION;
-      if (p.block < 0) p.block = 0;
-    } else {
-      p.blocking = false;
-      p.blockAnimationFinished = false;
-    }
-  } else {
-    p.blocking = false;
-    p.blockAnimationFinished = false;
-  }
-  
-  if (!p.blocking && p.block < BLOCK_MAX) {
-    p.block += BLOCK_RECOVERY;
-    if (p.block > BLOCK_MAX) p.block = BLOCK_MAX;
-  }
-  p._wasBlocking = p.blocking;
-
-  if (p.dizzy > 0) {
-    p.dizzy--;
-    p.vx *= FRICTION;
-    if (Math.abs(p.vx) < 0.3) p.vx = 0;
-    return true;
-  }
-  return false;
-}
-
-// BEOWULF SUMBAG FUNCTION
 function executeBeowulfUppercut(player, chargeTime) {
   player.beowulfCharging = false;
   player.beowulfChargeType = null;
@@ -570,19 +246,19 @@ function executeBeowulfUppercut(player, chargeTime) {
 }
 
 function handleBeowulfDiveKick(player) {
-  // to check if in ground
+  // Check if hit ground
   if (player.onGround && player.beowulfDiveKick) {
     player.beowulfDiveKick = false;
     player.isDiveKicking = false;
     
-    // too op we should nerf if it doesn't hit a target
+    // Add recovery state - player is vulnerable for a moment
     player.beowulfRecovering = true;
     player.beowulfRecoveryTimer = BEOWULF_DIVE_RECOVERY_TIME;
     player.animState = "beowulf-recovery";
     player.animFrame = 0;
     player.animTimer = 0;
     
-    // set vel to zero 
+    // Prevent movement during recovery
     player.vx = 0;
     player.vy = 0;
     
@@ -652,7 +328,7 @@ function handleBeowulfDiveKick(player) {
                       winner = player.id;
                     }
                     
-                    // if hit hattarget reduce recover
+                    // If we hit someone, reduce recovery time as reward
                     player.beowulfRecoveryTimer = Math.floor(BEOWULF_DIVE_RECOVERY_TIME * 0.6);
                     console.log(`${player.name} hit the target! Recovery time reduced! 🎯`);
                   }
@@ -661,7 +337,7 @@ function handleBeowulfDiveKick(player) {
       }
     }
     
-    // bababoy
+    // Create explosion particles
     for (let i = 0; i < 12; i++) {
       particles.push({
         type: "explosion",
@@ -732,10 +408,6 @@ function handleBeowulfUppercutHit(attacker, opponent) {
   return false;
 }
 
-// ============================================================================
-// VERGIL'S MIRAGE BLADE ABILITIES
-// ============================================================================
-
 function handleMirageBladeAttack() {
   for (let i = 0; i < 2; i++) {
     const p = players[i];
@@ -756,91 +428,64 @@ function handleMirageBladeAttack() {
   }
 }
 
-// ============================================================================
-// VERGIL'S JUDGMENT CUT ABILITIES
-// ============================================================================
-
-function interruptJudgmentCut(player) {
-  if (player.judgmentCutCharging) {
-    player.judgmentCutCharging = false;
-    player.judgmentCutChargeLevel = 0;
-    player.animState = "hit";
-    player.animFrame = 0;
-    player.animTimer = 0;
-    
-    player.vx = (Math.random() - 0.5) * 4;
-    player.vy = -3;
-    
-    for (let i = 0; i < 6; i++) {
-      particles.push({
-        type: "smoke",
-        x: player.x + player.w/2 + (Math.random() - 0.5) * 20,
-        y: player.y + player.h/2 + (Math.random() - 0.5) * 20,
-        life: 15
-      });
-    }
-    
-    console.log(`${player.name}'s Judgment Cut was interrupted!`);
-    return true;
-  }
-  return false;
+function pauseGame(reason) {
+    gameState.paused = true;
+    gameState.pauseReason = reason;
+    gameState.pauseStartTime = performance.now();
 }
 
-function isOpponentInJudgmentCutRange(caster) {
-    for (let i = 0; i < players.length; i++) {
-        const opponent = players[i];
-        if (opponent !== caster && opponent.alive) {
-            const dx = opponent.x + opponent.w/2 - (caster.x + caster.w/2);
-            const dy = opponent.y + opponent.h/2 - (caster.y + caster.h/2);
-            const distance = Math.sqrt(dx*dx + dy*dy);
-            
-            if (distance <= JUDGMENT_CUT_TRIGGER_RANGE) {
-                return true;
-            }
-        }
-    }
-    return false;
+function resumeGame() {
+    gameState.paused = false;
+    gameState.pauseReason = null;
 }
 
-function dealJudgmentCutDamage(effect) {
-    if (effect.damageDealt) return;
+function startCameraZoomEffect() {
+    cameraZoomEffect.active = true;
+    cameraZoomEffect.phase = 'zoom_in';
+    cameraZoomEffect.startTime = performance.now();
+    cameraZoomEffect.startZoom = 1;
+    cameraZoomEffect.currentZoom = 1;
+}
+
+function updateCameraZoomEffect() {
+    if (!cameraZoomEffect.active) return;
     
-    const character = effect.caster;
+    const now = performance.now();
+    const elapsed = now - cameraZoomEffect.startTime;
     
-    for (let i = 0; i < players.length; i++) {
-        const opponent = players[i];
-        if (opponent !== character && opponent.alive) {
-            const dx = opponent.x - character.x;
-            const dy = opponent.y - character.y;
-            const distance = Math.sqrt(dx*dx + dy*dy);
+    switch (cameraZoomEffect.phase) {
+        case 'zoom_in':
+            const zoomProgress = Math.min(elapsed / cameraZoomEffect.duration.zoomIn, 1);
+            const easeProgress = 1 - Math.pow(1 - zoomProgress, 3);
+            cameraZoomEffect.currentZoom = 1 + (cameraZoomEffect.targetZoom - 1) * easeProgress;
             
-            if (distance < effect.range) {
-                const damageMultiplier = 1 - (distance / effect.range);
-                const damage = Math.round(effect.damage * damageMultiplier);
-                opponent.hp -= damage;
-                opponent.justHit = 20;
-                
-                const knockbackX = (opponent.x < character.x ? -1 : 1) * 15;
-                const knockbackY = -12;
-                knockback(character, opponent, knockbackX, knockbackY);
-                
-                if (opponent.hp <= 0) { 
-                    opponent.hp = 0; 
-                    opponent.alive = false; 
-                    
-                    if (character.hp <= 0) {
-                        character.hp = 0;
-                        character.alive = false;
-                        winner = "draw";
-                    } else {
-                        winner = character.id; 
-                    }
-                }
+            if (elapsed >= cameraZoomEffect.duration.zoomIn) {
+                cameraZoomEffect.phase = 'hold';
+                cameraZoomEffect.startTime = now;
             }
-        }
+            break;
+            
+        case 'hold':
+            cameraZoomEffect.currentZoom = cameraZoomEffect.targetZoom;
+            
+            if (elapsed >= cameraZoomEffect.duration.hold) {
+                cameraZoomEffect.phase = 'zoom_out';
+                cameraZoomEffect.startTime = now;
+            }
+            break;
+            
+        case 'zoom_out':
+            const outProgress = Math.min(elapsed / cameraZoomEffect.duration.zoomOut, 1);
+            const easeOutProgress = Math.pow(outProgress, 2);
+            cameraZoomEffect.currentZoom = cameraZoomEffect.targetZoom - (cameraZoomEffect.targetZoom - 1) * easeOutProgress;
+            
+            if (elapsed >= cameraZoomEffect.duration.zoomOut) {
+                cameraZoomEffect.active = false;
+                cameraZoomEffect.phase = 'idle';
+                cameraZoomEffect.currentZoom = 1;
+            }
+            break;
     }
-    
-    effect.damageDealt = true;
 }
 
 function executeJudgmentCut(character) {
@@ -939,6 +584,100 @@ function executeJudgmentCut(character) {
   
   setTimeout(() => { AbilityLibrary.judgementCut(character); }, 1500);
   setTimeout(() => { resumeGame(); }, 6500);
+}
+
+function getControls(pid) {
+  return pid === 0
+    ? { left: 'a', right: 'd', up: 'w', down: 's', special: 'e', weaponSwitch: 'q' }
+    : { left: 'k', right: ';', up: 'o', down: 'l', special: 'p', weaponSwitch: 'i' };
+}
+
+function knockback(attacker, defender, strengthX, strengthY) {
+  defender.vx = (defender.x < attacker.x ? -1 : 1) * Math.abs(strengthX);
+  defender.vy = strengthY;
+}
+
+function interruptJudgmentCut(player) {
+  if (player.judgmentCutCharging) {
+    player.judgmentCutCharging = false;
+    player.judgmentCutChargeLevel = 0;
+    player.animState = "hit";
+    player.animFrame = 0;
+    player.animTimer = 0;
+    
+    player.vx = (Math.random() - 0.5) * 4;
+    player.vy = -3;
+    
+    for (let i = 0; i < 6; i++) {
+      particles.push({
+        type: "smoke",
+        x: player.x + player.w/2 + (Math.random() - 0.5) * 20,
+        y: player.y + player.h/2 + (Math.random() - 0.5) * 20,
+        life: 15
+      });
+    }
+    
+    console.log(`${player.name}'s Judgment Cut was interrupted!`);
+    return true;
+  }
+  return false;
+}
+
+function isOpponentInJudgmentCutRange(caster) {
+    for (let i = 0; i < players.length; i++) {
+        const opponent = players[i];
+        if (opponent !== caster && opponent.alive) {
+            const dx = opponent.x + opponent.w/2 - (caster.x + caster.w/2);
+            const dy = opponent.y + opponent.h/2 - (caster.y + caster.h/2);
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distance <= JUDGMENT_CUT_TRIGGER_RANGE) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function dealJudgmentCutDamage(effect) {
+    if (effect.damageDealt) return;
+    
+    const character = effect.caster;
+    
+    for (let i = 0; i < players.length; i++) {
+        const opponent = players[i];
+        if (opponent !== character && opponent.alive) {
+            const dx = opponent.x - character.x;
+            const dy = opponent.y - character.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distance < effect.range) {
+                const damageMultiplier = 1 - (distance / effect.range);
+                const damage = Math.round(effect.damage * damageMultiplier);
+                opponent.hp -= damage;
+                opponent.justHit = 20;
+                
+                const knockbackX = (opponent.x < character.x ? -1 : 1) * 15;
+                const knockbackY = -12;
+                knockback(character, opponent, knockbackX, knockbackY);
+                
+                if (opponent.hp <= 0) { 
+                    opponent.hp = 0; 
+                    opponent.alive = false; 
+                    
+                    if (character.hp <= 0) {
+                        character.hp = 0;
+                        character.alive = false;
+                        winner = "draw";
+                    } else {
+                        winner = character.id; 
+                    }
+                }
+            }
+        }
+    }
+    
+    effect.damageDealt = true;
 }
 
 const AbilityLibrary = {
@@ -1138,9 +877,225 @@ const AbilityLibrary = {
     }
 };
 
-// ============================================================================
-// DASH AND COMBAT SYSTEM (continued)
-// ============================================================================
+function getCamera() {
+  const p1 = players[0], p2 = players[1];
+  const x1 = p1.x + p1.w / 2, y1 = p1.y + p1.h / 2;
+  const x2 = p2.x + p2.w / 2, y2 = p2.y + p2.h / 2;
+
+  let cx = (x1 + x2) / 2;
+  let cy = (y1 + y2) / 2;
+
+  const extra = 80;
+  const playersW = Math.abs(x2 - x1) + p1.w + p2.w + extra;
+  const playersH = Math.abs(y2 - y1) + p1.h + p2.h + extra;
+
+  const zoomW = canvas.width / playersW;
+  const zoomH = canvas.height / playersH;
+  let baseZoom = Math.min(zoomW, zoomH);
+
+  const minZoom = Math.max(canvas.width / WIDTH, canvas.height / HEIGHT);
+  const maxZoom = 1.8;
+  baseZoom = Math.max(minZoom, Math.min(maxZoom, baseZoom));
+
+  let finalZoom = baseZoom;
+  if (cameraZoomEffect.active) {
+      finalZoom = baseZoom * cameraZoomEffect.currentZoom;
+  }
+
+  const viewW = canvas.width / finalZoom, viewH = canvas.height / finalZoom;
+  cx = Math.max(viewW / 2, Math.min(WIDTH - viewW / 2, cx));
+  cy = Math.max(viewH / 2, Math.min(HEIGHT - viewH / 2, cy));
+
+  return { cx, cy, zoom: finalZoom };
+}
+
+const keys = {};
+const dashTapState = [
+  {lastTapDir: null, lastTapTime: 0, lastReleaseTime: {left:0, right:0}},
+  {lastTapDir: null, lastTapTime: 0, lastReleaseTime: {left:0, right:0}}
+];
+
+document.addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; });
+document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+document.addEventListener("keydown", function(e) {
+  const k = e.key.toLowerCase();
+  
+  for (let pid = 0; pid < 2; pid++) {
+    const p = players[pid];
+    if (!p.alive) continue;
+    
+    const controls = getControls(pid);
+    if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
+      if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+        if (p.onGround) {
+          if (isOpponentInJudgmentCutRange(p)) {
+            p.judgmentCutCharging = true;
+            p.judgmentCutChargeStart = performance.now();
+            p.judgmentCutChargeLevel = 0;
+            p.animState = "charging";
+            p.animFrame = 0;
+            p.animTimer = 0;
+          } else {
+            rangeWarningText.show = true;
+            rangeWarningText.timer = 60;
+          }
+        }
+      } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+          p.beowulfCharging = true;
+          p.beowulfChargeStart = performance.now();
+          p.beowulfChargeType = 'uppercut';
+          p.animState = "beowulf-charging";
+          p.animFrame = 0;
+          p.animTimer = 0;
+          console.log(`${p.name} is charging Beowulf Rising Uppercut! 👊⬆️`);
+        } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+          const currentHeight = GROUND - (p.y + p.h);
+          
+          if (currentHeight >= 50) {
+            p.beowulfDiveKick = true;
+            p.beowulfDiveDirection = p.facing;
+            p.vy = 16;
+            p.vx = p.facing * 18;
+            p.isDiveKicking = true;
+            p.animState = "beowulf-divekick";
+            p.animFrame = 0;
+            p.animTimer = 0;
+            console.log(`${p.name} performs SUPER DIAGONAL Kamen Rider Kick! 👊💥`);
+          } else {
+            console.log(`${p.name} not high enough for Kamen Rider kick! Need 100px height 🚫`);
+          }
+        }
+      } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
+        if (p.onGround && !p.mirageActive) {
+          p.mirageActive = true;
+          p.mirageTimer = p.mirageDuration;
+          
+          const slashW = 200, slashH = 100;
+          p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
+          p.mirageSlashY = p.y + (p.h - slashH)/2;
+          
+          console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
+        }
+      }
+    }
+    
+    // Weapon switching for Vergil
+    const weaponSwitchKey = pid === 0 ? 'q' : 'i';
+    if (k === weaponSwitchKey && p.charId === 'vergil' && !p.judgmentCutCharging && !p.beowulfCharging && !p.beowulfDiveKick) {
+      if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+        p.currentWeapon = VERGIL_WEAPONS.BEOWULF;
+        console.log(`${p.name} switched to Beowulf (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        p.currentWeapon = VERGIL_WEAPONS.MIRAGE_BLADE;
+        console.log(`${p.name} switched to Mirage Blade (Magic)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      } else {
+        p.currentWeapon = VERGIL_WEAPONS.YAMATO;
+        console.log(`${p.name} switched to Yamato (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      }
+      
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+  }
+
+  for (let pid = 0; pid < 2; pid++) {
+    const controls = pid === 0 ? {left:'a', right:'d'} : {left:'k', right:';'};
+    const p = players[pid];
+    if(!p.alive) continue;
+    
+    if (k === controls.left && !keys[controls.right] && p.dashCooldown === 0 && !p.inHitstun) {
+      let now = performance.now();
+      if (dashTapState[pid].lastTapDir === 'left' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.left < DASH_WINDOW) {
+        if (p.charId === 'vergil') {
+          p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
+          p.isTeleporting = true;
+          p.teleportAlpha = 0.3;
+          p.vx = -DASH_SPEED * 1.2;
+        } else {
+          p.vx = -DASH_SPEED;
+        }
+        p.dash = DASH_FRAMES;
+        p.dashCooldown = DASH_COOLDOWN;
+        dashTapState[pid].lastTapDir = null;
+        spawnDashEffects(p);
+      } else {
+        dashTapState[pid].lastTapDir = 'left';
+        dashTapState[pid].lastTapTime = now;
+      }
+    }
+    
+    if (k === controls.right && !keys[controls.left] && p.dashCooldown === 0 && !p.inHitstun) {
+      let now = performance.now();
+      if (dashTapState[pid].lastTapDir === 'right' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.right < DASH_WINDOW) {
+        if (p.charId === 'vergil') {
+          p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
+          p.isTeleporting = true;
+          p.teleportAlpha = 0.3;
+          p.vx = DASH_SPEED * 1.2;
+        } else {
+          p.vx = DASH_SPEED;
+        }
+        p.dash = DASH_FRAMES;
+        p.dashCooldown = DASH_COOLDOWN;
+        dashTapState[pid].lastTapDir = null;
+        spawnDashEffects(p);
+      } else {
+        dashTapState[pid].lastTapDir = 'right';
+        dashTapState[pid].lastTapTime = now;
+      }
+    }
+  }
+});
+
+document.addEventListener("keyup", function(e) {
+  const k = e.key.toLowerCase();
+  for (let pid = 0; pid < 2; pid++) {
+    const controls = pid === 0 ? {left:'a', right:'d'} : {left:'k', right:';'};
+    let now = performance.now();
+    if (k === controls.left) dashTapState[pid].lastReleaseTime.left = now;
+    if (k === controls.right) dashTapState[pid].lastReleaseTime.right = now;
+    
+    const playerControls = getControls(pid);
+    if (k === playerControls.special) {
+      const p = players[pid];
+      if (p.charId === 'vergil' && p.judgmentCutCharging) {
+        const chargeTime = now - p.judgmentCutChargeStart;
+        
+        if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
+          p.isInvisibleDuringJudgmentCut = true;
+          p.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SLASHING;
+          p.slashAnimationFrame = 0;
+          p.slashAnimationTimer = 0;
+          p.judgmentCutCharging = false;
+          p.judgmentCutChargeLevel = 0;
+          executeJudgmentCut(p);
+        } else {
+          p.judgmentCutCharging = false;
+          p.judgmentCutChargeLevel = 0;
+          p.animState = "idle";
+          p.animFrame = 0;
+          p.animTimer = 0;
+        }
+      }
+      
+      if (p.charId === 'vergil' && p.beowulfCharging && p.beowulfChargeType === 'uppercut') {
+        const chargeTime = now - p.beowulfChargeStart;
+        const minChargeTime = 200;
+        if (chargeTime >= minChargeTime) {
+          executeBeowulfUppercut(p, chargeTime);
+        } else {
+          p.beowulfCharging = false;
+          p.beowulfChargeType = null;
+          p.animState = "idle";
+          p.animFrame = 0;
+          p.animTimer = 0;
+        }
+      }
+    }
+  }
+});
 
 function handleDiveKickAttack() {
   for (let i = 0; i < 2; i++) {
@@ -1313,6 +1268,8 @@ function handleSingleDashHit(p, opp) {
         opp.vy = DIZZY_KNOCKBACK_Y;
       } else {
         opp.vx = p.facing * 8;
+ // ... continuing from where I left off in handleSingleDashHit function
+
         opp.vy = -8;
       }
       console.log(`${p.name} slashed ${opp.name} with Yamato! ⚔️`);
@@ -1364,9 +1321,90 @@ function handleSingleDashHit(p, opp) {
   }
 }
 
-// ============================================================================
-// PLAYER UPDATE AND PHYSICS
-// ============================================================================
+function updateUI() {
+  let p1hp = Math.max(0,players[0].hp)/PLAYER_HP*100;
+  let p2hp = Math.max(0,players[1].hp)/PLAYER_HP*100;
+  document.querySelector("#p1hp .hp-inner").style.width = p1hp+"%";
+  document.querySelector("#p2hp .hp-inner").style.width = p2hp+"%";
+  document.getElementById("p1nameui").textContent = players[0].name;
+  document.getElementById("p2nameui").textContent = players[1].name;
+  document.getElementById("p1nameui").style.color = players[0].color;
+  document.getElementById("p2nameui").style.color = players[1].color;
+  
+  if(winner !== null) {
+    if (winner === "draw") {
+      document.getElementById("winner").textContent = "DRAW - Both Players Defeated!";
+      document.getElementById("winner").style.color = "#ff6b6b";
+    } else {
+      document.getElementById("winner").textContent = `Winner: ${players[winner].name || `Player ${winner+1}`}`;
+      document.getElementById("winner").style.color = "#ffeb3b";
+    }
+  } else {
+    document.getElementById("winner").textContent = "";
+  }
+  
+  for (let i = 0; i < 2; ++i) {
+    let bar = document.getElementById(i === 0 ? "p1dashbar" : "p2dashbar");
+    let ratio = 1 - (players[i].dashCooldown / DASH_COOLDOWN);
+    if (players[i].dashCooldown > 0) {
+      bar.style.width = (ratio * 100) + "%";
+      bar.style.background = "linear-gradient(90deg, #bbb 30%, #888 100%)";
+    } else {
+      bar.style.width = "100%";
+      bar.style.background = "linear-gradient(90deg, #ffeb3b 30%, #ffa726 100%)";
+    }
+  }
+}
+
+const particles = [];
+
+function spawnDashEffects(player) {
+  if (player.charId !== 'vergil') {
+    particles.push({
+      type: "smoke",
+      x: player.x + player.w/2,
+      y: player.y + player.h,
+      life: 20
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].life--;
+    if (particles[i].life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles(ctx) {
+  for (const e of particles) {
+    if (e.type === "smoke") {
+      ctx.save();
+      ctx.globalAlpha = e.life/20 * 0.5;
+      ctx.fillStyle = "#bbb";
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 14, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    } else if (e.type === "explosion") {
+      ctx.save();
+      ctx.globalAlpha = e.life/25 * 0.8;
+      ctx.fillStyle = "#ff6b35";
+      ctx.strokeStyle = "#ffeb3b";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 8, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      e.x += e.vx;
+      e.y += e.vy;
+      e.vy += 0.3;
+      ctx.restore();
+    }
+  }
+}
+
+const platforms = [];
 
 function updatePlayer(p, pid) {
   if (p.pauseTimer > 0) {
@@ -1474,26 +1512,26 @@ function updatePlayer(p, pid) {
     if (p.judgementCutEffect) {
         const effect = p.judgementCutEffect;
         
-        if (effect.phase === 'slide') {
-            const t = performance.now() - effect.startTime;
-            
-            for (let s of effect.shards) {
-                s.x += s.vx * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
-                s.y += s.vy * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
-                s.angle += s.vangle * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
-            }
-            
-            if (t > JUDGEMENT_CUT_CONSTANTS.SLIDE_DURATION) {
-                effect.phase = 'fall';
-                
-                dealJudgmentCutDamage(effect);
-                
-                for (let s of effect.shards) {
-                    s.vy = JUDGEMENT_CUT_CONSTANTS.FALL_INITIAL_VY + Math.random()*2;
-                    s.vx = (Math.random()-0.5) * JUDGEMENT_CUT_CONSTANTS.FALL_VX_RANGE;
-                }
-            }
-        } else if (effect.phase === 'fall') {
+if (effect.phase === 'slide') {
+    const t = performance.now() - effect.startTime;
+    
+    for (let s of effect.shards) {
+        s.x += s.vx * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
+        s.y += s.vy * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
+        s.angle += s.vangle * JUDGEMENT_CUT_CONSTANTS.SLIDE_SPEED;
+    }
+    
+    if (t > JUDGEMENT_CUT_CONSTANTS.SLIDE_DURATION) {
+        effect.phase = 'fall';
+        
+        dealJudgmentCutDamage(effect);
+        
+        for (let s of effect.shards) {
+            s.vy = JUDGEMENT_CUT_CONSTANTS.FALL_INITIAL_VY + Math.random()*2;
+            s.vx = (Math.random()-0.5) * JUDGEMENT_CUT_CONSTANTS.FALL_VX_RANGE;
+        }
+    }
+} else if (effect.phase === 'fall') {
             for (let s of effect.shards) {
                 s.x += s.vx;
                 s.y += s.vy;
@@ -1518,27 +1556,27 @@ function updatePlayer(p, pid) {
 
   if (updateBlocking(p, pid)) return;
 
-  // Update hitstun
-  if (p.inHitstun) {
-    if (p.hitstun > 0) {
-      p.hitstun--;
-    }
-    
-    // If we're in air hitstun from uppercut, only end it when we land
-    if (p.airHitstun) {
-      if (p.onGround) {
-        // Player has landed, end the hitstun
-        p.inHitstun = false;
-        p.airHitstun = false;
-        p.hitstun = 0; // Reset hitstun counter
-        console.log(`${p.name} recovered from uppercut stun after landing!`);
-      }
-      // Don't decrement hitstun counter for air hitstun - it only ends on landing
-    } else if (p.hitstun <= 0) {
-      // Normal ground hitstun ends when counter reaches 0
-      p.inHitstun = false;
-    }
+// Update hitstun
+if (p.inHitstun) {
+  if (p.hitstun > 0) {
+    p.hitstun--;
   }
+  
+  // If we're in air hitstun from uppercut, only end it when we land
+  if (p.airHitstun) {
+    if (p.onGround) {
+      // Player has landed, end the hitstun
+      p.inHitstun = false;
+      p.airHitstun = false;
+      p.hitstun = 0; // Reset hitstun counter
+      console.log(`${p.name} recovered from uppercut stun after landing!`);
+    }
+    // Don't decrement hitstun counter for air hitstun - it only ends on landing
+  } else if (p.hitstun <= 0) {
+    // Normal ground hitstun ends when counter reaches 0
+    p.inHitstun = false;
+  }
+}
 
   if (p.dash > 0) {
     p.dash--;
@@ -1565,7 +1603,7 @@ function updatePlayer(p, pid) {
   let slowFallActive = false;
   if (!p.onGround && keys[controls.up]) slowFallActive = true;
   
-  if (keys[controls.up] && !p.inHitstun) {
+    if (keys[controls.up] && !p.inHitstun) {
     if ((p.onGround || p.jumps < MAX_JUMPS) && !p.jumpHeld && !p.blocking) {
       p.vy = -JUMP_VEL; p.jumps++; p.jumpHeld = true;
     }
@@ -1643,9 +1681,19 @@ function updatePlayer(p, pid) {
   }
 }
 
-// ============================================================================
-// ANIMATION SYSTEM
-// ============================================================================
+function getAnimForPlayer(p) {
+  let charAnim = characterSprites[p.charId];
+  if (!charAnim) return null;
+  
+  if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    const beowulfAnimState = `beowulf-${p.animState}`;
+    if (charAnim[beowulfAnimState]) {
+      return charAnim[beowulfAnimState];
+    }
+  }
+  
+  return charAnim[p.animState];
+}
 
 function updatePlayerAnimState(p, pid) {
   const prevState = p.animState;
@@ -1775,256 +1823,147 @@ function updateAnimation(p) {
   }
 }
 
-// ============================================================================
-// INPUT HANDLING
-// ============================================================================
+// Load images
+const mirageSlashSprite = new Image(); 
+mirageSlashSprite.src = 'void-slash.png'
 
-document.addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; });
-document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+const blockBarBorderImg = new Image();
+blockBarBorderImg.src = "gold-block-border.png";
 
-document.addEventListener("keydown", function(e) {
-  const k = e.key.toLowerCase();
-  
-  for (let pid = 0; pid < 2; pid++) {
-    const p = players[pid];
-    if (!p.alive) continue;
+const bgImg = new Image();
+bgImg.src = "underground.jpg";
+
+const vergilTeleportTrailSprite = new Image();
+vergilTeleportTrailSprite.src = "vergil-teleport-trail.png";
+
+const vergilSlashingSprite = new Image();
+vergilSlashingSprite.src = "vergil-judgment-cut-slashes.png"; 
+
+const characterSprites = {
+  gold: {
+    idle: { src: "gold-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
+    walk: { src: "gold-walk.png", frames: 10, w: 50, h: 50, speed: 4 },
+    jump: { src: "gold-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
+    fall: { src: "gold-fall.png", frames: 1, w: 50, h: 50, speed: 7 },
+    attack: { src: "gold-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
+    attack_air: { src: "gold-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
+    block: { src: "gold-block.png", frames: 2, w: 38, h: 38, speed: 6 },
+    hit: { src: "gold-hit.png", frames: 2, w: 38, h: 38, speed: 8 },
+    dizzy: { src: "gold-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
+    dash: { src: "gold-dash.png", frames: 2, w: 50, h: 50, speed: 3 },
+    defeat: { src: "gold-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
+    victory: { src: "gold-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
+  },
+  chicken: {
+    idle: { src: "chicken-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
+    walk: { src: "chicken-walk.png", frames: 7, w: 50, h: 50, speed: 4 },
+    jump: { src: "chicken-jump.png", frames: 4, w: 50, h: 50, speed: 6 },
+    fall: { src: "chicken-fall.png", frames: 3, w: 50, h: 50, speed: 15 },
+    attack: { src: "chicken-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
+    attack_air: { src: "chicken-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
+    block: { src: "chicken-block.png", frames: 2, w: 50, h: 50, speed: 11 },
+    hit: { src: "chicken-hit.png", frames: 3, w: 50, h: 50, speed: 8 },
+    dizzy: { src: "chicken-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
+    dash: { src: "chicken-dash.png", frames: 3, w: 50, h: 50, speed: 4 },
+    defeat: { src: "chicken-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
+    victory: { src: "chicken-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
+  },
+  vergil: {
+    // Yamato sprites
+    idle: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+    dash: { src: "vergil-dash.png", frames: 3, w: 100, h: 100, speed: 4 },
+    walk: { src: "vergil-walk.png", frames: 3, w: 100, h: 100, speed: 6 },
+    block: { src: "vergil-block.png", frames: 4, w: 100, h: 100, speed: 6 },
+    blocking: { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 8 },
+    jump: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+    fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+    sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
+    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
+    charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     
-    const controls = getControls(pid);
-    if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
-      if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-        if (p.onGround) {
-          if (isOpponentInJudgmentCutRange(p)) {
-            p.judgmentCutCharging = true;
-            p.judgmentCutChargeStart = performance.now();
-            p.judgmentCutChargeLevel = 0;
-            p.animState = "charging";
-            p.animFrame = 0;
-            p.animTimer = 0;
-          } else {
-            rangeWarningText.show = true;
-            rangeWarningText.timer = 60;
-          }
-        }
-      } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
-          p.beowulfCharging = true;
-          p.beowulfChargeStart = performance.now();
-          p.beowulfChargeType = 'uppercut';
-          p.animState = "beowulf-charging";
-          p.animFrame = 0;
-          p.animTimer = 0;
-          console.log(`${p.name} is charging Beowulf Rising Uppercut! 👊⬆️`);
-        } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
-          const currentHeight = GROUND - (p.y + p.h);
-          
-          if (currentHeight >= 50) {
-            p.beowulfDiveKick = true;
-            p.beowulfDiveDirection = p.facing;
-            p.vy = 16;
-            p.vx = p.facing * 18;
-            p.isDiveKicking = true;
-            p.animState = "beowulf-divekick";
-            p.animFrame = 0;
-            p.animTimer = 0;
-            console.log(`${p.name} performs SUPER DIAGONAL Kamen Rider Kick! 👊💥`);
-          } else {
-            console.log(`${p.name} not high enough for Kamen Rider kick! Need 100px height 🚫`);
-          }
-        }
-      } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
-        if (p.onGround && !p.mirageActive) {
-          p.mirageActive = true;
-          p.mirageTimer = p.mirageDuration;
-          
-          const slashW = 200, slashH = 100;
-          p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
-          p.mirageSlashY = p.y + (p.h - slashH)/2;
-          
-          console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
-        }
-      }
-    }
+    // Beowulf sprites
+    'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
+    'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
+    'beowulf-block': { src: "vergil-beowulf-block.png", frames: 3, w: 100, h: 100, speed: 6 },
+    'beowulf-blocking': { src: "vergil-beowulf-blocking.png", frames: 2, w: 100, h: 100, speed: 8 },
+    'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-charging': { src: "vergil-beowulf-charging.png", frames: 4, w: 100, h: 100, speed: 8 },
+    'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
+    'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
+    'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
     
-    // Weapon switching for Vergil
-    const weaponSwitchKey = pid === 0 ? 'q' : 'i';
-    if (k === weaponSwitchKey && p.charId === 'vergil' && !p.judgmentCutCharging && !p.beowulfCharging && !p.beowulfDiveKick) {
-      if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-        p.currentWeapon = VERGIL_WEAPONS.BEOWULF;
-        console.log(`${p.name} switched to Beowulf (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
-      } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        p.currentWeapon = VERGIL_WEAPONS.MIRAGE_BLADE;
-        console.log(`${p.name} switched to Mirage Blade (Magic)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
-      } else {
-        p.currentWeapon = VERGIL_WEAPONS.YAMATO;
-        console.log(`${p.name} switched to Yamato (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
-      }
-      
-      p.animFrame = 0;
-      p.animTimer = 0;
-    }
+    // Mirage Blade sprites
+    'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
+    'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
   }
+};
 
-  // Handle double-tap dash inputs
-  for (let pid = 0; pid < 2; pid++) {
-    const controls = pid === 0 ? {left:'a', right:'d'} : {left:'k', right:';'};
-    const p = players[pid];
-    if(!p.alive) continue;
-    
-    if (k === controls.left && !keys[controls.right] && p.dashCooldown === 0 && !p.inHitstun) {
-      let now = performance.now();
-      if (dashTapState[pid].lastTapDir === 'left' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.left < DASH_WINDOW) {
-        if (p.charId === 'vergil') {
-          p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
-          p.isTeleporting = true;
-          p.teleportAlpha = 0.3;
-          p.vx = -DASH_SPEED * 1.2;
-        } else {
-          p.vx = -DASH_SPEED;
-        }
-        p.dash = DASH_FRAMES;
-        p.dashCooldown = DASH_COOLDOWN;
-        dashTapState[pid].lastTapDir = null;
-        spawnDashEffects(p);
-      } else {
-        dashTapState[pid].lastTapDir = 'left';
-        dashTapState[pid].lastTapTime = now;
-      }
-    }
-    
-    if (k === controls.right && !keys[controls.left] && p.dashCooldown === 0 && !p.inHitstun) {
-      let now = performance.now();
-      if (dashTapState[pid].lastTapDir === 'right' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.right < DASH_WINDOW) {
-        if (p.charId === 'vergil') {
-          p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
-          p.isTeleporting = true;
-          p.teleportAlpha = 0.3;
-          p.vx = DASH_SPEED * 1.2;
-        } else {
-          p.vx = DASH_SPEED;
-        }
-        p.dash = DASH_FRAMES;
-        p.dashCooldown = DASH_COOLDOWN;
-        dashTapState[pid].lastTapDir = null;
-        spawnDashEffects(p);
-      } else {
-        dashTapState[pid].lastTapDir = 'right';
-        dashTapState[pid].lastTapTime = now;
-      }
-    }
-  }
-});
-
-document.addEventListener("keyup", function(e) {
-  const k = e.key.toLowerCase();
-  for (let pid = 0; pid < 2; pid++) {
-    const controls = pid === 0 ? {left:'a', right:'d'} : {left:'k', right:';'};
-    let now = performance.now();
-    if (k === controls.left) dashTapState[pid].lastReleaseTime.left = now;
-    if (k === controls.right) dashTapState[pid].lastReleaseTime.right = now;
-    
-    const playerControls = getControls(pid);
-    if (k === playerControls.special) {
-      const p = players[pid];
-      if (p.charId === 'vergil' && p.judgmentCutCharging) {
-        const chargeTime = now - p.judgmentCutChargeStart;
-        
-        if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
-          p.isInvisibleDuringJudgmentCut = true;
-          p.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SLASHING;
-          p.slashAnimationFrame = 0;
-          p.slashAnimationTimer = 0;
-          p.judgmentCutCharging = false;
-          p.judgmentCutChargeLevel = 0;
-          executeJudgmentCut(p);
-        } else {
-          p.judgmentCutCharging = false;
-          p.judgmentCutChargeLevel = 0;
-          p.animState = "idle";
-          p.animFrame = 0;
-          p.animTimer = 0;
-        }
-      }
-      
-      if (p.charId === 'vergil' && p.beowulfCharging && p.beowulfChargeType === 'uppercut') {
-        const chargeTime = now - p.beowulfChargeStart;
-        const minChargeTime = 200;
-        if (chargeTime >= minChargeTime) {
-          executeBeowulfUppercut(p, chargeTime);
-        } else {
-          p.beowulfCharging = false;
-          p.beowulfChargeType = null;
-          p.animState = "idle";
-          p.animFrame = 0;
-          p.animTimer = 0;
-        }
-      }
-    }
-  }
-});
-
-// Character selection
-document.addEventListener("keydown", function(e) {
-  if (e.key === "1") {
-    const p = players[0];
-    p.charId = "vergil";
-    p.name = "Vergil";
-    p.color = "#4a90e2";
-    p.judgementCutCooldown = 0;
-    console.log("Player 1 is now Vergil! Q=Switch Weapon, E=Judgment Cut(Yamato)");
-  }
-  
-  if (e.key === "2") {
-    const p = players[1];
-    p.charId = "vergil";
-    p.name = "Vergil";
-    p.color = "#4a90e2";
-    p.judgementCutCooldown = 0;
-    console.log("Player 2 is now Vergil! I=Switch Weapon, P=Judgment Cut(Yamato)");
-  }
-});
-
-// ============================================================================
-// UI AND HUD SYSTEM
-// ============================================================================
-
-function updateUI() {
-  let p1hp = Math.max(0,players[0].hp)/PLAYER_HP*100;
-  let p2hp = Math.max(0,players[1].hp)/PLAYER_HP*100;
-  document.querySelector("#p1hp .hp-inner").style.width = p1hp+"%";
-  document.querySelector("#p2hp .hp-inner").style.width = p2hp+"%";
-  document.getElementById("p1nameui").textContent = players[0].name;
-  document.getElementById("p2nameui").textContent = players[1].name;
-  document.getElementById("p1nameui").style.color = players[0].color;
-  document.getElementById("p2nameui").style.color = players[1].color;
-  
-  if(winner !== null) {
-    if (winner === "draw") {
-      document.getElementById("winner").textContent = "DRAW - Both Players Defeated!";
-      document.getElementById("winner").style.color = "#ff6b6b";
-    } else {
-      document.getElementById("winner").textContent = `Winner: ${players[winner].name || `Player ${winner+1}`}`;
-      document.getElementById("winner").style.color = "#ffeb3b";
-    }
-  } else {
-    document.getElementById("winner").textContent = "";
-  }
-  
-  for (let i = 0; i < 2; ++i) {
-    let bar = document.getElementById(i === 0 ? "p1dashbar" : "p2dashbar");
-    let ratio = 1 - (players[i].dashCooldown / DASH_COOLDOWN);
-    if (players[i].dashCooldown > 0) {
-      bar.style.width = (ratio * 100) + "%";
-      bar.style.background = "linear-gradient(90deg, #bbb 30%, #888 100%)";
-    } else {
-      bar.style.width = "100%";
-      bar.style.background = "linear-gradient(90deg, #ffeb3b 30%, #ffa726 100%)";
+const spritesheetCache = {};
+for (const charId in characterSprites) {
+  for (const state in characterSprites[charId]) {
+    const anim = characterSprites[charId][state];
+    if (!spritesheetCache[anim.src]) {
+      const img = new Image();
+      img.src = anim.src;
+      spritesheetCache[anim.src] = img;
     }
   }
 }
 
-// ============================================================================
-// RENDERING SYSTEM
-// ============================================================================
+// Player initialization
+const players = [
+  {
+    x: WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
+    color: "#4a90e2", facing: 1, hp: PLAYER_HP, jumps: 0, dash: 0,
+    dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 0, 
+    name: "Vergil", charId: "vergil", animState: "idle", animFrame: 0, animTimer: 0, 
+    justHit: 0, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0, 
+    blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false, 
+    blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null, 
+    isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0, 
+    judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
+    currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
+    hitstun: 0, inHitstun: false, beowulfCharging: false, beowulfChargeStart: 0,
+    beowulfChargeType: null, beowulfDiveKick: false, beowulfDiveDirection: 1,
+    beowulfGroundImpact: false, beowulfImpactRadius: 80, isDiveKicking: false,
+    isUppercutting: false, uppercutPower: 0, mirageActive: false, mirageTimer: 0,
+    mirageDuration: 60, pauseTimer: 0, mirageSlashX: 0, mirageSlashY: 0,
+    teleportTrail: null, isTeleporting: false, teleportAlpha: 1.0,  hitstun: 0,
+    inHitstun: false,
+    airHitstun: false,  beowulfRecovering: false,
+beowulfRecoveryTimer: 0,
+  },
+  {
+    x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
+    color: "#ef5350", facing: -1, hp: PLAYER_HP, jumps: 0, dash: 0,
+    dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 1,
+    name: "P2", charId: "chicken", animState: "idle", animFrame: 0, animTimer: 0,
+    justHit: 0, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0,
+    blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false,
+    blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null,
+    isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0,
+    judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
+    currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
+    hitstun: 0, inHitstun: false, beowulfCharging: false, beowulfChargeStart: 0,
+    beowulfChargeType: null, beowulfDiveKick: false, beowulfDiveDirection: 1,
+    beowulfGroundImpact: false, beowulfImpactRadius: 80, isDiveKicking: false,
+    isUppercutting: false, uppercutPower: 0, mirageActive: false, mirageTimer: 0,
+    mirageDuration: 60, pauseTimer: 0, mirageSlashX: 0, mirageSlashY: 0,
+    teleportTrail: null, isTeleporting: false, teleportAlpha: 1.0,  hitstun: 0,
+    inHitstun: false,
+    airHitstun: false,  beowulfRecovering: false,
+beowulfRecoveryTimer: 0,
+  }
+];
+
+let winner = null;
+let rangeWarningText = { show: false, timer: 0 };
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
 function draw() {
   const camera = getCamera();
@@ -2435,7 +2374,7 @@ function draw() {
   // Draw sheathing Vergil on top
   ctx.save();
   ctx.translate(WIDTH/2, HEIGHT/2);
-    ctx.scale(camera.zoom, camera.zoom);
+  ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.cx, -camera.cy);
 
   for(let i=0; i<players.length; i++) {
@@ -2493,10 +2432,6 @@ function draw() {
   }
 }
 
-// ============================================================================
-// MAIN GAME LOOP
-// ============================================================================
-
 function gameLoop() {
   updateCameraZoomEffect();
   
@@ -2542,9 +2477,25 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// ============================================================================
-// GAME INITIALIZATION
-// ============================================================================
+// Character selection
+document.addEventListener("keydown", function(e) {
+  if (e.key === "1") {
+    const p = players[0];
+    p.charId = "vergil";
+    p.name = "Vergil";
+    p.color = "#4a90e2";
+    p.judgementCutCooldown = 0;
+    console.log("Player 1 is now Vergil! Q=Switch Weapon, E=Judgment Cut(Yamato)");
+  }
+  
+  if (e.key === "2") {
+    const p = players[1];
+    p.charId = "vergil";
+    p.name = "Vergil";
+    p.color = "#4a90e2";
+    p.judgementCutCooldown = 0;
+    console.log("Player 2 is now Vergil! I=Switch Weapon, P=Judgment Cut(Yamato)");
+  }
+});
 
-// Start the game loop
 gameLoop();
