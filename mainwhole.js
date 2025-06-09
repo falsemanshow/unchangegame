@@ -222,7 +222,28 @@ function drawImpactEffects(ctx) {
 }
 
 function executeBeowulfUppercut(player, chargeTime) {
-    return AbilityLibrary.beowulfUppercut(player, chargeTime);
+  player.beowulfCharging = false;
+  player.beowulfChargeType = null;
+  
+  const maxChargeTime = 800;
+  const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
+  
+  const minHeight = 10;
+  const maxHeight = 18;
+  const uppercutHeight = minHeight + (chargeRatio * (maxHeight - minHeight));
+  
+  player.vy = -uppercutHeight;
+  player.vx = 0;
+  player.dash = DASH_FRAMES;
+  player.dashCooldown = DASH_COOLDOWN;
+  
+  player.isUppercutting = true;
+  player.uppercutPower = chargeRatio;
+  player.animState = "beowulf-uppercut";
+  player.animFrame = 0;
+  player.animTimer = 0;
+  
+  console.log(`${player.name} unleashes Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% 👊⬆️💥`);
 }
 
 function handleBeowulfDiveKick(player) {
@@ -661,7 +682,6 @@ function dealJudgmentCutDamage(effect) {
 }
 
 const AbilityLibrary = {
-    // Yamato abilities
     judgementCut: function(character) {
         if (character.judgementCutCooldown > 0) return false;
         
@@ -855,123 +875,6 @@ const AbilityLibrary = {
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1000);
         
         return true;
-    },
-
-    // Beowulf abilities
-    beowulfUppercut: function(character, chargeTime) {
-        character.beowulfCharging = false;
-        character.beowulfChargeType = null;
-        
-        const maxChargeTime = 800;
-        const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
-        
-        const minHeight = 10;
-        const maxHeight = 18;
-        const uppercutHeight = minHeight + (chargeRatio * (maxHeight - minHeight));
-        
-        character.vy = -uppercutHeight;
-        character.vx = 0;
-        character.dash = DASH_FRAMES;
-        character.dashCooldown = DASH_COOLDOWN;
-        
-        character.isUppercutting = true;
-        character.uppercutPower = chargeRatio;
-        character.animState = "beowulf-uppercut";
-        character.animFrame = 0;
-        character.animTimer = 0;
-        
-        console.log(`${character.name} unleashes Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% 👊⬆️💥`);
-        return true;
-    },
-
-    beowulfDiveKick: function(character) {
-        const currentHeight = GROUND - (character.y + character.h);
-        
-        if (currentHeight >= 50) {
-            character.beowulfDiveKick = true;
-            character.beowulfDiveDirection = character.facing;
-            character.vy = 16;
-            character.vx = character.facing * 18;
-            character.isDiveKicking = true;
-            character.animState = "beowulf-divekick";
-            character.animFrame = 0;
-            character.animTimer = 0;
-            console.log(`${character.name} performs SUPER DIAGONAL Kamen Rider Kick! 👊💥`);
-            return true;
-        } else {
-            console.log(`${character.name} not high enough for Kamen Rider kick! Need 50px height 🚫`);
-            return false;
-        }
-    },
-
-    // Mirage Blade abilities
-    mirageBladeSlash: function(character) {
-        if (character.onGround && !character.mirageActive) {
-            character.mirageActive = true;
-            character.mirageTimer = character.mirageDuration;
-            
-            const slashW = 200, slashH = 100;
-            character.mirageSlashX = character.facing > 0 ? character.x + character.w : character.x - slashW;
-            character.mirageSlashY = character.y + (character.h - slashH)/2;
-            
-            console.log(`${character.name} unleashes Mirage Blade big slash! 🔪`);
-            return true;
-        }
-        return false;
-    },
-
-    // Utility functions
-    switchWeapon: function(character) {
-        if (character.charId !== 'vergil') return false;
-        if (character.judgmentCutCharging || character.beowulfCharging || character.beowulfDiveKick) return false;
-        
-        if (character.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-            character.currentWeapon = VERGIL_WEAPONS.BEOWULF;
-            console.log(`${character.name} switched to Beowulf (Gauntlets)! ${character.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
-        } else if (character.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-            character.currentWeapon = VERGIL_WEAPONS.MIRAGE_BLADE;
-            console.log(`${character.name} switched to Mirage Blade (Magic)! ${character.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
-        } else {
-            character.currentWeapon = VERGIL_WEAPONS.YAMATO;
-            console.log(`${character.name} switched to Yamato (Sword)! ${character.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
-        }
-        
-        character.animFrame = 0;
-        character.animTimer = 0;
-        return true;
-    },
-
-    canUseAbility: function(character, abilityName) {
-        if (character.charId !== 'vergil') return false;
-        
-        switch(abilityName) {
-            case 'judgementCut':
-                return character.currentWeapon === VERGIL_WEAPONS.YAMATO && 
-                       character.onGround && 
-                       !character.judgmentCutCharging && 
-                       character.judgementCutCooldown === 0 &&
-                       isOpponentInJudgmentCutRange(character);
-            
-            case 'beowulfUppercut':
-                return character.currentWeapon === VERGIL_WEAPONS.BEOWULF && 
-                       character.onGround && 
-                       !character.beowulfCharging && 
-                       !character.beowulfDiveKick;
-            
-            case 'beowulfDiveKick':
-                return character.currentWeapon === VERGIL_WEAPONS.BEOWULF && 
-                       !character.onGround && 
-                       !character.beowulfCharging && 
-                       !character.beowulfDiveKick;
-            
-            case 'mirageBladeSlash':
-                return character.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE && 
-                       character.onGround && 
-                       !character.mirageActive;
-            
-            default:
-                return false;
-        }
     }
 };
 
@@ -1024,21 +927,23 @@ document.addEventListener("keydown", function(e) {
     if (!p.alive) continue;
     
     const controls = getControls(pid);
-if (k === controls.special && p.charId === 'vergil') {
+    if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
       if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-        if (AbilityLibrary.canUseAbility(p, 'judgementCut')) {
-          p.judgmentCutCharging = true;
-          p.judgmentCutChargeStart = performance.now();
-          p.judgmentCutChargeLevel = 0;
-          p.animState = "charging";
-          p.animFrame = 0;
-          p.animTimer = 0;
-        } else if (!isOpponentInJudgmentCutRange(p)) {
-          rangeWarningText.show = true;
-          rangeWarningText.timer = 60;
+        if (p.onGround) {
+          if (isOpponentInJudgmentCutRange(p)) {
+            p.judgmentCutCharging = true;
+            p.judgmentCutChargeStart = performance.now();
+            p.judgmentCutChargeLevel = 0;
+            p.animState = "charging";
+            p.animFrame = 0;
+            p.animTimer = 0;
+          } else {
+            rangeWarningText.show = true;
+            rangeWarningText.timer = 60;
+          }
         }
       } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        if (AbilityLibrary.canUseAbility(p, 'beowulfUppercut')) {
+        if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
           p.beowulfCharging = true;
           p.beowulfChargeStart = performance.now();
           p.beowulfChargeType = 'uppercut';
@@ -1046,18 +951,53 @@ if (k === controls.special && p.charId === 'vergil') {
           p.animFrame = 0;
           p.animTimer = 0;
           console.log(`${p.name} is charging Beowulf Rising Uppercut! 👊⬆️`);
-        } else if (AbilityLibrary.canUseAbility(p, 'beowulfDiveKick')) {
-          AbilityLibrary.beowulfDiveKick(p);
+        } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+          const currentHeight = GROUND - (p.y + p.h);
+          
+          if (currentHeight >= 50) {
+            p.beowulfDiveKick = true;
+            p.beowulfDiveDirection = p.facing;
+            p.vy = 16;
+            p.vx = p.facing * 18;
+            p.isDiveKicking = true;
+            p.animState = "beowulf-divekick";
+            p.animFrame = 0;
+            p.animTimer = 0;
+            console.log(`${p.name} performs SUPER DIAGONAL Kamen Rider Kick! 👊💥`);
+          } else {
+            console.log(`${p.name} not high enough for Kamen Rider kick! Need 100px height 🚫`);
+          }
         }
       } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
-        AbilityLibrary.mirageBladeSlash(p);
+        if (p.onGround && !p.mirageActive) {
+          p.mirageActive = true;
+          p.mirageTimer = p.mirageDuration;
+          
+          const slashW = 200, slashH = 100;
+          p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
+          p.mirageSlashY = p.y + (p.h - slashH)/2;
+          
+          console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
+        }
       }
     }
     
     // Weapon switching for Vergil
     const weaponSwitchKey = pid === 0 ? 'q' : 'i';
-if (k === weaponSwitchKey && p.charId === 'vergil') {
-      AbilityLibrary.switchWeapon(p);
+    if (k === weaponSwitchKey && p.charId === 'vergil' && !p.judgmentCutCharging && !p.beowulfCharging && !p.beowulfDiveKick) {
+      if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+        p.currentWeapon = VERGIL_WEAPONS.BEOWULF;
+        console.log(`${p.name} switched to Beowulf (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        p.currentWeapon = VERGIL_WEAPONS.MIRAGE_BLADE;
+        console.log(`${p.name} switched to Mirage Blade (Magic)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      } else {
+        p.currentWeapon = VERGIL_WEAPONS.YAMATO;
+        console.log(`${p.name} switched to Yamato (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      }
+      
+      p.animFrame = 0;
+      p.animTimer = 0;
     }
   }
 
@@ -1145,7 +1085,7 @@ document.addEventListener("keyup", function(e) {
         const chargeTime = now - p.beowulfChargeStart;
         const minChargeTime = 200;
         if (chargeTime >= minChargeTime) {
-          AbilityLibrary.beowulfUppercut(p, chargeTime);
+          executeBeowulfUppercut(p, chargeTime);
         } else {
           p.beowulfCharging = false;
           p.beowulfChargeType = null;
@@ -1939,7 +1879,7 @@ const characterSprites = {
     jump: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
-    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 7 },
+    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     
     // Beowulf sprites
@@ -2087,32 +2027,29 @@ function draw() {
     ctx.restore();
   }
 
- // Draw slashing animation
-for (let player of players) {
-  if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
-    ctx.save();
-    
-    if (vergilSlashingSprite.complete && vergilSlashingSprite.naturalWidth > 0) {
-      const slashAnim = characterSprites.vergil.slashing;
-      if (slashAnim) {
-        const frameWidth = vergilSlashingSprite.naturalWidth / slashAnim.frames;
-        const frameHeight = vergilSlashingSprite.naturalHeight;
-        
-        // SCALE UP THE SLASH EFFECT - Change this multiplier to make it bigger/smaller
-        const bigSize = PLAYER_SIZE * 8; // Changed from 5 to 10 (2x bigger)
-        const spriteX = player.x + player.w/2 - bigSize/2;
-        const spriteY = player.y + player.h/2 - bigSize/2;
-        
-        // Add rotation and additional effects
-        ctx.translate(player.x + player.w/2, player.y + player.h*-0.8);
-        ctx.translate(-bigSize/2, -bigSize/2);
-        ctx.drawImage(vergilSlashingSprite, frameWidth * player.slashAnimationFrame, 0, frameWidth, frameHeight, 0, 0, bigSize, bigSize);
+  // Draw slashing animation
+  for (let player of players) {
+    if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+      ctx.save();
+      
+      if (vergilSlashingSprite.complete && vergilSlashingSprite.naturalWidth > 0) {
+        const slashAnim = characterSprites.vergil.slashing;
+        if (slashAnim) {
+          const frameWidth = vergilSlashingSprite.naturalWidth / slashAnim.frames;
+          const frameHeight = vergilSlashingSprite.naturalHeight;
+          
+          const bigSize = PLAYER_SIZE * 5;
+          const spriteX = player.x + player.w/2 - bigSize/2;
+          const spriteY = player.y + player.h/2 - bigSize/2;
+          
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(vergilSlashingSprite, frameWidth * player.slashAnimationFrame, 0, frameWidth, frameHeight, spriteX, spriteY, bigSize, bigSize);
+        }
       }
+      
+      ctx.restore();
     }
-    
-    ctx.restore();
   }
-}
 
   // Draw players
   for(let i=0; i<players.length; i++) {
@@ -2499,21 +2436,21 @@ for (let player of players) {
 function gameLoop() {
   updateCameraZoomEffect();
   
-  // Update Vergil's slashing animation (NO LOOP)
-for (let i = 0; i < players.length; ++i) {
-  const p = players[i];
-  if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
-    p.slashAnimationTimer++;
-    if (p.slashAnimationTimer >= 3) {
-      p.slashAnimationTimer = 0;
-      p.slashAnimationFrame++;
-      const slashAnim = characterSprites.vergil.slashing;
-      if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
-        p.slashAnimationFrame = slashAnim.frames - 1; // FREEZE ON LAST FRAME
+  // Update Vergil's slashing animation
+  for (let i = 0; i < players.length; ++i) {
+    const p = players[i];
+    if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+      p.slashAnimationTimer++;
+      if (p.slashAnimationTimer >= 3) {
+        p.slashAnimationTimer = 0;
+        p.slashAnimationFrame++;
+        const slashAnim = characterSprites.vergil.slashing;
+        if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
+          p.slashAnimationFrame = 0;
+        }
       }
     }
   }
-}
   
   if (!gameState.paused) {
     for (let i = 0; i < players.length; ++i) {
