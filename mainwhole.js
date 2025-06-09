@@ -53,6 +53,7 @@ const JUDGMENT_CUT_CHARGE = {
     MAX_CHARGE_TIME: 3000,
 };
 
+
 const WIDTH = 900, HEIGHT = 600;
 const GRAVITY = 0.6, FRICTION = 0.7, GROUND = HEIGHT - 60;
 const PLATFORM_HEIGHT = 20, PLAYER_SIZE = 50, PLAYER_SPEED = 5;
@@ -1558,6 +1559,10 @@ if (effect.phase === 'slide') {
 
 // Update hitstun
 if (p.inHitstun) {
+  if (p.hitstun > 0) {
+    p.hitstun--;
+  }
+  
   // If we're in air hitstun from uppercut, only end it when we land
   if (p.airHitstun) {
     if (p.onGround) {
@@ -1568,14 +1573,9 @@ if (p.inHitstun) {
       console.log(`${p.name} recovered from uppercut stun after landing!`);
     }
     // Don't decrement hitstun counter for air hitstun - it only ends on landing
-  } else {
-    // Normal hitstun logic - decreases over time
-    if (p.hitstun > 0) {
-      p.hitstun--;
-    }
-    if (p.hitstun <= 0) {
-      p.inHitstun = false;
-    }
+  } else if (p.hitstun <= 0) {
+    // Normal ground hitstun ends when counter reaches 0
+    p.inHitstun = false;
   }
 }
 
@@ -2498,5 +2498,4 @@ document.addEventListener("keydown", function(e) {
     console.log("Player 2 is now Vergil! I=Switch Weapon, P=Judgment Cut(Yamato)");
   }
 });
-
 gameLoop();
