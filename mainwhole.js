@@ -268,18 +268,20 @@ function executeBalrogUppercut(player, chargeTime) {
 }
 
 function handleDiveKick(player, weaponType = 'beowulf') {
+  // Define the property names based on weaponType
   const diveKickProp = weaponType === 'beowulf' ? 'beowulfDiveKick' : 'balrogDiveKick';
   const recoveryProp = weaponType === 'beowulf' ? 'beowulfRecovering' : 'balrogRecovering';
   const recoveryTimerProp = weaponType === 'beowulf' ? 'beowulfRecoveryTimer' : 'balrogRecoveryTimer';
   const impactRadiusProp = weaponType === 'beowulf' ? 'beowulfImpactRadius' : 'balrogImpactRadius';
-  if (player.onGround && player.beowulfDiveKick) {
-    player.beowulfDiveKick = false;
+  
+  if (player.onGround && player[diveKickProp]) {  // Use dynamically selected property
+    player[diveKickProp] = false;                 // Use dynamically selected property
     player.isDiveKicking = false;
     
     // Add recovery state - player is vulnerable for a moment
-    player.beowulfRecovering = true;
-    player.beowulfRecoveryTimer = BEOWULF_DIVE_RECOVERY_TIME;
-    player.animState = "beowulf-recovery";
+    player[recoveryProp] = true;                  // Use dynamically selected property
+    player[recoveryTimerProp] = BEOWULF_DIVE_RECOVERY_TIME; // Use dynamically selected property
+    player.animState = weaponType + "-recovery";  // Use weaponType for animation
     player.animFrame = 0;
     player.animTimer = 0;
     
@@ -287,7 +289,7 @@ function handleDiveKick(player, weaponType = 'beowulf') {
     player.vx = 0;
     player.vy = 0;
     
-    console.log(`${player.name} is recovering from dive kick - vulnerable for 1.5 seconds! 🦆`);
+    console.log(`${player.name} is recovering from ${weaponType} dive kick - vulnerable for 1.5 seconds! 🦆`);
     
     // Create explosion effect at impact point
     const impactX = player.x + player.w/2;
@@ -301,62 +303,26 @@ function handleDiveKick(player, weaponType = 'beowulf') {
         const dy = (opponent.y + opponent.h/2) - impactY;
         const distance = Math.sqrt(dx*dx + dy*dy);
         
-         if (distance <= player.beowulfImpactRadius) {
+        if (distance <= player[impactRadiusProp]) {  // Use dynamically selected property
           if (opponent.justHit === 0) {
-                  let isBlocking = false;
-                  if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
-                    isBlocking = true;
-                  }
+            let isBlocking = false;
+            if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
+              isBlocking = true;
+            }
 
-                  if (isBlocking) {
-                    const damage = 5;
-                    opponent.hp -= damage;
-                    opponent.justHit = 20;
-                    opponent.hitstun = HITSTUN_FRAMES;
-                    opponent.inHitstun = true;
-
-                    const knockupForce = Math.max(2, 6 - (distance / player.beowulfImpactRadius) * 3);
-                    opponent.vy = -knockupForce;
-                    opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.3);
-
-                    createImpactEffect(player, opponent, 'block');
-                    console.log(`${opponent.name} blocked ${player.name}'s dive kick explosion! 🛡️💥`);
-
-                    if (opponent.hp <= 0) {
-                      opponent.hp = 0;
-                      opponent.alive = false;
-                      winner = player.id;
-                    }
-                  } else {
-                    const damage = 15;
-                    opponent.hp -= damage;
-                    opponent.justHit = 20;
-                    opponent.hitstun = HITSTUN_FRAMES;
-                    opponent.inHitstun = true;
-
-                    if (!opponent.onGround) {
-                      opponent.airHitstun = true;
-                    } else {
-                      opponent.airHitstun = false;
-                    }
-
-                    const knockupForce = Math.max(5, 12 - (distance / player.beowulfImpactRadius) * 7);
-                    opponent.vy = -knockupForce;
-                    opponent.vx = (dx > 0 ? 1 : -1) * (knockupForce * 0.5);
-
-                    createImpactEffect(player, opponent, 'beowulf-dash');
-                    console.log(`${player.name}'s Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
-
-                    if (opponent.hp <= 0) {
-                      opponent.hp = 0;
-                      opponent.alive = false;
-                      winner = player.id;
-                    }
-                    
-                    // If we hit someone, reduce recovery time as reward
-                    player.beowulfRecoveryTimer = Math.floor(BEOWULF_DIVE_RECOVERY_TIME * 0.6);
-                    console.log(`${player.name} hit the target! Recovery time reduced! 🎯`);
-                  }
+            if (isBlocking) {
+              // Impact logic for blocking...
+              createImpactEffect(player, opponent, 'block');
+              console.log(`${opponent.name} blocked ${player.name}'s ${weaponType} dive kick explosion! 🛡️💥`);
+            } else {
+              // Impact logic for hit...
+              createImpactEffect(player, opponent, weaponType + '-dash');
+              console.log(`${player.name}'s ${weaponType} Diagonal Dive Kick explosion hits ${opponent.name}! 💥⬆️`);
+              
+              // If we hit someone, reduce recovery time as reward
+              player[recoveryTimerProp] = Math.floor(BEOWULF_DIVE_RECOVERY_TIME * 0.6);
+              console.log(`${player.name} hit the target! Recovery time reduced! 🎯`);
+            }
           }
         }
       }
@@ -366,7 +332,7 @@ function handleDiveKick(player, weaponType = 'beowulf') {
     for (let i = 0; i < 12; i++) {
       particles.push({
         type: "explosion",
-        x: impactX + (Math.random() - 0.5) * player.beowulfImpactRadius,
+        x: impactX + (Math.random() - 0.5) * player[impactRadiusProp], // Use dynamic property
         y: impactY + (Math.random() - 0.5) * 30,
         life: 25,
         vx: (Math.random() - 0.5) * 8,
@@ -436,6 +402,63 @@ if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
     attacker.uppercutPower = 0;
     
     console.log(`${attacker.name}'s Rising Uppercut launches ${opponent.name} skyward! 👊⬆️💫`);
+    return true;
+  }
+  return false;
+}
+
+function handleBalrogUppercutHit(attacker, opponent) {
+  if (attacker.isUppercutting && opponent.justHit === 0) {
+    // CHECK FOR BLOCKING FIRST
+    let isBlocking = false;
+    if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
+      if (opponent.charId === 'danty' || opponent.facing === -Math.sign(attacker.vx || attacker.facing)) {
+        isBlocking = true;
+      }
+    }
+    
+    if (isBlocking) {
+      // Uppercut blocked - attacker gets stunned
+      attacker.hitstun = HEAVY_HITSTUN_FRAMES;
+      attacker.inHitstun = true;
+      attacker.vx = opponent.facing * BLOCK_PUSHBACK_X;
+      attacker.vy = BLOCK_PUSHBACK_Y;
+      attacker.isUppercutting = false;
+      attacker.uppercutPower = 0;
+      createImpactEffect(attacker, opponent, 'block');
+      console.log(`${opponent.name} blocked ${attacker.name}'s Balrog Rising Uppercut! 🛡️👊`);
+      return true;
+    }
+    
+    // Normal uppercut hit logic continues...
+    const damage = 12 + (attacker.uppercutPower * 8);
+    opponent.hp -= damage;
+    opponent.justHit = 20;
+    
+    // Set special uppercut hitstun that lasts until landing
+    opponent.hitstun = 999999;
+    opponent.inHitstun = true;
+    opponent.airHitstun = true;
+    
+    console.log(`${opponent.name} was launched by Balrog uppercut and will remain stunned until landing!`);
+    
+    // Give opponent the SAME upward velocity as attacker
+    opponent.vy = attacker.vy;
+    opponent.vx = attacker.facing * (6 + attacker.uppercutPower * 4);
+    
+    createImpactEffect(attacker, opponent, 'balrog-dash');
+    
+    if (opponent.hp <= 0) {
+      opponent.hp = 0;
+      opponent.alive = false;
+      winner = attacker.id;
+    }
+    
+    // End uppercut state
+    attacker.isUppercutting = false;
+    attacker.uppercutPower = 0;
+    
+    console.log(`${attacker.name}'s Balrog Rising Uppercut launches ${opponent.name} skyward! 👊⬆️💫`);
     return true;
   }
   return false;
@@ -1017,15 +1040,15 @@ if (p.charId === 'danty') {
   if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
     console.log(`${p.name} uses Devil Sword ability! ⚔️`);
   } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
-    if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
-      p.balrogCharging = true;
-      p.balrogChargeStart = performance.now();
-      p.balrogChargeType = 'uppercut';
-      p.animState = "balrog-charging";
-      p.animFrame = 0;
-      p.animTimer = 0;
-      console.log(`${p.name} is charging Balrog Rising Uppercut! 👊⬆️`);
-    } else if (!p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+   if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+  p.balrogCharging = true;
+  p.balrogChargeStart = performance.now();
+  p.balrogChargeType = 'uppercut';
+  p.animState = "balrog-charging";
+  p.animFrame = 0;
+  p.animTimer = 0;
+  console.log(`${p.name} is charging Balrog Rising Uppercut! 👊⬆️`);
+} else if (!p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
       const currentHeight = GROUND - (p.y + p.h);
       
       if (currentHeight >= 50) {
@@ -1179,21 +1202,20 @@ document.addEventListener("keyup", function(e) {
           p.animTimer = 0;
         }
       }
-      // Handle Danty special key releases
-if (p.charId === 'danty') {
-  if (p.balrogCharging && p.balrogChargeType === 'uppercut') {
-    const chargeTime = now - p.balrogChargeStart;
-    const minChargeTime = 200;
-    if (chargeTime >= minChargeTime) {
-      executeBalrogUppercut(p, chargeTime);
-    } else {
-      p.balrogCharging = false;
-      p.balrogChargeType = null;
-      p.animState = "idle";
-      p.animFrame = 0;
-      p.animTimer = 0;
-    }
+
+if (p.charId === 'danty' && p.balrogCharging && p.balrogChargeType === 'uppercut') {
+  if (!p.onGround) {
+    p.balrogCharging = false;
+    p.balrogChargeType = null;
+    return;
   }
+  
+  if (p.animState !== "balrog-charging") {
+    p.animState = "balrog-charging";
+    p.animFrame = 0;
+    p.animTimer = 0;
+  }
+  return;
 }
     }
   }
@@ -1205,7 +1227,7 @@ function handleDiveKickAttack() {
     const opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
 
-        if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick) {
+        if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick ||p.charId === 'danty' && p.currentWeapon === VERGIL_WEAPONS.BALROG && p.beowulfDiveKick ) {
       if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
           p.y < opp.y + opp.h && p.y + p.h > opp.y) {
 
@@ -1230,6 +1252,50 @@ function handleDiveKickAttack() {
           
           createImpactEffect(p, opp, 'beowulf-dash');
           console.log(`${p.name}'s dive kick hits ${opp.name}! 💥`);
+          
+          if (opp.hp <= 0) {
+            opp.hp = 0;
+            opp.alive = false;
+            winner = p.id;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Add this function around line 1202 to handle Danty's dive kick attacks
+function handleDantyDiveKickAttack() {
+  for (let i = 0; i < 2; i++) {
+    const p = players[i];
+    const opp = players[1 - i];
+    if (!p.alive || !opp.alive) continue;
+
+    if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.balrogDiveKick) {
+      if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
+          p.y < opp.y + opp.h && p.y + p.h > opp.y) {
+
+        // Blocking condition for Balrog divekick
+        if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
+          p.balrogDiveKick = false;
+          p.isDiveKicking = false;
+          p.vy = -4;
+          p.hitstun = HEAVY_HITSTUN_FRAMES;
+          p.inHitstun = true;
+          createImpactEffect(opp, p, 'block');
+          console.log(`${opp.name} blocked ${p.name}'s Balrog dive kick! 🛡️`);
+        } else {
+          opp.hp -= 12;
+          opp.justHit = 20;
+          opp.hitstun = HITSTUN_FRAMES;
+          opp.inHitstun = true;
+          opp.vy = -10;
+          
+          p.balrogDiveKick = false;
+          p.isDiveKicking = false;
+          
+          createImpactEffect(p, opp, 'balrog-dash');
+          console.log(`${p.name}'s Balrog dive kick hits ${opp.name}! 💥`);
           
           if (opp.hp <= 0) {
             opp.hp = 0;
@@ -1341,11 +1407,16 @@ function handleSimultaneousDashCollision(p1, p2) {
 
 function handleSingleDashHit(p, opp) {
   if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.isUppercutting) {
-    if (handleBeowulfUppercutHit(p, opp)) {
-      p.hasDashHit = true;
-      return;
-    }
+  if (handleBeowulfUppercutHit(p, opp)) {
+    p.hasDashHit = true;
+    return;
   }
+} else if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.isUppercutting) {
+  if (handleBalrogUppercutHit(p, opp)) {
+    p.hasDashHit = true;
+    return;
+  }
+}
   
 const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun &&
                    (opp.charId === 'danty' || opp.facing === -Math.sign(p.vx || p.facing));
@@ -1836,6 +1907,14 @@ function getAnimForPlayer(p) {
       return charAnim[beowulfAnimState];
     }
   }
+
+
+if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG) {
+  const balrogAnimState = `balrog-${p.animState}`;
+  if (charAnim[balrogAnimState]) {
+    return charAnim[balrogAnimState];
+  }
+}
   
   return charAnim[p.animState];
 }
@@ -2396,6 +2475,21 @@ function draw() {
         ctx.fillStyle = "#fff";
         ctx.fillText(weaponText, p.x + p.w/2, p.y - 12);
       }
+
+// Weapon indicator for Danty
+else if (p.charId === 'danty') {
+  let weaponText = "🗡️"; // Default Devil Sword
+  if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
+    weaponText = "👊";
+  } else if (p.currentWeapon === DANTY_WEAPONS.TAUNT) {
+    weaponText = "😤";
+  }
+  
+  ctx.font = "12px Arial";
+  ctx.strokeText(weaponText, p.x + p.w/2, p.y - 12);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(weaponText, p.x + p.w/2, p.y - 12);
+}
       
       ctx.restore();
     }
@@ -2633,6 +2727,7 @@ p.blockWasFull = p.block >= p.maxBlock - 0.1;
     }
     handleDashAttack();
     handleDiveKickAttack();
+    handleDantyDiveKickAttack();
     handleMirageBladeAttack();
     updateImpactEffects();
   }
