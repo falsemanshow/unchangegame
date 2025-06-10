@@ -1882,7 +1882,7 @@ const characterSprites = {
     jump: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
-    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
+    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 3 },
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
     'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
