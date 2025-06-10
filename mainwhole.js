@@ -67,6 +67,11 @@ const VERGIL_WEAPONS = {
     BEOWULF: 'beowulf',
     MIRAGE_BLADE: 'mirage_blade'
 };
+const DANTY_WEAPONS = {
+    DEVIL_SWORD: 'devil_sword',
+    BALROG: 'balrog',
+    TAUNT: 'taunt'
+};
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
 const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
 const UNIVERSAL_DASH_KNOCKBACK_X = 50;
@@ -107,7 +112,11 @@ const characterImpactEffects = {
   },
   chicken: {
     dash: { sprite: "chicken-peck-impact.png", frames: 5, w: 50, h: 50, speed: 2, duration: 15, offset: { x: -5, y: -10 } }
-  }
+  },
+  danty: {
+  dash: { sprite: "danty-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
+  'balrog-dash': { sprite: "danty-balrog-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } }
+}
 };
 
 const impactSpritesheetCache = {};
@@ -221,9 +230,12 @@ function drawImpactEffects(ctx) {
   }
 }
 
-function executeBeowulfUppercut(player, chargeTime) {
-  player.beowulfCharging = false;
-  player.beowulfChargeType = null;
+function executeUppercut(player, chargeTime, weaponType = 'beowulf') {
+  const chargingProp = weaponType === 'beowulf' ? 'beowulfCharging' : 'balrogCharging';
+  const chargeTypeProp = weaponType === 'beowulf' ? 'beowulfChargeType' : 'balrogChargeType';
+  
+  player[chargingProp] = false;
+  player[chargeTypeProp] = null;
   
   const maxChargeTime = 800;
   const chargeRatio = Math.min(chargeTime / maxChargeTime, 1.0);
@@ -239,15 +251,27 @@ function executeBeowulfUppercut(player, chargeTime) {
   
   player.isUppercutting = true;
   player.uppercutPower = chargeRatio;
-  player.animState = "beowulf-uppercut";
+  player.animState = `${weaponType}-uppercut`;
   player.animFrame = 0;
   player.animTimer = 0;
   
-  console.log(`${player.name} unleashes Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% 👊⬆️💥`);
+  const weaponName = weaponType === 'beowulf' ? 'Beowulf' : 'Balrog';
+  console.log(`${player.name} unleashes ${weaponName} Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% 👊⬆️💥`);
 }
 
-function handleBeowulfDiveKick(player) {
-  // Check if hit ground
+function executeBeowulfUppercut(player, chargeTime) {
+  executeUppercut(player, chargeTime, 'beowulf');
+}
+
+function executeBalrogUppercut(player, chargeTime) {
+  executeUppercut(player, chargeTime, 'balrog');
+}
+
+function handleDiveKick(player, weaponType = 'beowulf') {
+  const diveKickProp = weaponType === 'beowulf' ? 'beowulfDiveKick' : 'balrogDiveKick';
+  const recoveryProp = weaponType === 'beowulf' ? 'beowulfRecovering' : 'balrogRecovering';
+  const recoveryTimerProp = weaponType === 'beowulf' ? 'beowulfRecoveryTimer' : 'balrogRecoveryTimer';
+  const impactRadiusProp = weaponType === 'beowulf' ? 'beowulfImpactRadius' : 'balrogImpactRadius';
   if (player.onGround && player.beowulfDiveKick) {
     player.beowulfDiveKick = false;
     player.isDiveKicking = false;
@@ -350,6 +374,14 @@ function handleBeowulfDiveKick(player) {
       });
     }
   }
+}
+
+function handleBeowulfDiveKick(player) {
+  handleDiveKick(player, 'beowulf');
+}
+
+function handleBalrogDiveKick(player) {
+  handleDiveKick(player, 'balrog');
 }
 
 function handleBeowulfUppercutHit(attacker, opponent) {
@@ -981,10 +1013,50 @@ document.addEventListener("keydown", function(e) {
         }
       }
     }
+if (p.charId === 'danty') {
+  if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+    console.log(`${p.name} uses Devil Sword ability! ⚔️`);
+  } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
+    if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+      p.balrogCharging = true;
+      p.balrogChargeStart = performance.now();
+      p.balrogChargeType = 'uppercut';
+      p.animState = "balrog-charging";
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} is charging Balrog Rising Uppercut! 👊⬆️`);
+    } else if (!p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+      const currentHeight = GROUND - (p.y + p.h);
+      
+      if (currentHeight >= 50) {
+        p.balrogDiveKick = true;
+        p.balrogDiveDirection = p.facing;
+        p.vy = 16;
+        p.vx = p.facing * 18;
+        p.isDiveKicking = true;
+        p.animState = "balrog-divekick";
+        p.animFrame = 0;
+        p.animTimer = 0;
+        console.log(`${p.name} performs SUPER DIAGONAL Balrog Kick! 👊💥`);
+      }
+    }
+  } else if (p.currentWeapon === DANTY_WEAPONS.TAUNT) {
+    console.log(`${p.name} uses Taunt ability! 😤`);
+  }
+}
     
-    // Weapon switching for Vergil
-    const weaponSwitchKey = pid === 0 ? 'q' : 'i';
-    if (k === weaponSwitchKey && p.charId === 'vergil' && !p.judgmentCutCharging && !p.beowulfCharging && !p.beowulfDiveKick) {
+  // Weapon switching
+const weaponSwitchKey = pid === 0 ? 'q' : 'i';
+if (k === weaponSwitchKey) {
+  let canSwitch = true;
+  if (p.charId === 'vergil') {
+    canSwitch = !p.judgmentCutCharging && !p.beowulfCharging && !p.beowulfDiveKick && !p.beowulfRecovering;
+  } else if (p.charId === 'danty') {
+    canSwitch = !p.balrogCharging && !p.balrogDiveKick && !p.balrogRecovering;
+  }
+  
+  if (canSwitch) {
+    if (p.charId === 'vergil') {
       if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
         p.currentWeapon = VERGIL_WEAPONS.BEOWULF;
         console.log(`${p.name} switched to Beowulf (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
@@ -995,10 +1067,23 @@ document.addEventListener("keydown", function(e) {
         p.currentWeapon = VERGIL_WEAPONS.YAMATO;
         console.log(`${p.name} switched to Yamato (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
       }
-      
-      p.animFrame = 0;
-      p.animTimer = 0;
+    } else if (p.charId === 'danty') {
+      if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+        p.currentWeapon = DANTY_WEAPONS.BALROG;
+        console.log(`${p.name} switched to Balrog (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
+        p.currentWeapon = DANTY_WEAPONS.TAUNT;
+        console.log(`${p.name} switched to Taunt (Special)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      } else {
+        p.currentWeapon = DANTY_WEAPONS.DEVIL_SWORD;
+        console.log(`${p.name} switched to Devil Sword (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+      }
     }
+    
+    p.animFrame = 0;
+    p.animTimer = 0;
+  }
+}
   }
 
   for (let pid = 0; pid < 2; pid++) {
@@ -1094,6 +1179,22 @@ document.addEventListener("keyup", function(e) {
           p.animTimer = 0;
         }
       }
+      // Handle Danty special key releases
+if (p.charId === 'danty') {
+  if (p.balrogCharging && p.balrogChargeType === 'uppercut') {
+    const chargeTime = now - p.balrogChargeStart;
+    const minChargeTime = 200;
+    if (chargeTime >= minChargeTime) {
+      executeBalrogUppercut(p, chargeTime);
+    } else {
+      p.balrogCharging = false;
+      p.balrogChargeType = null;
+      p.animState = "idle";
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+  }
+}
     }
   }
 });
@@ -1555,6 +1656,46 @@ if (effect.phase === 'slide') {
       return;
     }
   }
+  // Add after the Vergil updates section
+if (p.charId === 'danty') {
+  // Handle Balrog recovery state
+  if (p.balrogRecovering) {
+    p.balrogRecoveryTimer--;
+    if (p.balrogRecoveryTimer <= 0) {
+      p.balrogRecovering = false;
+      p.animState = "idle";
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} finished recovering from Balrog dive kick!`);
+    } else {
+      // During recovery, player can't move or act
+      p.vx *= 0.7;
+      if (Math.abs(p.vx) < 0.1) p.vx = 0;
+      p.vy += GRAVITY;
+      p.y += p.vy;
+      
+      if (p.y + p.h >= FLOOR_HEIGHT) {
+        p.y = FLOOR_HEIGHT - p.h;
+        p.vy = 0;
+        p.onGround = true;
+      }
+      
+      return;
+    }
+  }
+  
+  // ADD BALROG UPDATES
+  if (p.balrogDiveKick) {
+    handleBalrogDiveKick(p);
+  }
+  
+  // MAINTAIN SUPER DIAGONAL MOMENTUM for Balrog
+  if (p.isDiveKicking && p.balrogDiveKick) {
+    // Keep VERY strong diagonal movement during dive
+    p.vy = Math.max(p.vy, 14); // Faster downward speed
+    p.vx = p.balrogDiveDirection * 16; // Much stronger horizontal speed
+  }
+}
 
   const controls = pid === 0 ? {left: 'a', right: 'd', up: 'w', down: 's'} : {left: 'k', right: ';', up: 'o', down: 'l'};
 
@@ -1901,7 +2042,7 @@ const characterSprites = {
     'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
   },
-  danty: {
+ danty: {
   idle: { src: "danty-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
   walk: { src: "danty-walk.png", frames: 10, w: 50, h: 50, speed: 4 },
   jump: { src: "danty-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
@@ -1909,12 +2050,17 @@ const characterSprites = {
   attack: { src: "danty-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
   attack_air: { src: "danty-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
   block: { src: "danty-block.png", frames: 2, w: 38, h: 38, speed: 6 },
-  blocking: { src: "danty-blocking.png", frames: 2, w: 38, h: 38, speed: 8 }, // Added blocking state
+  blocking: { src: "danty-blocking.png", frames: 2, w: 38, h: 38, speed: 8 },
   hit: { src: "danty-hit.png", frames: 2, w: 38, h: 38, speed: 8 },
   dizzy: { src: "danty-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
   dash: { src: "danty-dash.png", frames: 2, w: 50, h: 50, speed: 3 },
   defeat: { src: "danty-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
-  victory: { src: "danty-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
+  victory: { src: "danty-victory.png", frames: 6, w: 38, h: 38, speed: 6 },
+  // Balrog sprites
+  'balrog-charging': { src: "danty-balrog-charging.png", frames: 4, w: 50, h: 50, speed: 8 },
+  'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 5, w: 50, h: 50, speed: 3 },
+  'balrog-divekick': { src: "danty-balrog-divekick.png", frames: 3, w: 50, h: 50, speed: 4 },
+  'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 4, w: 50, h: 50, speed: 8 }
 },
 };
 
@@ -1936,46 +2082,49 @@ const players = [
     x: WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
     color: "#4a90e2", facing: 1, hp: PLAYER_HP, jumps: 0, dash: 0,
     dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 0, 
-name: "Vergil", charId: "vergil", animState: "idle", animFrame: 0, animTimer: 0,
-justHit: 0, maxBlock: BLOCK_MAX, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0,
+    name: "Vergil", charId: "vergil", animState: "idle", animFrame: 0, animTimer: 0,
+    justHit: 0, maxBlock: BLOCK_MAX, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0,
     blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false, 
     blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null, 
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0, 
     judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
     currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
-    hitstun: 0, inHitstun: false, beowulfCharging: false, beowulfChargeStart: 0,
-    beowulfChargeType: null, beowulfDiveKick: false, beowulfDiveDirection: 1,
-    beowulfGroundImpact: false, beowulfImpactRadius: 80, isDiveKicking: false,
-    isUppercutting: false, uppercutPower: 0, mirageActive: false, mirageTimer: 0,
-    mirageDuration: 60, pauseTimer: 0, mirageSlashX: 0, mirageSlashY: 0,
-    teleportTrail: null, isTeleporting: false, teleportAlpha: 1.0,  hitstun: 0,
-    inHitstun: false,
-    airHitstun: false,  beowulfRecovering: false,
-beowulfRecoveryTimer: 0,
+    hitstun: 0, inHitstun: false, airHitstun: false,
+    beowulfCharging: false, beowulfChargeStart: 0, beowulfChargeType: null,
+    beowulfDiveKick: false, beowulfDiveDirection: 1, beowulfImpactRadius: 80,
+    beowulfRecovering: false, beowulfRecoveryTimer: 0,
+    balrogCharging: false, balrogChargeStart: 0, balrogChargeType: null,
+    balrogDiveKick: false, balrogDiveDirection: 1, balrogImpactRadius: 80,
+    balrogRecovering: false, balrogRecoveryTimer: 0,
+    isDiveKicking: false, isUppercutting: false, uppercutPower: 0,
+    mirageActive: false, mirageTimer: 0, mirageDuration: 60, pauseTimer: 0,
+    mirageSlashX: 0, mirageSlashY: 0, teleportTrail: null, isTeleporting: false,
+    teleportAlpha: 1.0
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
     color: "#ef5350", facing: -1, hp: PLAYER_HP, jumps: 0, dash: 0,
     dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 1,
-name: "Danty", charId: "danty", animState: "idle", animFrame: 0, animTimer: 0,
-justHit: 0, maxBlock: BLOCK_MAX * 0.7, block: BLOCK_MAX * 0.7, blocking: false, dizzy: 0, blockGlowTimer: 0,
+    name: "Danty", charId: "danty", animState: "idle", animFrame: 0, animTimer: 0,
+    justHit: 0, maxBlock: BLOCK_MAX * 0.7, block: BLOCK_MAX * 0.7, blocking: false, dizzy: 0, blockGlowTimer: 0,
     blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false,
     blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null,
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0,
     judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
-    currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
-    hitstun: 0, inHitstun: false, beowulfCharging: false, beowulfChargeStart: 0,
-    beowulfChargeType: null, beowulfDiveKick: false, beowulfDiveDirection: 1,
-    beowulfGroundImpact: false, beowulfImpactRadius: 80, isDiveKicking: false,
-    isUppercutting: false, uppercutPower: 0, mirageActive: false, mirageTimer: 0,
-    mirageDuration: 60, pauseTimer: 0, mirageSlashX: 0, mirageSlashY: 0,
-    teleportTrail: null, isTeleporting: false, teleportAlpha: 1.0,  hitstun: 0,
-    inHitstun: false,
-    airHitstun: false,  beowulfRecovering: false,
-beowulfRecoveryTimer: 0,
+    currentWeapon: DANTY_WEAPONS.DEVIL_SWORD, bounceEffect: null, isBeingKnockedBack: false,
+    hitstun: 0, inHitstun: false, airHitstun: false,
+    beowulfCharging: false, beowulfChargeStart: 0, beowulfChargeType: null,
+    beowulfDiveKick: false, beowulfDiveDirection: 1, beowulfImpactRadius: 80,
+    beowulfRecovering: false, beowulfRecoveryTimer: 0,
+    balrogCharging: false, balrogChargeStart: 0, balrogChargeType: null,
+    balrogDiveKick: false, balrogDiveDirection: 1, balrogImpactRadius: 80,
+    balrogRecovering: false, balrogRecoveryTimer: 0,
+    isDiveKicking: false, isUppercutting: false, uppercutPower: 0,
+    mirageActive: false, mirageTimer: 0, mirageDuration: 60, pauseTimer: 0,
+    mirageSlashX: 0, mirageSlashY: 0, teleportTrail: null, isTeleporting: false,
+    teleportAlpha: 1.0
   }
 ];
-
 let winner = null;
 let rangeWarningText = { show: false, timer: 0 };
 
