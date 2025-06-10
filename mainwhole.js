@@ -1036,37 +1036,40 @@ document.addEventListener("keydown", function(e) {
         }
       }
     }
-if (p.charId === 'danty') {
-  if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
-    console.log(`${p.name} uses Devil Sword ability! ⚔️`);
-  } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
-   if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
-  p.balrogCharging = true;
-  p.balrogChargeStart = performance.now();
-  p.balrogChargeType = 'uppercut';
-  p.animState = "balrog-charging";
-  p.animFrame = 0;
-  p.animTimer = 0;
-  console.log(`${p.name} is charging Balrog Rising Uppercut! 👊⬆️`);
-} else if (!p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
-      const currentHeight = GROUND - (p.y + p.h);
-      
-      if (currentHeight >= 50) {
-        p.balrogDiveKick = true;
-        p.balrogDiveDirection = p.facing;
-        p.vy = 16;
-        p.vx = p.facing * 18;
-        p.isDiveKicking = true;
-        p.animState = "balrog-divekick";
-        p.animFrame = 0;
-        p.animTimer = 0;
-        console.log(`${p.name} performs SUPER DIAGONAL Balrog Kick! 👊💥`);
+ if (k === controls.special && p.charId === 'danty') {
+      if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+        console.log(`${p.name} uses Devil Sword ability! ⚔️`);
+      } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
+        if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+          // Start charging Balrog uppercut
+          p.balrogCharging = true;
+          p.balrogChargeStart = performance.now();
+          p.balrogChargeType = 'uppercut';
+          p.animState = "balrog-charging";
+          p.animFrame = 0;
+          p.animTimer = 0;
+          console.log(`${p.name} is charging Balrog Rising Uppercut! 👊⬆️`);
+        } else if (!p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+          const currentHeight = GROUND - (p.y + p.h);
+          
+          if (currentHeight >= 50) {
+            p.balrogDiveKick = true;
+            p.balrogDiveDirection = p.facing;
+            p.vy = 16;
+            p.vx = p.facing * 18;
+            p.isDiveKicking = true;
+            p.animState = "balrog-divekick";
+            p.animFrame = 0;
+            p.animTimer = 0;
+            console.log(`${p.name} performs SUPER DIAGONAL Balrog Kick! 👊💥`);
+          } else {
+            console.log(`${p.name} not high enough for Balrog kick! Need 50px height 🚫`);
+          }
+        }
+      } else if (p.currentWeapon === DANTY_WEAPONS.TAUNT) {
+        console.log(`${p.name} uses Taunt ability! 😤`);
       }
     }
-  } else if (p.currentWeapon === DANTY_WEAPONS.TAUNT) {
-    console.log(`${p.name} uses Taunt ability! 😤`);
-  }
-}
     
   // Weapon switching
 const weaponSwitchKey = pid === 0 ? 'q' : 'i';
@@ -1204,18 +1207,17 @@ document.addEventListener("keyup", function(e) {
       }
 
 if (p.charId === 'danty' && p.balrogCharging && p.balrogChargeType === 'uppercut') {
-  if (!p.onGround) {
+  const chargeTime = now - p.balrogChargeStart;
+  const minChargeTime = 200;
+  if (chargeTime >= minChargeTime) {
+    executeBalrogUppercut(p, chargeTime);
+  } else {
     p.balrogCharging = false;
     p.balrogChargeType = null;
-    return;
-  }
-  
-  if (p.animState !== "balrog-charging") {
-    p.animState = "balrog-charging";
+    p.animState = "idle";
     p.animFrame = 0;
     p.animTimer = 0;
   }
-  return;
 }
     }
   }
@@ -1227,18 +1229,30 @@ function handleDiveKickAttack() {
     const opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
 
-        if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick ||p.charId === 'danty' && p.currentWeapon === VERGIL_WEAPONS.BALROG && p.beowulfDiveKick ) {
+    // Fix: Check for correct weapon types for both characters
+    if ((p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick) ||
+        (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.balrogDiveKick)) {
+      
       if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
           p.y < opp.y + opp.h && p.y + p.h > opp.y) {
 
-        // THIS IS THE CRITICAL BLOCKING CONDITION FOR VERGIL'S DIVEKICK
+        // Determine which dive kick type this is
+        const isBeowulfDive = (p.charId === 'vergil' && p.beowulfDiveKick);
+        const isBalrogDive = (p.charId === 'danty' && p.balrogDiveKick);
+
         if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
-          p.beowulfDiveKick = false;
+          // Reset the appropriate dive kick
+          if (isBeowulfDive) {
+            p.beowulfDiveKick = false;
+          } else if (isBalrogDive) {
+            p.balrogDiveKick = false;
+          }
+          
           p.isDiveKicking = false;
           p.vy = -4;
           p.hitstun = HEAVY_HITSTUN_FRAMES;
           p.inHitstun = true;
-          createImpactEffect(opp, p, 'block'); // Note: effect source might be opp, target p
+          createImpactEffect(opp, p, 'block');
           console.log(`${opp.name} blocked ${p.name}'s dive kick! 🛡️`);
         } else {
           opp.hp -= 12;
@@ -1247,11 +1261,18 @@ function handleDiveKickAttack() {
           opp.inHitstun = true;
           opp.vy = -10;
           
-          p.beowulfDiveKick = false;
-          p.isDiveKicking = false;
+          // Reset the appropriate dive kick
+          if (isBeowulfDive) {
+            p.beowulfDiveKick = false;
+            createImpactEffect(p, opp, 'beowulf-dash');
+            console.log(`${p.name}'s Beowulf dive kick hits ${opp.name}! 💥`);
+          } else if (isBalrogDive) {
+            p.balrogDiveKick = false;
+            createImpactEffect(p, opp, 'balrog-dash');
+            console.log(`${p.name}'s Balrog dive kick hits ${opp.name}! 💥`);
+          }
           
-          createImpactEffect(p, opp, 'beowulf-dash');
-          console.log(`${p.name}'s dive kick hits ${opp.name}! 💥`);
+          p.isDiveKicking = false;
           
           if (opp.hp <= 0) {
             opp.hp = 0;
@@ -1761,10 +1782,57 @@ if (p.charId === 'danty') {
   }
   
   // MAINTAIN SUPER DIAGONAL MOMENTUM for Balrog
+  // MAINTAIN SUPER DIAGONAL MOMENTUM for Balrog
   if (p.isDiveKicking && p.balrogDiveKick) {
     // Keep VERY strong diagonal movement during dive
     p.vy = Math.max(p.vy, 14); // Faster downward speed
     p.vx = p.balrogDiveDirection * 16; // Much stronger horizontal speed
+  }
+}
+
+// ADD THIS ENTIRE DANTY SECTION HERE:
+if (p.charId === 'danty') {
+  // Handle Balrog recovery state
+  if (p.balrogRecovering) {
+    p.balrogRecoveryTimer--;
+    if (p.balrogRecoveryTimer <= 0) {
+      p.balrogRecovering = false;
+      p.animState = "idle";
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} finished recovering from Balrog dive kick!`);
+    } else {
+      // During recovery, player can't move or act
+      p.vx *= 0.7;
+      if (Math.abs(p.vx) < 0.1) p.vx = 0;
+      p.vy += GRAVITY;
+      p.y += p.vy;
+      
+      if (p.y + p.h >= FLOOR_HEIGHT) {
+        p.y = FLOOR_HEIGHT - p.h;
+        p.vy = 0;
+        p.onGround = true;
+      }
+      
+      return;
+    }
+  }
+  
+  // ADD BALROG UPDATES
+  if (p.balrogDiveKick) {
+    handleBalrogDiveKick(p);
+  }
+  
+  // MAINTAIN SUPER DIAGONAL MOMENTUM for Balrog
+  if (p.isDiveKicking && p.balrogDiveKick) {
+    // Keep VERY strong diagonal movement during dive
+    p.vy = Math.max(p.vy, 14); // Faster downward speed
+    p.vx = p.balrogDiveDirection * 16; // Much stronger horizontal speed
+  }
+  
+  if (p.isUppercutting && p.dash <= 0) {
+    p.isUppercutting = false;
+    p.uppercutPower = 0;
   }
 }
 
@@ -1968,6 +2036,33 @@ function updatePlayerAnimState(p, pid) {
       p.animTimer = 0;
     }
     return;
+  }
+
+    if (p.charId === 'danty') {
+    // Handle recovery state first
+    if (p.balrogRecovering) {
+      if (p.animState !== "balrog-recovery") {
+        p.animState = "balrog-recovery";
+        p.animFrame = 0;
+        p.animTimer = 0;
+      }
+      return;
+    }
+
+    if (p.balrogCharging && p.balrogChargeType === 'uppercut') {
+      if (!p.onGround) {
+        p.balrogCharging = false;
+        p.balrogChargeType = null;
+        return;
+      }
+      
+      if (p.animState !== "balrog-charging") {
+        p.animState = "balrog-charging";
+        p.animFrame = 0;
+        p.animTimer = 0;
+      }
+      return;
+    }
   }
   
   if (p.alive && other && !other.alive && getAnimForPlayer({...p, animState:"victory"})) {
