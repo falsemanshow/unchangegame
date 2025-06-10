@@ -76,8 +76,38 @@ const DEVIL_SWORD_GAUGE = {
   MAX: 100,
   BLOCK_GAIN: 20,
   HIT_GAIN: 10,
-  ACTIVATION_HOLD_TIME: 1000, // Hold special for 1 second to activate
-  UPGRADE_DURATION: 600 // How long the upgrade lasts (10 seconds at 60fps)
+  ACTIVATION_HOLD_TIME: 1000,
+  UPGRADE_DURATION: 600,
+  PASSIVE_REGEN: 0.05
+};
+const SIN_DEVIL_TRIGGER = {
+  GAUGE_MAX: 100,
+  CHARGE_RATE: 0.8, // How fast SDT gauge fills when holding special during Devil Trigger
+  ACTIVATION_HOLD_TIME: 2000, // Hold special for 2 seconds to activate SDT
+  SWORD_FALL_DURATION: 90, // How long the sword falls (1.5 seconds at 60fps)
+  EXPLOSION_DURATION: 30, // Explosion effect duration
+  PIERCE_OFFSET_Y: -200, // How high above Danty the sword starts
+  SWORD_FALL_SPEED: 4, // How fast the sword falls
+  SDT_DURATION: 900 // How long SDT lasts (15 seconds at 60fps)
+};
+const DEVIL_SWORD_PROGRESSION = {
+  HIT_COMBO_RESET_TIME: 3000,
+  // Normal Devil Sword sprites
+  PHASE_1_SPRITE: "danty-devilsword-strike1.png",
+  PHASE_2_SPRITE: "danty-devilsword-strike2.png", 
+  PHASE_3_SPRITE: "danty-devilsword-strike3.png",
+  // Sin Devil Sword sprites 
+  ENHANCED_PHASE_1_SPRITE: "danty-devilsword-enhanced-strike1.png",
+  ENHANCED_PHASE_2_SPRITE: "danty-devilsword-enhanced-strike2.png",
+  ENHANCED_PHASE_3_SPRITE: "danty-devilsword-enhanced-strike3.png",
+  SPRITE_WIDTH: 120,
+  SPRITE_HEIGHT: 80,
+  ENHANCED_SPRITE_WIDTH: 140, // Bigger for enhanced mode
+  ENHANCED_SPRITE_HEIGHT: 90,
+  SPRITE_DURATION: 20,
+  ENHANCED_SPRITE_DURATION: 25, // Longer for enhanced mode
+  SPRITE_OFFSET_X: 60,
+  SPRITE_OFFSET_Y: -10
 };
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
 const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
@@ -120,10 +150,18 @@ const characterImpactEffects = {
   chicken: {
     dash: { sprite: "chicken-peck-impact.png", frames: 5, w: 50, h: 50, speed: 2, duration: 15, offset: { x: -5, y: -10 } }
   },
-  danty: {
+danty: {
   dash: { sprite: "danty-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
-  'balrog-dash': { sprite: "danty-balrog-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } }
-}
+  'balrog-dash': { sprite: "danty-balrog-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } },
+  // Normal Devil Sword sprites
+  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
+  'devilsword-strike2': { sprite: "danty-devilsword-strike2.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
+  'devilsword-strike3': { sprite: "danty-devilsword-strike3.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
+  // Sin devil sword sprties
+  'devilsword-enhanced-strike1': { sprite: "danty-devilsword-enhanced-strike1.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
+  'devilsword-enhanced-strike2': { sprite: "danty-devilsword-enhanced-strike2.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
+  'devilsword-enhanced-strike3': { sprite: "danty-devilsword-enhanced-strike3.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } }
+},
 };
 
 const impactSpritesheetCache = {};
@@ -142,11 +180,26 @@ function createImpactEffect(attacker, target, attackType = 'dash') {
   const effectData = characterImpactEffects[attacker.charId]?.[attackType];
   if (!effectData) return;
   
-  const impactX = attacker.x < target.x 
-    ? target.x + effectData.offset.x
-    : target.x + target.w - effectData.w + effectData.offset.x;
+  let impactX, impactY;
   
-  const impactY = target.y + target.h/2 - effectData.h/2 + effectData.offset.y;
+  // Special positioning for Devil Sword strikes
+  if (attackType === 'devilsword-strike1' || attackType === 'devilsword-strike2') {
+    // Position Devil Sword sprite in front of Danty based on his facing direction
+    if (attacker.facing === 1) {
+      // Facing right
+      impactX = attacker.x + attacker.w + effectData.offset.x;
+    } else {
+      // Facing left
+      impactX = attacker.x - effectData.w - effectData.offset.x;
+    }
+    impactY = attacker.y + attacker.h/2 - effectData.h/2 + effectData.offset.y;
+  } else {
+    // Normal impact positioning
+    impactX = attacker.x < target.x 
+      ? target.x + effectData.offset.x
+      : target.x + target.w - effectData.w + effectData.offset.x;
+    impactY = target.y + target.h/2 - effectData.h/2 + effectData.offset.y;
+  }
   
   impactEffects.push({
     sprite: effectData.sprite,
@@ -1049,8 +1102,14 @@ document.addEventListener("keydown", function(e) {
     }
  if (k === controls.special && p.charId === 'danty') {
       if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+        // Check if can activate Sin Devil Trigger (SDT)
+        if (p.devilSwordUpgraded && p.sdtGauge >= SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.sdtActive && !p.sdtCharging) {
+          p.sdtCharging = true;
+          p.sdtChargeStart = performance.now();
+          console.log(`${p.name} is charging SIN DEVIL TRIGGER! Hold to unleash ultimate power... 😈💀🔥`);
+        }
         // Check if can activate Devil Trigger
-        if (p.devilSwordGauge >= DEVIL_SWORD_GAUGE.MAX && !p.devilSwordUpgraded && !p.devilSwordActivating) {
+        else if (p.devilSwordGauge >= DEVIL_SWORD_GAUGE.MAX && !p.devilSwordUpgraded && !p.devilSwordActivating && !p.sdtActive) {
           p.devilSwordActivating = true;
           p.devilSwordActivationStart = performance.now();
           console.log(`${p.name} is activating Devil Trigger! Hold to charge... 😈⚡`);
@@ -1237,6 +1296,28 @@ if (p.charId === 'danty' && p.balrogCharging && p.balrogChargeType === 'uppercut
     p.animTimer = 0;
   }
 }
+
+         // ADD DEVIL TRIGGER RELEASE HANDLER:
+      if (p.charId === 'danty' && p.devilSwordActivating) {
+        const holdTime = performance.now() - p.devilSwordActivationStart;
+        if (holdTime < DEVIL_SWORD_GAUGE.ACTIVATION_HOLD_TIME) {
+          // Released too early
+          p.devilSwordActivating = false;
+          console.log(`${p.name} released too early! Need to hold longer for Devil Trigger! 😈❌`);
+        }
+        // If held long enough, activation happens in updatePlayer
+      }
+      
+      // ADD SDT RELEASE HANDLER:
+      if (p.charId === 'danty' && p.sdtCharging) {
+        const holdTime = performance.now() - p.sdtChargeStart;
+        if (holdTime < SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
+          // Released too early
+          p.sdtCharging = false;
+          console.log(`${p.name} released too early! Need to hold longer for Sin Devil Trigger! 😈💀❌`);
+        }
+        // If held long enough, activation happens in updatePlayer
+      }
     }
   }
 });
@@ -1461,22 +1542,34 @@ const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun &&
                    (opp.charId === 'danty' || opp.facing === -Math.sign(p.vx || p.facing));
   
 if (isBlocking) {
-    interruptJudgmentCut(opp); // The opponent (blocker) might be charging
-    p.hitstun = HEAVY_HITSTUN_FRAMES; // Attacker (p) gets HEAVY_HITSTUN_FRAMES, was HITSTUN_FRAMES
-    p.inHitstun = true;
-    p.vx = opp.facing * BLOCK_PUSHBACK_X;
-    p.vy = BLOCK_PUSHBACK_Y;
-    p.hasDashHit = true;
-    createImpactEffect(p, opp, 'block');
-    
-    // ADD DEVIL SWORD GAUGE GAIN ON SUCCESSFUL BLOCK:
-    if (opp.charId === 'danty' && opp.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !opp.devilSwordUpgraded) {
-      opp.devilSwordGauge += DEVIL_SWORD_GAUGE.BLOCK_GAIN;
-      if (opp.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) opp.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
-      console.log(`${opp.name} gained Devil Sword power from blocking! Gauge: ${opp.devilSwordGauge.toFixed(0)}% 😈🛡️`);
+    // CHECK FOR DEVIL TRIGGER OR PHASE 3 PASS-THROUGH
+    if ((p.charId === 'danty' && p.devilSwordUpgraded) || 
+        (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.devilSwordPhase === 3)) {
+      
+      if (p.devilSwordUpgraded) {
+        console.log(`${p.name}'s Devil Trigger passes through ${opp.name}'s block! 😈👻`);
+      } else if (p.devilSwordPhase === 3) {
+        console.log(`${p.name}'s Devil Sword Phase 3 penetrates through ${opp.name}'s block! ⚔️👻`);
+      }
+      // Don't return here - continue to damage calculation (this allows pass-through)
+    } else {
+      interruptJudgmentCut(opp); // The opponent (blocker) might be charging
+      p.hitstun = HEAVY_HITSTUN_FRAMES; // Attacker (p) gets HEAVY_HITSTUN_FRAMES, was HITSTUN_FRAMES
+      p.inHitstun = true;
+      p.vx = opp.facing * BLOCK_PUSHBACK_X;
+      p.vy = BLOCK_PUSHBACK_Y;
+      p.hasDashHit = true;
+      createImpactEffect(p, opp, 'block');
+      
+      // ADD DEVIL SWORD GAUGE GAIN ON SUCCESSFUL BLOCK:
+      if (opp.charId === 'danty' && opp.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !opp.devilSwordUpgraded) {
+        opp.devilSwordGauge += DEVIL_SWORD_GAUGE.BLOCK_GAIN;
+        if (opp.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) opp.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
+        console.log(`${opp.name} gained Devil Sword power from blocking! Gauge: ${opp.devilSwordGauge.toFixed(0)}% 😈🛡️`);
+      }
+      
+      return;
     }
-    
-    return;
   }
   
   if (opp.justHit === 0) {
@@ -1491,13 +1584,62 @@ opp.hp -= damage;
     opp.hitstun = Math.max(opp.hitstun, HITSTUN_FRAMES); // Opponent takes heavy hitstun on successful hit
        opp.inHitstun = true;
     
-    if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !p.devilSwordUpgraded) {
-      p.devilSwordGauge += DEVIL_SWORD_GAUGE.HIT_GAIN;
-      if (p.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) p.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
-      console.log(`${p.name} gained Devil Sword power from hitting! Gauge: ${p.devilSwordGauge.toFixed(0)}% 😈⚔️`);
+    // DEVIL SWORD PROGRESSION AND GAUGE SYSTEM:
+    if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+      // Update combo progression with cycling 1→2→3→1→2→3
+      p.devilSwordComboHits++;
+      p.devilSwordLastHitTime = performance.now();
+      
+      // Calculate current phase (cycles 1→2→3→1→2→3...)
+      p.devilSwordPhase = ((p.devilSwordComboHits - 1) % 3) + 1;
+      
+      // Create appropriate effect and log based on phase
+         // Create appropriate effect and log based on phase and enhancement state
+      let effectType = "";
+      if (p.devilSwordUpgraded) {
+        // Enhanced Devil Sword (Devil Trigger mode)
+        if (p.devilSwordPhase === 1) {
+          effectType = 'devilsword-enhanced-strike1';
+          console.log(`${p.name}'s ENHANCED Devil Sword - First Strike! 😈🔥⚔️ (Enhanced Phase 1)`);
+        } else if (p.devilSwordPhase === 2) {
+          effectType = 'devilsword-enhanced-strike2';
+          console.log(`${p.name}'s ENHANCED Devil Sword - Second Strike! 😈🔥⚔️⚔️ (Enhanced Phase 2)`);
+        } else if (p.devilSwordPhase === 3) {
+          effectType = 'devilsword-enhanced-strike3';
+          console.log(`${p.name}'s ENHANCED Devil Sword - DEVASTATING PENETRATION! 😈🔥👻⚔️ (Enhanced Phase 3)`);
+        }
+      } else {
+        // Normal Devil Sword
+        if (p.devilSwordPhase === 1) {
+          effectType = 'devilsword-strike1';
+          console.log(`${p.name}'s Devil Sword - First Strike! 😈⚔️ (Phase 1)`);
+        } else if (p.devilSwordPhase === 2) {
+          effectType = 'devilsword-strike2';
+          console.log(`${p.name}'s Devil Sword - Second Strike! 😈⚔️⚔️ (Phase 2)`);
+        } else if (p.devilSwordPhase === 3) {
+          effectType = 'devilsword-strike3';
+          console.log(`${p.name}'s Devil Sword - PENETRATING STRIKE! Passes through blocks! 😈👻⚔️ (Phase 3)`);
+        }
+      }
+      
+      createImpactEffect(p, opp, effectType);
+      
+      // Gain gauge power (only if not upgraded)
+      if (!p.devilSwordUpgraded) {
+        p.devilSwordGauge += DEVIL_SWORD_GAUGE.HIT_GAIN;
+        if (p.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) p.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
+        console.log(`${p.name} gained Devil Sword power! Gauge: ${p.devilSwordGauge.toFixed(0)}%`);
+      }
+    } else {
+      // ADD DEVIL SWORD GAUGE GAIN ON SUCCESSFUL HIT:
+      if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !p.devilSwordUpgraded) {
+        p.devilSwordGauge += DEVIL_SWORD_GAUGE.HIT_GAIN;
+        if (p.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) p.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
+        console.log(`${p.name} gained Devil Sword power from hitting! Gauge: ${p.devilSwordGauge.toFixed(0)}% 😈⚔️`);
+      }
     }
     
-    if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+       if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
       createImpactEffect(p, opp, 'dash');
       if (opp.dizzy > 0) {
         opp.vx = p.facing * DIZZY_KNOCKBACK_X;
@@ -1507,6 +1649,19 @@ opp.hp -= damage;
         opp.vy = -8;
       }
       console.log(`${p.name} slashed ${opp.name} with Yamato! ⚔️`);
+       } else if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.devilSwordPhase === 3) {
+      // Special behavior for Devil Sword Phase 3 penetration
+      if (p.devilSwordUpgraded) {
+        createImpactEffect(p, opp, 'devilsword-enhanced-strike3');
+        opp.vx = p.facing * 15; // Even stronger knockback for enhanced phase 3
+        opp.vy = -12;
+        console.log(`${p.name}'s ENHANCED Devil Sword devastated ${opp.name}! 😈🔥⚔️👻💥`);
+      } else {
+        createImpactEffect(p, opp, 'devilsword-strike3');
+        opp.vx = p.facing * 12; // Stronger knockback for phase 3
+        opp.vy = -10;
+        console.log(`${p.name}'s Devil Sword penetrated ${opp.name}! ⚔️👻💥`);
+      }
     } else {
       // Universal knockback system
       const pushDirection = p.facing;
@@ -1873,31 +2028,100 @@ if (p.charId === 'danty') {
   }
 }
 
+// DEVIL SWORD GAUGE SYSTEM:
 if (p.charId === 'danty') {
-  // Update Devil Sword gauge and upgrade state
+  // Handle Devil Sword upgrade state
   if (p.devilSwordUpgraded) {
     p.devilSwordUpgradeTimer--;
     if (p.devilSwordUpgradeTimer <= 0) {
       p.devilSwordUpgraded = false;
       p.devilSwordGauge = 0;
-      console.log(`${p.name}'s Devil Sword upgrade has expired! 😈➡️⚔️`);
-    } else {
-      // Decay gauge while upgraded
-      p.devilSwordGauge -= DEVIL_SWORD_GAUGE.DECAY_RATE;
-      if (p.devilSwordGauge <= 0) {
-        p.devilSwordGauge = 0;
-        p.devilSwordUpgraded = false;
-        p.devilSwordUpgradeTimer = 0;
-        console.log(`${p.name}'s Devil Sword power faded away! 😈💨`);
-      }
+      console.log(`${p.name}'s Devil Trigger has ended! 😈➡️⚔️`);
     }
   }
   
-  // Check if gauge is full and not already upgraded
-  if (p.devilSwordGauge >= DEVIL_SWORD_GAUGE.MAX && !p.devilSwordUpgraded) {
-    p.devilSwordUpgraded = true;
-    p.devilSwordUpgradeTimer = DEVIL_SWORD_GAUGE.UPGRADE_DURATION;
-    console.log(`${p.name}'s Devil Sword is now UPGRADED! All weapons deal extra damage! 😈🔥⚔️`);
+  // Handle manual activation
+  if (p.devilSwordActivating) {
+    const holdTime = performance.now() - p.devilSwordActivationStart;
+    if (holdTime >= DEVIL_SWORD_GAUGE.ACTIVATION_HOLD_TIME && p.devilSwordGauge >= DEVIL_SWORD_GAUGE.MAX && !p.devilSwordUpgraded) {
+      // Activate Devil Trigger
+      p.devilSwordUpgraded = true;
+      p.devilSwordUpgradeTimer = DEVIL_SWORD_GAUGE.UPGRADE_DURATION;
+      p.devilSwordActivating = false;
+      p.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX; // Keep gauge full during activation
+      console.log(`${p.name} activated DEVIL TRIGGER! 😈🔥💀`);
+    }
+  }
+  
+   // PASSIVE GAUGE REGENERATION (only when not upgraded and gauge not full)
+  if (!p.devilSwordUpgraded && p.devilSwordGauge < DEVIL_SWORD_GAUGE.MAX && !p.sdtActive) {
+    p.devilSwordGauge += DEVIL_SWORD_GAUGE.PASSIVE_REGEN;
+    if (p.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) {
+      p.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
+    }
+  }
+  
+  // SIN DEVIL TRIGGER SYSTEM
+  if (p.sdtActive) {
+    p.sdtTimer--;
+    if (p.sdtTimer <= 0) {
+      p.sdtActive = false;
+      p.sdtAnimationPhase = null;
+      p.devilSwordUpgraded = false; // End Devil Trigger too
+      p.devilSwordGauge = 0;
+      p.sdtGauge = 0;
+      console.log(`${p.name}'s Sin Devil Trigger has ended! Back to mortal form... 😈➡️👤`);
+    }
+  }
+  
+  // SDT charging system
+  if (p.sdtCharging) {
+    const holdTime = performance.now() - p.sdtChargeStart;
+    if (holdTime >= SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME && !p.sdtActive) {
+      // Start SDT activation sequence
+      p.sdtCharging = false;
+      p.sdtAnimationPhase = 'sword_falling';
+      p.sdtSwordX = p.x + p.w/2;
+      p.sdtSwordY = p.y + SIN_DEVIL_TRIGGER.PIERCE_OFFSET_Y;
+      console.log(`${p.name} UNLEASHES SIN DEVIL TRIGGER! 😈💀🔥⚡`);
+    }
+  }
+  
+  // SDT Animation phases
+  if (p.sdtAnimationPhase === 'sword_falling') {
+    p.sdtSwordY += SIN_DEVIL_TRIGGER.SWORD_FALL_SPEED;
+    if (p.sdtSwordY >= p.y + p.h/2) {
+      p.sdtAnimationPhase = 'piercing';
+      p.sdtExplosionTimer = SIN_DEVIL_TRIGGER.EXPLOSION_DURATION;
+      console.log(`${p.name} is pierced by the Sin Devil Sword! 💀⚔️💥`);
+    }
+  } else if (p.sdtAnimationPhase === 'piercing') {
+    p.sdtExplosionTimer--;
+    if (p.sdtExplosionTimer <= 0) {
+      p.sdtAnimationPhase = 'active';
+      p.sdtActive = true;
+      p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
+      p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
+      console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
+    }
+  }
+  
+  // SDT gauge charging (only when Devil Trigger is active and holding special)
+  if (p.devilSwordUpgraded && p.sdtCharging && p.sdtGauge < SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.sdtActive) {
+    p.sdtGauge += SIN_DEVIL_TRIGGER.CHARGE_RATE;
+    if (p.sdtGauge > SIN_DEVIL_TRIGGER.GAUGE_MAX) {
+      p.sdtGauge = SIN_DEVIL_TRIGGER.GAUGE_MAX;
+    }
+  }
+  
+  // Handle Devil Sword combo system
+  if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+    const now = performance.now();
+    // Reset combo if too much time passed
+    if (now - p.devilSwordLastHitTime > DEVIL_SWORD_PROGRESSION.HIT_COMBO_RESET_TIME) {
+      p.devilSwordComboHits = 0;
+      p.devilSwordPhase = 0;
+    }
   }
 }
 
@@ -2223,6 +2447,26 @@ vergilTeleportTrailSprite.src = "vergil-teleport-trail.png";
 const vergilSlashingSprite = new Image();
 vergilSlashingSprite.src = "vergil-judgment-cut-slashes.png"; 
 
+const devilSwordStrike1Sprite = new Image();
+devilSwordStrike1Sprite.src = "danty-devilsword-strike1.png";
+
+const devilSwordStrike2Sprite = new Image();
+devilSwordStrike2Sprite.src = "danty-devilsword-strike2.png";
+
+const devilSwordStrike3Sprite = new Image();
+devilSwordStrike3Sprite.src = "danty-devilsword-strike3.png";
+
+const devilSwordEnhancedStrike1Sprite = new Image();
+devilSwordEnhancedStrike1Sprite.src = "danty-devilsword-enhanced-strike1.png";
+
+const devilSwordEnhancedStrike2Sprite = new Image();
+devilSwordEnhancedStrike2Sprite.src = "danty-devilsword-enhanced-strike2.png";
+
+const devilSwordEnhancedStrike3Sprite = new Image();
+devilSwordEnhancedStrike3Sprite.src = "danty-devilsword-enhanced-strike3.png";
+
+const sdtSwordSprite = new Image();
+sdtSwordSprite.src = "danty-sdt-sword-pierce.png"; // The sword that falls and pierces Danty 🥵
 const characterSprites = {
   gold: {
     idle: { src: "gold-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
@@ -2339,11 +2583,24 @@ const players = [
     mirageActive: false, mirageTimer: 0, mirageDuration: 60, pauseTimer: 0,
     mirageSlashX: 0, mirageSlashY: 0, teleportTrail: null, isTeleporting: false,
     teleportAlpha: 1.0,
-    devilSwordGauge: 0,
+ devilSwordGauge: 0,
 devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
 devilSwordActivating: false,
 devilSwordActivationStart: 0,
+devilSwordComboHits: 0,
+devilSwordLastHitTime: 0,
+devilSwordPhase: 0,
+// Sin Devil Trigger properties
+sdtGauge: 0,
+sdtActive: false,
+sdtTimer: 0,
+sdtCharging: false,
+sdtChargeStart: 0,
+sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
+sdtSwordY: 0,
+sdtSwordX: 0,
+sdtExplosionTimer: 0,
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -2361,6 +2618,19 @@ devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
 devilSwordActivating: false,
 devilSwordActivationStart: 0,
+devilSwordComboHits: 0,
+devilSwordLastHitTime: 0,
+devilSwordPhase: 0,
+// Sin Devil Trigger properties
+sdtGauge: 0,
+sdtActive: false,
+sdtTimer: 0,
+sdtCharging: false,
+sdtChargeStart: 0,
+sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
+sdtSwordY: 0,
+sdtSwordX: 0,
+sdtExplosionTimer: 0,
     hitstun: 0, inHitstun: false, airHitstun: false,
     beowulfCharging: false, beowulfChargeStart: 0, beowulfChargeType: null,
     beowulfDiveKick: false, beowulfDiveDirection: 1, beowulfImpactRadius: 80,
@@ -2620,9 +2890,120 @@ function draw() {
       ctx.restore();
     }
     
-    // Draw player name and weapon indicator
+       // Draw player name and weapon indicator
     if (p.name) {
       ctx.save();
+      
+      // DEVIL TRIGGER BAR (above name)
+      if (p.charId === 'danty') {
+        const devilBarWidth = p.w;
+        const devilBarHeight = 6;
+        const devilBarX = p.x;
+        const devilBarY = p.y - 45; // Above the name
+        const devilGaugeRatio = p.devilSwordGauge / DEVIL_SWORD_GAUGE.MAX;
+        
+        // Background
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = "#000";
+        ctx.fillRect(devilBarX, devilBarY, devilBarWidth, devilBarHeight);
+        
+        // Gauge fill
+        ctx.globalAlpha = 0.9;
+        if (p.devilSwordUpgraded) {
+          // Active Devil Trigger - pulsing red/orange
+          const pulse = 0.8 + 0.2 * Math.sin(performance.now() / 100);
+          ctx.fillStyle = `rgba(255, ${Math.floor(69 * pulse)}, 0, ${pulse})`;
+        } else if (p.devilSwordActivating) {
+          // Activating - pulsing yellow
+          const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 80);
+          ctx.fillStyle = `rgba(255, 255, 0, ${pulse})`;
+        } else {
+          // Normal - dark red
+          ctx.fillStyle = "#8b0000";
+        }
+        ctx.fillRect(devilBarX, devilBarY, devilBarWidth * devilGaugeRatio, devilBarHeight);
+        
+        // Border
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = p.devilSwordUpgraded ? "#ff4500" : (p.devilSwordActivating ? "#ffff00" : "#666");
+        ctx.lineWidth = 1;
+        ctx.strokeRect(devilBarX, devilBarY, devilBarWidth, devilBarHeight);
+        
+        // Devil Trigger label
+        if (p.devilSwordUpgraded) {
+          ctx.font = "bold 8px Arial";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#ff4500";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 1;
+          ctx.strokeText("SIN DEVIL SWORD", p.x + p.w/2, devilBarY - 2);
+          ctx.fillText("SIN DEVIL SWORD", p.x + p.w/2, devilBarY - 2);
+        } else if (p.devilSwordActivating) {
+          ctx.font = "bold 8px Arial";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#ffff00";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 1;
+          ctx.strokeText("ACTIVATING...", p.x + p.w/2, devilBarY - 2);
+          ctx.fillText("ACTIVATING...", p.x + p.w/2, devilBarY - 2);
+               }
+        
+        // SDT GAUGE BAR (above Devil Trigger bar)
+        if (p.devilSwordUpgraded || p.sdtGauge > 0) {
+          const sdtBarWidth = p.w;
+          const sdtBarHeight = 4;
+          const sdtBarX = p.x;
+          const sdtBarY = p.y - 55; // Above the Devil Trigger bar
+          const sdtGaugeRatio = p.sdtGauge / SIN_DEVIL_TRIGGER.GAUGE_MAX;
+          
+          // Background
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = "#000";
+          ctx.fillRect(sdtBarX, sdtBarY, sdtBarWidth, sdtBarHeight);
+          
+          // Gauge fill
+          ctx.globalAlpha = 1.0;
+          if (p.sdtActive) {
+            // Active SDT - pulsing purple/red
+            const pulse = 0.9 + 0.1 * Math.sin(performance.now() / 80);
+            ctx.fillStyle = `rgba(139, 0, 139, ${pulse})`;
+          } else if (p.sdtCharging) {
+            // Charging SDT - pulsing dark red
+            const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 60);
+            ctx.fillStyle = `rgba(75, 0, 130, ${pulse})`;
+          } else {
+            // Normal - dark purple
+            ctx.fillStyle = "#4b0082";
+          }
+          ctx.fillRect(sdtBarX, sdtBarY, sdtBarWidth * sdtGaugeRatio, sdtBarHeight);
+          
+          // Border
+          ctx.strokeStyle = p.sdtActive ? "#8b008b" : (p.sdtCharging ? "#4b0082" : "#333");
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sdtBarX, sdtBarY, sdtBarWidth, sdtBarHeight);
+          
+          // SDT label
+          if (p.sdtActive) {
+            ctx.font = "bold 7px Arial";
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#8b008b";
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 1;
+            ctx.strokeText("SIN DEVIL TRIGGER", p.x + p.w/2, sdtBarY - 2);
+            ctx.fillText("SIN DEVIL TRIGGER", p.x + p.w/2, sdtBarY - 2);
+          } else if (p.sdtCharging) {
+            ctx.font = "bold 7px Arial";
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#4b0082";
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 1;
+            ctx.strokeText("CHARGING SDT...", p.x + p.w/2, sdtBarY - 2);
+            ctx.fillText("CHARGING SDT...", p.x + p.w/2, sdtBarY - 2);
+          }
+        }
+      }
+      
+      // Player name
       ctx.font = "bold 15px Arial";
       ctx.textAlign = "center";
       ctx.strokeStyle = "#23243a";
@@ -2659,6 +3040,31 @@ else if (p.charId === 'danty') {
   ctx.strokeText(weaponText, p.x + p.w/2, p.y - 12);
   ctx.fillStyle = "#fff";
   ctx.fillText(weaponText, p.x + p.w/2, p.y - 12);
+  
+  // Show Devil Sword combo if active
+   // Show Devil Sword combo if active
+  if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.devilSwordComboHits > 0) {
+    ctx.font = "bold 10px Arial";
+    let comboText = "";
+    let comboColor = "#fff";
+    
+    if (p.devilSwordPhase === 1) {
+      comboText = "★ PHASE 1";
+      comboColor = "#ffeb3b";
+    } else if (p.devilSwordPhase === 2) {
+      comboText = "★★ PHASE 2";
+      comboColor = "#ff9800";
+    } else if (p.devilSwordPhase === 3) {
+      comboText = "★★★ PENETRATE";
+      comboColor = "#f44336";
+    }
+    
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeText(comboText, p.x + p.w/2, p.y + 5);
+    ctx.fillStyle = comboColor;
+    ctx.fillText(comboText, p.x + p.w/2, p.y + 5);
+  }
 }
       
       ctx.restore();
@@ -2710,43 +3116,6 @@ else if (p.charId === 'danty') {
   ctx.globalAlpha = 1;
 ctx.restore();
 
-//devil sword gauge
-if (p.charId === 'danty') {
-  const devilBarY = barY + barHeight + 20;
-  const devilGaugeRatio = p.devilSwordGauge / DEVIL_SWORD_GAUGE.MAX;
-  
-  ctx.save();
-  ctx.globalAlpha = 0.8;
-  ctx.fillStyle = "#222";
-  ctx.fillRect(barX, devilBarY, barWidth, barHeight);
-  
-  ctx.globalAlpha = 0.95;
-  if (p.devilSwordUpgraded) {
-    // Upgraded state - pulsing red/orange
-    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 150);
-    ctx.fillStyle = `rgba(255, ${Math.floor(69 * pulse)}, 0, ${pulse})`;
-  } else {
-    // Normal state - dark red
-    ctx.fillStyle = "#8b0000";
-  }
-  ctx.fillRect(barX, devilBarY, barWidth * devilGaugeRatio, barHeight);
-  
-  // Border
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = p.devilSwordUpgraded ? "#ff4500" : "#8b0000";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(barX, devilBarY, barWidth, barHeight);
-  
-  // Label
-  ctx.font = "bold 10px Arial";
-  ctx.textAlign = "center";
-  ctx.fillStyle = p.devilSwordUpgraded ? "#ff4500" : "#8b0000";
-  ctx.globalAlpha = 0.9;
-  const labelText = p.devilSwordUpgraded ? "DEVIL POWER!" : "Devil Sword";
-  ctx.fillText(labelText, barX + barWidth/2, devilBarY + barHeight + 10);
-  
-  ctx.restore();
-}
   }
   
   // Draw Mirage Blade slash
@@ -2759,6 +3128,59 @@ if (p.charId === 'danty') {
   }
 
   drawImpactEffects(ctx);
+
+  // Draw SDT sword falling animation
+  for (let p of players) {
+    if (p.charId === 'danty' && (p.sdtAnimationPhase === 'sword_falling' || p.sdtAnimationPhase === 'piercing')) {
+      ctx.save();
+      
+      if (p.sdtAnimationPhase === 'sword_falling') {
+        // Draw falling sword
+        ctx.globalAlpha = 0.9;
+        if (sdtSwordSprite.complete && sdtSwordSprite.naturalWidth > 0) {
+          const swordWidth = 60;
+          const swordHeight = 120;
+          ctx.drawImage(sdtSwordSprite, p.sdtSwordX - swordWidth/2, p.sdtSwordY, swordWidth, swordHeight);
+        } else {
+          // Fallback sword
+          ctx.fillStyle = "#4b0082";
+          ctx.fillRect(p.sdtSwordX - 15, p.sdtSwordY, 30, 80);
+          ctx.fillStyle = "#8b008b";
+          ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY, 10, 80);
+        }
+        
+        // Sword trail effect
+        for (let i = 1; i <= 5; i++) {
+          ctx.globalAlpha = 0.3 - (i * 0.05);
+          ctx.fillStyle = "#8b008b";
+          ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY - (i * 20), 10, 40);
+        }
+      } else if (p.sdtAnimationPhase === 'piercing') {
+        // Draw explosion effect
+        const explosionIntensity = 1 - (p.sdtExplosionTimer / SIN_DEVIL_TRIGGER.EXPLOSION_DURATION);
+        const explosionSize = 100 * explosionIntensity;
+        
+        // Multiple explosion rings
+        for (let i = 0; i < 3; i++) {
+          ctx.globalAlpha = 0.6 - (i * 0.15) - (explosionIntensity * 0.3);
+          ctx.strokeStyle = i === 0 ? "#8b008b" : i === 1 ? "#4b0082" : "#000";
+          ctx.lineWidth = 8 - (i * 2);
+          ctx.beginPath();
+          ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize + (i * 20), 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+        
+        // Center flash
+        ctx.globalAlpha = 0.8 - explosionIntensity;
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize * 0.3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    }
+  }
 
   // Draw Judgment Cut lines
   for (let p of players) {
