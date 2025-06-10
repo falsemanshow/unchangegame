@@ -2504,15 +2504,28 @@ document.addEventListener("keydown", function(e) {
     p.judgementCutCooldown = 0;
     console.log("Player 1 is now Vergil! Q=Switch Weapon, E=Judgment Cut(Yamato)");
   }
+   if (e.key === "2") {
+    const p = players[0];
+    p.charId = "danty";
+    p.name = "Danty";
+   p.color = "#ef5350"; 
+    p.judgementCutCooldown = 0;
+  }
   
-if (e.key === "2") {
-  const p = players[1];
-  p.charId = "danty";
-  p.name = "Danty";
-  p.color = "#ef5350"; 
-  // p.judgementCutCooldown = 0; // Remove or adapt if Danty has different abilities
-  console.log("Player 2 is now Danty!");
-}
+  if (e.key === "3") {
+    const p = players[1];
+    p.charId = "vergil";
+    p.name = "Vergil";
+    p.color = "#4a90e2";
+    p.judgementCutCooldown = 0;
+  }
+   if (e.key === "4") {
+    const p = players[1];
+    p.charId = "chicken";
+    p.name = "Danty";
+   p.color = "#ef5350"; 
+    p.judgementCutCooldown = 0;
+  }
 });
 
 gameLoop();
