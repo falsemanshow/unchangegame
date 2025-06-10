@@ -1104,18 +1104,18 @@ function handleDiveKickAttack() {
     const opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
 
-    if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick) {
+        if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick) {
       if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
           p.y < opp.y + opp.h && p.y + p.h > opp.y) {
 
-      if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun &&
-    (opp.charId === 'danty' || opp.facing === -Math.sign(p.vx || p.facing)) ) {
+        // THIS IS THE CRITICAL BLOCKING CONDITION FOR VERGIL'S DIVEKICK
+        if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
           p.beowulfDiveKick = false;
           p.isDiveKicking = false;
           p.vy = -4;
           p.hitstun = HEAVY_HITSTUN_FRAMES;
           p.inHitstun = true;
-          createImpactEffect(opp, p, 'block');
+          createImpactEffect(opp, p, 'block'); // Note: effect source might be opp, target p
           console.log(`${opp.name} blocked ${p.name}'s dive kick! 🛡️`);
         } else {
           opp.hp -= 12;
