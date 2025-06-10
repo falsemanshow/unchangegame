@@ -4,7 +4,7 @@ function updateBlocking(p, pid) {
   if (p._wasBlocking === undefined) p._wasBlocking = false;
   
   if (p.onGround && !p.dizzy && !p.inHitstun && keys[controls.down]) {
-    if (!p._wasBlocking && p.block < BLOCK_MAX) {
+    if (!p._wasBlocking && p.block < p.maxBlock) {
       p.blocking = false;
       p.blockAnimationFinished = false;
     } else if (p.block > 0) {
@@ -24,9 +24,9 @@ function updateBlocking(p, pid) {
     p.blockAnimationFinished = false;
   }
   
-  if (!p.blocking && p.block < BLOCK_MAX) {
+if (!p.blocking && p.block < p.maxBlock) {
     p.block += BLOCK_RECOVERY;
-    if (p.block > BLOCK_MAX) p.block = BLOCK_MAX;
+   if (p.block > p.maxBlock) p.block = p.maxBlock;
   }
   p._wasBlocking = p.blocking;
 
@@ -356,11 +356,11 @@ function handleBeowulfUppercutHit(attacker, opponent) {
   if (attacker.isUppercutting && opponent.justHit === 0) {
     // CHECK FOR BLOCKING FIRST
     let isBlocking = false;
-    if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
-      if (opponent.facing === -Math.sign(attacker.vx || attacker.facing)) {
-        isBlocking = true;
-      }
-    }
+if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
+  if (opponent.charId === 'danty' || opponent.facing === -Math.sign(attacker.vx || attacker.facing)) {
+    isBlocking = true;
+  }
+}
     
     if (isBlocking) {
       // Uppercut blocked - attacker gets stunned
@@ -1108,7 +1108,8 @@ function handleDiveKickAttack() {
       if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
           p.y < opp.y + opp.h && p.y + p.h > opp.y) {
 
-        if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
+      if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun &&
+    (opp.charId === 'danty' || opp.facing === -Math.sign(p.vx || p.facing)) ) {
           p.beowulfDiveKick = false;
           p.isDiveKicking = false;
           p.vy = -4;
@@ -1171,8 +1172,10 @@ function handleDashAttack() {
 function handleSimultaneousDashCollision(p1, p2) {
   console.log("⚡ Simultaneous dash collision detected!");
   
-  let p1Blocking = p2.blocking && p2.block > 0 && !p2.dizzy && (p2.facing === -Math.sign(p1.vx || p1.facing));
-  let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && (p1.facing === -Math.sign(p2.vx || p2.facing));
+  let p1Blocking = p2.blocking && p2.block > 0 && !p2.dizzy && !p2.inHitstun &&
+                     (p2.charId === 'danty' || (p2.facing === -Math.sign(p1.vx || p1.facing)));
+ let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && !p1.inHitstun &&
+                     (p1.charId === 'danty' || (p1.facing === -Math.sign(p2.vx || p2.facing)));
   
   if (p1Blocking && p2Blocking) {
     p1.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
@@ -1243,8 +1246,8 @@ function handleSingleDashHit(p, opp) {
     }
   }
   
-  const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun && 
-                     opp.facing === -Math.sign(p.vx || p.facing);
+const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun &&
+                   (opp.charId === 'danty' || opp.facing === -Math.sign(p.vx || p.facing));
   
   if (isBlocking) {
     interruptJudgmentCut(opp); // The opponent (blocker) might be charging
@@ -1881,7 +1884,6 @@ const characterSprites = {
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 1, w: 100, h: 100, speed: 3 },
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
-    
     // Beowulf sprites
     'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
@@ -1894,12 +1896,26 @@ const characterSprites = {
     'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
     'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
     'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
-    
     // Mirage Blade sprites
     'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
-  }
+  },
+  danty: {
+  idle: { src: "danty-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
+  walk: { src: "danty-walk.png", frames: 10, w: 50, h: 50, speed: 4 },
+  jump: { src: "danty-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
+  fall: { src: "danty-fall.png", frames: 1, w: 50, h: 50, speed: 7 },
+  attack: { src: "danty-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
+  attack_air: { src: "danty-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
+  block: { src: "danty-block.png", frames: 2, w: 38, h: 38, speed: 6 },
+  blocking: { src: "danty-blocking.png", frames: 2, w: 38, h: 38, speed: 8 }, // Added blocking state
+  hit: { src: "danty-hit.png", frames: 2, w: 38, h: 38, speed: 8 },
+  dizzy: { src: "danty-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
+  dash: { src: "danty-dash.png", frames: 2, w: 50, h: 50, speed: 3 },
+  defeat: { src: "danty-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
+  victory: { src: "danty-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
+},
 };
 
 const spritesheetCache = {};
@@ -1920,8 +1936,8 @@ const players = [
     x: WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
     color: "#4a90e2", facing: 1, hp: PLAYER_HP, jumps: 0, dash: 0,
     dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 0, 
-    name: "Vergil", charId: "vergil", animState: "idle", animFrame: 0, animTimer: 0, 
-    justHit: 0, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0, 
+name: "Vergil", charId: "vergil", animState: "idle", animFrame: 0, animTimer: 0,
+justHit: 0, maxBlock: BLOCK_MAX, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0,
     blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false, 
     blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null, 
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0, 
@@ -1941,8 +1957,8 @@ beowulfRecoveryTimer: 0,
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
     color: "#ef5350", facing: -1, hp: PLAYER_HP, jumps: 0, dash: 0,
     dashCooldown: 0, onGround: false, jumpHeld: false, alive: true, id: 1,
-    name: "P2", charId: "chicken", animState: "idle", animFrame: 0, animTimer: 0,
-    justHit: 0, block: BLOCK_MAX, blocking: false, dizzy: 0, blockGlowTimer: 0,
+name: "Danty", charId: "danty", animState: "idle", animFrame: 0, animTimer: 0,
+justHit: 0, maxBlock: BLOCK_MAX * 0.7, block: BLOCK_MAX * 0.7, blocking: false, dizzy: 0, blockGlowTimer: 0,
     blockWasFull: false, judgementCutCooldown: 0, hasDashHit: false,
     blockAnimationFinished: false, blockStartTime: 0, judgementCutPhase: null,
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0,
@@ -2240,7 +2256,7 @@ function draw() {
     const barHeight = 10;
     const barX = p.x;
     const barY = p.y + p.h + 8;
-    const blockRatio = Math.max(0, p.block) / BLOCK_MAX;
+    const blockRatio = Math.max(0, p.block) / p.maxBlock;
 
     ctx.save();
     ctx.globalAlpha = 0.8;
@@ -2460,10 +2476,10 @@ function gameLoop() {
       updatePlayerAnimState(p, i);
       updateAnimation(p);
 
-      if (p.block >= BLOCK_MAX - 0.1 && !p.blockWasFull) {
-        p.blockGlowTimer = 30;
-      }
-      p.blockWasFull = p.block >= BLOCK_MAX - 0.1;
+if (p.block >= p.maxBlock - 0.1 && !p.blockWasFull) {
+  p.blockGlowTimer = 30;
+}
+p.blockWasFull = p.block >= p.maxBlock - 0.1;
       if (p.blockGlowTimer > 0) p.blockGlowTimer--;
     }
     handleDashAttack();
@@ -2489,14 +2505,14 @@ document.addEventListener("keydown", function(e) {
     console.log("Player 1 is now Vergil! Q=Switch Weapon, E=Judgment Cut(Yamato)");
   }
   
-  if (e.key === "2") {
-    const p = players[1];
-    p.charId = "vergil";
-    p.name = "Vergil";
-    p.color = "#4a90e2";
-    p.judgementCutCooldown = 0;
-    console.log("Player 2 is now Vergil! I=Switch Weapon, P=Judgment Cut(Yamato)");
-  }
+if (e.key === "2") {
+  const p = players[1];
+  p.charId = "danty";
+  p.name = "Danty";
+  p.color = "#ef5350"; 
+  // p.judgementCutCooldown = 0; // Remove or adapt if Danty has different abilities
+  console.log("Player 2 is now Danty!");
+}
 });
 
 gameLoop();
