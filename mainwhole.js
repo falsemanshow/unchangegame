@@ -70,7 +70,7 @@ const VERGIL_WEAPONS = {
 const DANTY_WEAPONS = {
     DEVIL_SWORD: 'devil_sword',
     BALROG: 'balrog',
-    TAUNT: 'taunt'
+    SPECTRAL_SWORD: 'spectral_sword'
 };
 const DEVIL_SWORD_GAUGE = {
   MAX: 100,
@@ -82,13 +82,33 @@ const DEVIL_SWORD_GAUGE = {
 };
 const SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
-  CHARGE_RATE: 0.8, // How fast SDT gauge fills when holding special during Devil Trigger
-  ACTIVATION_HOLD_TIME: 2000, // Hold special for 2 seconds to activate SDT
-  SWORD_FALL_DURATION: 90, // How long the sword falls (1.5 seconds at 60fps)
-  EXPLOSION_DURATION: 30, // Explosion effect duration
-  PIERCE_OFFSET_Y: -200, // How high above Danty the sword starts
-  SWORD_FALL_SPEED: 4, // How fast the sword falls
-  SDT_DURATION: 900 // How long SDT lasts (15 seconds at 60fps)
+  CHARGE_RATE: 0.8,
+  ACTIVATION_HOLD_TIME: 2000,
+  SWORD_FALL_DURATION: 90,
+  EXPLOSION_DURATION: 30,
+  PIERCE_OFFSET_Y: -200,
+  SWORD_FALL_SPEED: 4,
+  SDT_DURATION: 900,
+  // SDT Power Boosts
+  DAMAGE_MULTIPLIER: 2.0, // Double damage
+  SPEED_MULTIPLIER: 1.5,  // 50% faster movement
+  DASH_SPEED_MULTIPLIER: 1.8, // 80% faster dash
+  FLOAT_HEIGHT: 10, // How much above ground SDT floats
+  GRAVITY_REDUCTION: 0.8, // Only slight gravity reduction (was 0.3 - too low!)
+  JUMP_MULTIPLIER: 1.0 // Normal jump height in SDT
+};
+const SPECTRAL_SWORD = {
+  SPAWN_DISTANCE: 100, // How far from Danty it spawns
+  MOVE_SPEED: 7, // How fast it moves
+  DASH_SPEED: 15, // How fast it dashes
+  DASH_FRAMES: 8, // How long dash lasts
+  DASH_COOLDOWN: 36, // Dash cooldown frames
+  DASH_DAMAGE: 15, // Damage when dashing
+  FLOAT_SPEED: 2, // How fast it naturally floats up/down
+  SIZE: 40, // Width and height
+  GAUGE_DRAIN: 0.3, // How much Devil Trigger gauge it drains per frame
+  MIN_GAUGE_TO_SPAWN: 20, // Minimum gauge needed to spawn
+  CONTROL_TRANSFER_FRAMES: 30 // Frames to transfer control
 };
 const DEVIL_SWORD_PROGRESSION = {
   HIT_COMBO_RESET_TIME: 3000,
@@ -160,7 +180,13 @@ danty: {
   // Sin devil sword sprties
   'devilsword-enhanced-strike1': { sprite: "danty-devilsword-enhanced-strike1.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
   'devilsword-enhanced-strike2': { sprite: "danty-devilsword-enhanced-strike2.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
-  'devilsword-enhanced-strike3': { sprite: "danty-devilsword-enhanced-strike3.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } }
+  'devilsword-enhanced-strike3': { sprite: "danty-devilsword-enhanced-strike3.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
+    // SDT IMPACT EFFECTS 💀🔥
+  'sdt-dash': { sprite: "danty-sdt-dash-impact.png", frames: 1, w: 120, h: 100, speed: 2, duration: 30, offset: { x: -20, y: -50 } },
+  'sdt-uppercut': { sprite: "danty-sdt-uppercut-impact.png", frames: 2, w: 100, h: 120, speed: 2, duration: 25, offset: { x: -15, y: -60 } },
+  'sdt-divekick': { sprite: "danty-sdt-divekick-impact.png", frames: 3, w: 130, h: 90, speed: 2, duration: 35, offset: { x: -25, y: -30 } },
+    // Spectral Sword impact effects
+  'spectral-sword-dash': { sprite: "danty-spectral-sword-impact.png", frames: 2, w: 80, h: 80, speed: 3, duration: 20, offset: { x: -15, y: -15 } }
 },
 };
 
@@ -217,6 +243,62 @@ function createImpactEffect(attacker, target, attackType = 'dash') {
     alpha: 1.0,
     facingDirection: attacker.facing || 1
   });
+}
+
+function createSpectralSword(owner) {
+  // Check if owner has enough gauge
+  if (owner.devilSwordGauge < SPECTRAL_SWORD.MIN_GAUGE_TO_SPAWN) {
+    console.log(`${owner.name} needs at least ${SPECTRAL_SWORD.MIN_GAUGE_TO_SPAWN}% Devil Trigger gauge to summon Spectral Sword! 🚫⚔️`);
+    return null;
+  }
+  
+  // Calculate spawn position (in front of owner)
+  const spawnX = owner.facing === 1 ? 
+    owner.x + owner.w + SPECTRAL_SWORD.SPAWN_DISTANCE : 
+    owner.x - SPECTRAL_SWORD.SPAWN_DISTANCE - SPECTRAL_SWORD.SIZE;
+  const spawnY = owner.y + (owner.h / 2) - (SPECTRAL_SWORD.SIZE / 2);
+  
+  const spectralSword = {
+    x: spawnX,
+    y: spawnY,
+    w: SPECTRAL_SWORD.SIZE,
+    h: SPECTRAL_SWORD.SIZE,
+    vx: 0,
+    vy: 0,
+    facing: owner.facing,
+    owner: owner,
+    alive: true,
+    
+    // Movement properties
+    dash: 0,
+    dashCooldown: 0,
+    hasDashHit: false,
+    
+    // Animation properties
+    animState: "idle",
+    animFrame: 0,
+    animTimer: 0,
+    
+    // Floating effect
+    floatTimer: 0,
+    baseY: spawnY,
+    
+    // Gauge drain
+    gaugeDrainTimer: 0
+  };
+  
+  console.log(`${owner.name} summons SPECTRAL SWORD! Control transferred! ⚔️👻🔥`);
+  return spectralSword;
+}
+
+function destroySpectralSword(owner) {
+  if (owner.spectralSword) {
+    owner.spectralSword = null;
+    owner.spectralSwordControlling = false;
+    owner.spectralSwordTransferring = false;
+    owner.spectralSwordTransferTimer = 0;
+    console.log(`${owner.name}'s Spectral Sword vanished! Control returned! 👻💨`);
+  }
 }
 
 function updateImpactEffects() {
@@ -315,8 +397,9 @@ function executeUppercut(player, chargeTime, weaponType = 'beowulf') {
   player.animFrame = 0;
   player.animTimer = 0;
   
-  const weaponName = weaponType === 'beowulf' ? 'Beowulf' : 'Balrog';
-  console.log(`${player.name} unleashes ${weaponName} Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% 👊⬆️💥`);
+  const weaponName = weaponType === 'beowulf' ? 'Beowulf' : weaponType === 'sdt' ? 'SDT Balrog' : 'Balrog';
+  const emoji = weaponType === 'sdt' ? '💀👊⬆️🔥' : '👊⬆️💥';
+  console.log(`${player.name} unleashes ${weaponName} Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% ${emoji}`);
 }
 
 function executeBeowulfUppercut(player, chargeTime) {
@@ -324,7 +407,8 @@ function executeBeowulfUppercut(player, chargeTime) {
 }
 
 function executeBalrogUppercut(player, chargeTime) {
-  executeUppercut(player, chargeTime, 'balrog');
+  const weaponType = (player.charId === 'danty' && player.sdtActive) ? 'sdt' : 'balrog';
+  executeUppercut(player, chargeTime, weaponType);
 }
 
 function handleDiveKick(player, weaponType = 'beowulf') {
@@ -338,10 +422,16 @@ function handleDiveKick(player, weaponType = 'beowulf') {
     player[diveKickProp] = false;                 // Use dynamically selected property
     player.isDiveKicking = false;
     
-    // Add recovery state - player is vulnerable for a moment
+       // Add recovery state - player is vulnerable for a moment
     player[recoveryProp] = true;                  // Use dynamically selected property
     player[recoveryTimerProp] = BEOWULF_DIVE_RECOVERY_TIME; // Use dynamically selected property
-    player.animState = weaponType + "-recovery";  // Use weaponType for animation
+    
+    // Choose correct recovery animation
+    if (weaponType === 'sdt') {
+      player.animState = "sdt-idle"; // SDT doesn't have recovery animation, just go to idle
+    } else {
+      player.animState = weaponType + "-recovery";
+    }
     player.animFrame = 0;
     player.animTimer = 0;
     
@@ -349,7 +439,9 @@ function handleDiveKick(player, weaponType = 'beowulf') {
     player.vx = 0;
     player.vy = 0;
     
-    console.log(`${player.name} is recovering from ${weaponType} dive kick - vulnerable for 1.5 seconds! 🦆`);
+    const kickName = weaponType === 'sdt' ? 'SDT dive kick' : weaponType + ' dive kick';
+    const emoji = weaponType === 'sdt' ? '💀🦆' : '🦆';
+    console.log(`${player.name} is recovering from ${kickName} - vulnerable for 1.5 seconds! ${emoji}`);
     
     // Create explosion effect at impact point
     const impactX = player.x + player.w/2;
@@ -407,7 +499,8 @@ function handleBeowulfDiveKick(player) {
 }
 
 function handleBalrogDiveKick(player) {
-  handleDiveKick(player, 'balrog');
+  const kickType = (player.charId === 'danty' && player.sdtActive) ? 'sdt' : 'balrog';
+  handleDiveKick(player, kickType);
 }
 
 function handleBeowulfUppercutHit(attacker, opponent) {
@@ -490,12 +583,22 @@ function handleBalrogUppercutHit(attacker, opponent) {
       attacker.isUppercutting = false;
       attacker.uppercutPower = 0;
       createImpactEffect(attacker, opponent, 'block');
-      console.log(`${opponent.name} blocked ${attacker.name}'s Balrog Rising Uppercut! 🛡️👊`);
+      const upperType = attacker.sdtActive ? 'SDT Balrog' : 'Balrog';
+      console.log(`${opponent.name} blocked ${attacker.name}'s ${upperType} Rising Uppercut! 🛡️👊${attacker.sdtActive ? '💀' : ''}`);
       return true;
     }
     
-    // Normal uppercut hit logic continues...
-    const damage = 12 + (attacker.uppercutPower * 8);
+    // Calculate damage (SDT does double damage)
+    let baseDamage = 12 + (attacker.uppercutPower * 8);
+    let damage = baseDamage;
+    if (attacker.charId === 'danty' && attacker.sdtActive) {
+      damage = Math.floor(baseDamage * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER);
+      console.log(`${attacker.name}'s SDT Balrog uppercut deals DOUBLE DAMAGE! ${damage} instead of ${baseDamage} 💀👊💥`);
+    } else if (attacker.charId === 'danty' && attacker.devilSwordUpgraded) {
+      damage = Math.floor(baseDamage * 1.5);
+      console.log(`${attacker.name}'s upgraded Balrog deals extra damage! ${damage} instead of ${baseDamage} 😈👊`);
+    }
+    
     opponent.hp -= damage;
     opponent.justHit = 20;
     
@@ -504,13 +607,15 @@ function handleBalrogUppercutHit(attacker, opponent) {
     opponent.inHitstun = true;
     opponent.airHitstun = true;
     
-    console.log(`${opponent.name} was launched by Balrog uppercut and will remain stunned until landing!`);
+    console.log(`${opponent.name} was launched by ${attacker.sdtActive ? 'SDT ' : ''}Balrog uppercut and will remain stunned until landing!`);
     
     // Give opponent the SAME upward velocity as attacker
     opponent.vy = attacker.vy;
     opponent.vx = attacker.facing * (6 + attacker.uppercutPower * 4);
     
-    createImpactEffect(attacker, opponent, 'balrog-dash');
+    // Choose correct impact effect
+    const effectType = attacker.sdtActive ? 'sdt-uppercut' : 'balrog-dash';
+    createImpactEffect(attacker, opponent, effectType);
     
     if (opponent.hp <= 0) {
       opponent.hp = 0;
@@ -522,7 +627,9 @@ function handleBalrogUppercutHit(attacker, opponent) {
     attacker.isUppercutting = false;
     attacker.uppercutPower = 0;
     
-    console.log(`${attacker.name}'s Balrog Rising Uppercut launches ${opponent.name} skyward! 👊⬆️💫`);
+    const upperType = attacker.sdtActive ? 'SDT Balrog' : 'Balrog';
+    const emoji = attacker.sdtActive ? '💀👊⬆️💫🔥' : '👊⬆️💫';
+    console.log(`${attacker.name}'s ${upperType} Rising Uppercut launches ${opponent.name} skyward! ${emoji}`);
     return true;
   }
   return false;
@@ -1101,7 +1208,35 @@ document.addEventListener("keydown", function(e) {
       }
     }
  if (k === controls.special && p.charId === 'danty') {
-      if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
+      // SDT STATE: Can use ALL abilities regardless of weapon! 💀🔥
+      if (p.sdtActive) {
+        if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+          // SDT allows Balrog uppercut with ANY weapon equipped!
+          p.balrogCharging = true;
+          p.balrogChargeStart = performance.now();
+          p.balrogChargeType = 'uppercut';
+          p.animState = "sdt-charging";
+          p.animFrame = 0;
+          p.animTimer = 0;
+          console.log(`${p.name}'s SDT UNLEASHES BALROG UPPERCUT! 💀👊⬆️🔥`);
+        } else if (!p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
+          const currentHeight = GROUND - (p.y + p.h);
+          
+          if (currentHeight >= 30) { // Lower requirement for SDT
+            p.balrogDiveKick = true;
+            p.balrogDiveDirection = p.facing;
+            p.vy = 18; // Stronger for SDT
+            p.vx = p.facing * 22; // Faster for SDT
+            p.isDiveKicking = true;
+            p.animState = "sdt-divekick";
+            p.animFrame = 0;
+            p.animTimer = 0;
+            console.log(`${p.name}'s SDT DEVASTATING AERIAL ASSAULT! 💀👊💥🔥`);
+          }
+        }
+      }
+      // NORMAL STATES (non-SDT)
+      else if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
         // Check if can activate Sin Devil Trigger (SDT)
         if (p.devilSwordUpgraded && p.sdtGauge >= SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.sdtActive && !p.sdtCharging) {
           p.sdtCharging = true;
@@ -1143,8 +1278,21 @@ document.addEventListener("keydown", function(e) {
             console.log(`${p.name} not high enough for Balrog kick! Need 50px height 🚫`);
           }
         }
-      } else if (p.currentWeapon === DANTY_WEAPONS.TAUNT) {
-        console.log(`${p.name} uses Taunt ability! 😤`);
+          } else if (p.currentWeapon === DANTY_WEAPONS.SPECTRAL_SWORD) {
+        // Spectral Sword special ability
+        if (!p.spectralSword && !p.spectralSwordTransferring) {
+          // Summon spectral sword
+          p.spectralSword = createSpectralSword(p);
+          if (p.spectralSword) {
+            p.spectralSwordTransferring = true;
+            p.spectralSwordTransferTimer = SPECTRAL_SWORD.CONTROL_TRANSFER_FRAMES;
+            p.animState = "transferring-control";
+            p.animFrame = 0;
+            p.animTimer = 0;
+          }
+        } else if (p.spectralSword && p.spectralSwordControlling) {
+          console.log(`${p.name}'s Spectral Sword is already active! ⚔️👻`);
+        }
       }
     }
     
@@ -1170,14 +1318,22 @@ if (k === weaponSwitchKey) {
         p.currentWeapon = VERGIL_WEAPONS.YAMATO;
         console.log(`${p.name} switched to Yamato (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
       }
-    } else if (p.charId === 'danty') {
+       } else if (p.charId === 'danty') {
       if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
         p.currentWeapon = DANTY_WEAPONS.BALROG;
         console.log(`${p.name} switched to Balrog (Gauntlets)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
       } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
-        p.currentWeapon = DANTY_WEAPONS.TAUNT;
-        console.log(`${p.name} switched to Taunt (Special)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+        p.currentWeapon = DANTY_WEAPONS.SPECTRAL_SWORD;
+        // Destroy spectral sword if switching away
+        if (p.spectralSword) {
+          destroySpectralSword(p);
+        }
+        console.log(`${p.name} switched to Spectral Sword (Entity Control)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
       } else {
+        // Destroy spectral sword when switching away
+        if (p.spectralSword) {
+          destroySpectralSword(p);
+        }
         p.currentWeapon = DANTY_WEAPONS.DEVIL_SWORD;
         console.log(`${p.name} switched to Devil Sword (Sword)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
       }
@@ -1194,16 +1350,61 @@ if (k === weaponSwitchKey) {
     const p = players[pid];
     if(!p.alive) continue;
     
+    // SPECTRAL SWORD DASH CONTROLS 👻⚔️💨
+    if (p.charId === 'danty' && p.spectralSword && p.spectralSwordControlling) {
+      const sword = p.spectralSword;
+      
+      if (k === controls.left && !keys[controls.right] && sword.dashCooldown === 0) {
+        let now = performance.now();
+        if (dashTapState[pid].lastTapDir === 'left' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.left < DASH_WINDOW) {
+          sword.vx = -SPECTRAL_SWORD.DASH_SPEED;
+          sword.dash = SPECTRAL_SWORD.DASH_FRAMES;
+          sword.dashCooldown = SPECTRAL_SWORD.DASH_COOLDOWN;
+          sword.facing = -1;
+          sword.animState = "dash";
+          sword.animFrame = 0;
+          sword.animTimer = 0;
+          dashTapState[pid].lastTapDir = null;
+          console.log(`${p.name}'s Spectral Sword dashes left! 👻⚔️💨`);
+        } else {
+          dashTapState[pid].lastTapDir = 'left';
+          dashTapState[pid].lastTapTime = now;
+        }
+      }
+      
+      if (k === controls.right && !keys[controls.left] && sword.dashCooldown === 0) {
+        let now = performance.now();
+        if (dashTapState[pid].lastTapDir === 'right' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.right < DASH_WINDOW) {
+          sword.vx = SPECTRAL_SWORD.DASH_SPEED;
+          sword.dash = SPECTRAL_SWORD.DASH_FRAMES;
+          sword.dashCooldown = SPECTRAL_SWORD.DASH_COOLDOWN;
+          sword.facing = 1;
+          sword.animState = "dash";
+          sword.animFrame = 0;
+          sword.animTimer = 0;
+          dashTapState[pid].lastTapDir = null;
+          console.log(`${p.name}'s Spectral Sword dashes right! 👻⚔️💨`);
+        } else {
+          dashTapState[pid].lastTapDir = 'right';
+          dashTapState[pid].lastTapTime = now;
+        }
+      }
+      
+      continue; // Skip normal dash for player when controlling spectral sword
+    }
+    
     if (k === controls.left && !keys[controls.right] && p.dashCooldown === 0 && !p.inHitstun) {
       let now = performance.now();
       if (dashTapState[pid].lastTapDir === 'left' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.left < DASH_WINDOW) {
-        if (p.charId === 'vergil') {
+                if (p.charId === 'vergil') {
           p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
           p.isTeleporting = true;
           p.teleportAlpha = 0.3;
           p.vx = -DASH_SPEED * 1.2;
         } else {
-          p.vx = -DASH_SPEED;
+          // SDT DASH SPEED BOOST 💀⚡
+          const dashMultiplier = (p.charId === 'danty' && p.sdtActive) ? SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.0;
+          p.vx = -DASH_SPEED * dashMultiplier;
         }
         p.dash = DASH_FRAMES;
         p.dashCooldown = DASH_COOLDOWN;
@@ -1218,13 +1419,15 @@ if (k === weaponSwitchKey) {
     if (k === controls.right && !keys[controls.left] && p.dashCooldown === 0 && !p.inHitstun) {
       let now = performance.now();
       if (dashTapState[pid].lastTapDir === 'right' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.right < DASH_WINDOW) {
-        if (p.charId === 'vergil') {
+                    if (p.charId === 'vergil') {
           p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
           p.isTeleporting = true;
           p.teleportAlpha = 0.3;
           p.vx = DASH_SPEED * 1.2;
         } else {
-          p.vx = DASH_SPEED;
+          // SDT DASH SPEED BOOST 💀⚡
+          const dashMultiplier = (p.charId === 'danty' && p.sdtActive) ? SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.0;
+          p.vx = DASH_SPEED * dashMultiplier;
         }
         p.dash = DASH_FRAMES;
         p.dashCooldown = DASH_COOLDOWN;
@@ -1291,7 +1494,7 @@ if (p.charId === 'danty' && p.balrogCharging && p.balrogChargeType === 'uppercut
   } else {
     p.balrogCharging = false;
     p.balrogChargeType = null;
-    p.animState = "idle";
+    p.animState = p.sdtActive ? "sdt-idle" : "idle";
     p.animFrame = 0;
     p.animTimer = 0;
   }
@@ -1328,22 +1531,21 @@ function handleDiveKickAttack() {
     const opp = players[1 - i];
     if (!p.alive || !opp.alive) continue;
 
-    // Fix: Check for correct weapon types for both characters
-    if ((p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick) ||
-        (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.balrogDiveKick)) {
+    // Check for dive kicks: Beowulf, Balrog, OR SDT (any weapon)
+    const hasBeowulfDive = (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.beowulfDiveKick);
+    const hasBalrogDive = (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.balrogDiveKick);
+    const hasSDTDive = (p.charId === 'danty' && p.sdtActive && p.balrogDiveKick); // SDT can use divekick with any weapon
+    
+    if (hasBeowulfDive || hasBalrogDive || hasSDTDive) {
       
       if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
           p.y < opp.y + opp.h && p.y + p.h > opp.y) {
 
-        // Determine which dive kick type this is
-        const isBeowulfDive = (p.charId === 'vergil' && p.beowulfDiveKick);
-        const isBalrogDive = (p.charId === 'danty' && p.balrogDiveKick);
-
         if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
           // Reset the appropriate dive kick
-          if (isBeowulfDive) {
+          if (hasBeowulfDive) {
             p.beowulfDiveKick = false;
-          } else if (isBalrogDive) {
+          } else if (hasBalrogDive || hasSDTDive) {
             p.balrogDiveKick = false;
           }
           
@@ -1352,20 +1554,35 @@ function handleDiveKickAttack() {
           p.hitstun = HEAVY_HITSTUN_FRAMES;
           p.inHitstun = true;
           createImpactEffect(opp, p, 'block');
-          console.log(`${opp.name} blocked ${p.name}'s dive kick! 🛡️`);
+          const kickType = hasSDTDive ? 'SDT dive kick' : hasBeowulfDive ? 'Beowulf dive kick' : 'Balrog dive kick';
+          console.log(`${opp.name} blocked ${p.name}'s ${kickType}! 🛡️${hasSDTDive ? '💀' : ''}`);
         } else {
-          opp.hp -= 12;
+          // Calculate damage (SDT does double damage)
+          let damage = 12;
+          if (hasSDTDive) {
+            damage = Math.floor(12 * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER);
+            console.log(`${p.name}'s SDT dive kick deals DOUBLE DAMAGE! ${damage} instead of 12 💀👊💥`);
+          }
+          
+          opp.hp -= damage;
           opp.justHit = 20;
           opp.hitstun = HITSTUN_FRAMES;
           opp.inHitstun = true;
-          opp.vy = -10;
           
-          // Reset the appropriate dive kick
-          if (isBeowulfDive) {
+          // KNOCKUP EFFECT - same as before
+          opp.vy = -10;
+          opp.vx = p.facing * 5; // Horizontal knockback
+          
+          // Reset the appropriate dive kick and choose impact effect
+          if (hasBeowulfDive) {
             p.beowulfDiveKick = false;
             createImpactEffect(p, opp, 'beowulf-dash');
             console.log(`${p.name}'s Beowulf dive kick hits ${opp.name}! 💥`);
-          } else if (isBalrogDive) {
+          } else if (hasSDTDive) {
+            p.balrogDiveKick = false;
+            createImpactEffect(p, opp, 'sdt-divekick');
+            console.log(`${p.name}'s SDT DEVASTATING dive kick hits ${opp.name}! 💀👊💥🔥`);
+          } else if (hasBalrogDive) {
             p.balrogDiveKick = false;
             createImpactEffect(p, opp, 'balrog-dash');
             console.log(`${p.name}'s Balrog dive kick hits ${opp.name}! 💥`);
@@ -1526,12 +1743,13 @@ function handleSimultaneousDashCollision(p1, p2) {
 }
 
 function handleSingleDashHit(p, opp) {
-  if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.isUppercutting) {
+if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.isUppercutting) {
   if (handleBeowulfUppercutHit(p, opp)) {
     p.hasDashHit = true;
     return;
   }
-} else if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.isUppercutting) {
+} else if (p.charId === 'danty' && (p.currentWeapon === DANTY_WEAPONS.BALROG || p.sdtActive) && p.isUppercutting) {
+  // SDT can use Balrog uppercut with any weapon equipped
   if (handleBalrogUppercutHit(p, opp)) {
     p.hasDashHit = true;
     return;
@@ -1575,7 +1793,10 @@ if (isBlocking) {
   if (opp.justHit === 0) {
     interruptJudgmentCut(opp);
 let damage = DASH_DAMAGE;
-if (p.charId === 'danty' && p.devilSwordUpgraded) {
+if (p.charId === 'danty' && p.sdtActive) {
+  damage = Math.floor(DASH_DAMAGE * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER); // DOUBLE DAMAGE IN SDT 💀💥
+  console.log(`${p.name}'s SDT DOUBLE DAMAGE! ${damage} instead of ${DASH_DAMAGE} 💀💥🔥`);
+} else if (p.charId === 'danty' && p.devilSwordUpgraded) {
   damage = Math.floor(DASH_DAMAGE * 1.5); // 50% extra damage when upgraded
   console.log(`${p.name}'s upgraded weapon deals extra damage! ${damage} instead of ${DASH_DAMAGE} 😈💥`);
 }
@@ -2106,11 +2327,19 @@ if (p.charId === 'danty') {
     }
   }
   
-  // SDT gauge charging (only when Devil Trigger is active and holding special)
-  if (p.devilSwordUpgraded && p.sdtCharging && p.sdtGauge < SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.sdtActive) {
-    p.sdtGauge += SIN_DEVIL_TRIGGER.CHARGE_RATE;
-    if (p.sdtGauge > SIN_DEVIL_TRIGGER.GAUGE_MAX) {
-      p.sdtGauge = SIN_DEVIL_TRIGGER.GAUGE_MAX;
+  // SDT gauge charging (fixed) - only when Devil Trigger is active and holding special
+  if (p.devilSwordUpgraded && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.sdtGauge < SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.sdtActive) {
+    // Check if special key is being held down
+    const specialKey = pid === 0 ? 'e' : 'p';
+    if (keys[specialKey]) {
+      p.sdtGauge += SIN_DEVIL_TRIGGER.CHARGE_RATE;
+      if (p.sdtGauge > SIN_DEVIL_TRIGGER.GAUGE_MAX) {
+        p.sdtGauge = SIN_DEVIL_TRIGGER.GAUGE_MAX;
+      }
+      // Only log occasionally to avoid spam
+      if (Math.floor(p.sdtGauge) % 10 === 0) {
+        console.log(`${p.name} is charging SDT gauge: ${p.sdtGauge.toFixed(0)}% 😈💀`);
+      }
     }
   }
   
@@ -2154,13 +2383,16 @@ if (p.inHitstun) {
   if (p.dash > 0) {
     p.dash--;
   } else {
-    // Player can't move during hitstun
+        // Player can't move during hitstun
     if (!p.inHitstun) {
+      // SDT SPEED BOOST 🔥⚡
+      const moveSpeed = (p.charId === 'danty' && p.sdtActive) ? PLAYER_SPEED * SIN_DEVIL_TRIGGER.SPEED_MULTIPLIER : PLAYER_SPEED;
+      
       if (keys[controls.left] && !keys[controls.right] && !p.blocking && !p.inHitstun) {
-        p.vx = -PLAYER_SPEED; p.facing = -1;
+        p.vx = -moveSpeed; p.facing = -1;
       }
       if (keys[controls.right] && !keys[controls.left] && !p.blocking && !p.inHitstun) {
-        p.vx = PLAYER_SPEED; p.facing = 1;
+        p.vx = moveSpeed; p.facing = 1;
       }
       if ((!keys[controls.left] && !keys[controls.right]) || p.blocking) {
         p.vx *= FRICTION;
@@ -2186,10 +2418,17 @@ if (p.inHitstun) {
 
   if (p.dashCooldown > 0) p.dashCooldown--;
 
-  if (slowFallActive && p.vy > 0) {
+     if (slowFallActive && p.vy > 0) {
     p.vy += GRAVITY * SLOW_FALL_MULTIPLIER;
   } else {
-    p.vy += GRAVITY;
+    // SDT FLOATING EFFECT 🛸💀 (only when falling, not jumping)
+    if (p.charId === 'danty' && p.sdtActive && p.vy > 0) {
+      // Reduced gravity only when falling down for floating effect
+      p.vy += GRAVITY * SIN_DEVIL_TRIGGER.GRAVITY_REDUCTION;
+    } else {
+      // Normal gravity for jumping up and non-SDT
+      p.vy += GRAVITY;
+    }
   }
 
   p.x += p.vx;
@@ -2257,6 +2496,14 @@ if (p.inHitstun) {
 function getAnimForPlayer(p) {
   let charAnim = characterSprites[p.charId];
   if (!charAnim) return null;
+  
+  // SDT ANIMATIONS OVERRIDE EVERYTHING 💀🔥
+  if (p.charId === 'danty' && p.sdtActive) {
+    const sdtAnimState = `sdt-${p.animState}`;
+    if (charAnim[sdtAnimState]) {
+      return charAnim[sdtAnimState];
+    }
+  }
   
   if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
     const beowulfAnimState = `beowulf-${p.animState}`;
@@ -2467,6 +2714,42 @@ devilSwordEnhancedStrike3Sprite.src = "danty-devilsword-enhanced-strike3.png";
 
 const sdtSwordSprite = new Image();
 sdtSwordSprite.src = "danty-sdt-sword-pierce.png"; // The sword that falls and pierces Danty 🥵
+
+// Spectral Sword sprites
+const spectralSwordIdleSprite = new Image();
+spectralSwordIdleSprite.src = "danty-spectral-sword-idle.png";
+
+const spectralSwordDashSprite = new Image();
+spectralSwordDashSprite.src = "danty-spectral-sword-dash.png";
+
+const spectralSwordImpactSprite = new Image();
+spectralSwordImpactSprite.src = "danty-spectral-sword-impact.png";
+
+const dantyControllingSprite = new Image();
+dantyControllingSprite.src = "danty-controlling-spectral.png";
+
+// SDT exclusive sprites
+const sdtIdleSprite = new Image();
+sdtIdleSprite.src = "danty-sdt-idle.png";
+
+const sdtWalkSprite = new Image();
+sdtWalkSprite.src = "danty-sdt-walk.png";
+
+const sdtDashSprite = new Image();
+sdtDashSprite.src = "danty-sdt-dash.png";
+
+const sdtUppercutSprite = new Image();
+sdtUppercutSprite.src = "danty-sdt-uppercut.png";
+
+const sdtDivekickSprite = new Image();
+sdtDivekickSprite.src = "danty-sdt-divekick.png";
+
+const sdtJumpSprite = new Image();
+sdtJumpSprite.src = "danty-sdt-jump.png";
+
+const sdtFallSprite = new Image();
+sdtFallSprite.src = "danty-sdt-fall.png";
+
 const characterSprites = {
   gold: {
     idle: { src: "gold-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
@@ -2543,7 +2826,19 @@ const characterSprites = {
   'balrog-charging': { src: "danty-balrog-charging.png", frames: 4, w: 50, h: 50, speed: 8 },
   'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 5, w: 50, h: 50, speed: 3 },
   'balrog-divekick': { src: "danty-balrog-divekick.png", frames: 3, w: 50, h: 50, speed: 4 },
-  'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 4, w: 50, h: 50, speed: 8 }
+  'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 4, w: 50, h: 50, speed: 8 },
+  // SDT EXCLUSIVE SPRITES 🔥💀 Yes lez gooo
+  'sdt-idle': { src: "danty-sdt-idle.png", frames: 8, w: 60, h: 60, speed: 10 },
+  'sdt-walk': { src: "danty-sdt-walk.png", frames: 12, w: 60, h: 60, speed: 3 },
+  'sdt-dash': { src: "danty-sdt-dash.png", frames: 4, w: 60, h: 60, speed: 2 },
+  'sdt-jump': { src: "danty-sdt-jump.png", frames: 4, w: 60, h: 60, speed: 5 },
+  'sdt-fall': { src: "danty-sdt-fall.png", frames: 3, w: 60, h: 60, speed: 6 },
+  'sdt-uppercut': { src: "danty-sdt-uppercut.png", frames: 6, w: 60, h: 60, speed: 2 },
+  'sdt-divekick': { src: "danty-sdt-divekick.png", frames: 5, w: 60, h: 60, speed: 3 },
+  'sdt-charging': { src: "danty-sdt-charging.png", frames: 5, w: 60, h: 60, speed: 6 },
+  // Spectral Sword control animation
+  'controlling-spectral': { src: "danty-controlling-spectral.png", frames: 8, w: 50, h: 50, speed: 8 },
+  'transferring-control': { src: "danty-transferring-control.png", frames: 6, w: 50, h: 50, speed: 5 }
 },
 };
 
@@ -2572,6 +2867,14 @@ const players = [
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0, 
     judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
     currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
+    sdtSwordY: 0,
+sdtSwordX: 0,
+sdtExplosionTimer: 0,
+// Spectral Sword properties
+spectralSword: null, // The floating sword entity
+spectralSwordControlling: false, // Is Danty controlling the sword
+spectralSwordTransferring: false, // Is control being transferred
+spectralSwordTransferTimer: 0, // Transfer animation timer
     hitstun: 0, inHitstun: false, airHitstun: false,
     beowulfCharging: false, beowulfChargeStart: 0, beowulfChargeType: null,
     beowulfDiveKick: false, beowulfDiveDirection: 1, beowulfImpactRadius: 80,
@@ -2598,9 +2901,6 @@ sdtTimer: 0,
 sdtCharging: false,
 sdtChargeStart: 0,
 sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
-sdtSwordY: 0,
-sdtSwordX: 0,
-sdtExplosionTimer: 0,
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -2631,6 +2931,11 @@ sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
 sdtSwordY: 0,
 sdtSwordX: 0,
 sdtExplosionTimer: 0,
+// Spectral Sword properties
+spectralSword: null, // The floating sword entity
+spectralSwordControlling: false, // Is Danty controlling the sword
+spectralSwordTransferring: false, // Is control being transferred
+spectralSwordTransferTimer: 0, // Transfer animation timer
     hitstun: 0, inHitstun: false, airHitstun: false,
     beowulfCharging: false, beowulfChargeStart: 0, beowulfChargeType: null,
     beowulfDiveKick: false, beowulfDiveDirection: 1, beowulfImpactRadius: 80,
