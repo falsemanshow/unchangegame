@@ -72,6 +72,13 @@ const DANTY_WEAPONS = {
     BALROG: 'balrog',
     TAUNT: 'taunt'
 };
+const DEVIL_SWORD_GAUGE = {
+  MAX: 100,
+  BLOCK_GAIN: 20,
+  HIT_GAIN: 10,
+  ACTIVATION_HOLD_TIME: 1000, // Hold special for 1 second to activate
+  UPGRADE_DURATION: 600 // How long the upgrade lasts (10 seconds at 60fps)
+};
 const SLOW_FALL_MULTIPLIER = 0.16, BLOCK_MAX = 100;
 const BLOCK_DEPLETION = 1.8, BLOCK_RECOVERY = 0.8, DIZZY_FRAMES = 300;
 const UNIVERSAL_DASH_KNOCKBACK_X = 50;
@@ -373,8 +380,12 @@ if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
       return true;
     }
     
-    // Normal uppercut hit logic continues...
-    const damage = 12 + (attacker.uppercutPower * 8); // 12-20 damage based on charge
+let baseDamage = 12 + (attacker.uppercutPower * 8);
+let damage = baseDamage;
+if (attacker.charId === 'danty' && attacker.devilSwordUpgraded) {
+  damage = Math.floor(baseDamage * 1.5);
+  console.log(`${attacker.name}'s upgraded Balrog deals extra damage! ${damage} instead of ${baseDamage} 😈👊`);
+}
     opponent.hp -= damage;
     opponent.justHit = 20;
     
@@ -1038,7 +1049,14 @@ document.addEventListener("keydown", function(e) {
     }
  if (k === controls.special && p.charId === 'danty') {
       if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD) {
-        console.log(`${p.name} uses Devil Sword ability! ⚔️`);
+        // Check if can activate Devil Trigger
+        if (p.devilSwordGauge >= DEVIL_SWORD_GAUGE.MAX && !p.devilSwordUpgraded && !p.devilSwordActivating) {
+          p.devilSwordActivating = true;
+          p.devilSwordActivationStart = performance.now();
+          console.log(`${p.name} is activating Devil Trigger! Hold to charge... 😈⚡`);
+        } else {
+          console.log(`${p.name} uses Devil Sword ability! ⚔️`);
+        }
       } else if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
         if (p.onGround && !p.balrogCharging && !p.balrogDiveKick) {
           // Start charging Balrog uppercut
@@ -1442,7 +1460,7 @@ function handleSingleDashHit(p, opp) {
 const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun &&
                    (opp.charId === 'danty' || opp.facing === -Math.sign(p.vx || p.facing));
   
-  if (isBlocking) {
+if (isBlocking) {
     interruptJudgmentCut(opp); // The opponent (blocker) might be charging
     p.hitstun = HEAVY_HITSTUN_FRAMES; // Attacker (p) gets HEAVY_HITSTUN_FRAMES, was HITSTUN_FRAMES
     p.inHitstun = true;
@@ -1450,15 +1468,34 @@ const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun &&
     p.vy = BLOCK_PUSHBACK_Y;
     p.hasDashHit = true;
     createImpactEffect(p, opp, 'block');
+    
+    // ADD DEVIL SWORD GAUGE GAIN ON SUCCESSFUL BLOCK:
+    if (opp.charId === 'danty' && opp.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !opp.devilSwordUpgraded) {
+      opp.devilSwordGauge += DEVIL_SWORD_GAUGE.BLOCK_GAIN;
+      if (opp.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) opp.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
+      console.log(`${opp.name} gained Devil Sword power from blocking! Gauge: ${opp.devilSwordGauge.toFixed(0)}% 😈🛡️`);
+    }
+    
     return;
   }
   
   if (opp.justHit === 0) {
     interruptJudgmentCut(opp);
-    opp.hp -= DASH_DAMAGE;
+let damage = DASH_DAMAGE;
+if (p.charId === 'danty' && p.devilSwordUpgraded) {
+  damage = Math.floor(DASH_DAMAGE * 1.5); // 50% extra damage when upgraded
+  console.log(`${p.name}'s upgraded weapon deals extra damage! ${damage} instead of ${DASH_DAMAGE} 😈💥`);
+}
+opp.hp -= damage;
     opp.justHit = 16;
     opp.hitstun = Math.max(opp.hitstun, HITSTUN_FRAMES); // Opponent takes heavy hitstun on successful hit
-    opp.inHitstun = true;
+       opp.inHitstun = true;
+    
+    if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !p.devilSwordUpgraded) {
+      p.devilSwordGauge += DEVIL_SWORD_GAUGE.HIT_GAIN;
+      if (p.devilSwordGauge > DEVIL_SWORD_GAUGE.MAX) p.devilSwordGauge = DEVIL_SWORD_GAUGE.MAX;
+      console.log(`${p.name} gained Devil Sword power from hitting! Gauge: ${p.devilSwordGauge.toFixed(0)}% 😈⚔️`);
+    }
     
     if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
       createImpactEffect(p, opp, 'dash');
@@ -1833,6 +1870,34 @@ if (p.charId === 'danty') {
   if (p.isUppercutting && p.dash <= 0) {
     p.isUppercutting = false;
     p.uppercutPower = 0;
+  }
+}
+
+if (p.charId === 'danty') {
+  // Update Devil Sword gauge and upgrade state
+  if (p.devilSwordUpgraded) {
+    p.devilSwordUpgradeTimer--;
+    if (p.devilSwordUpgradeTimer <= 0) {
+      p.devilSwordUpgraded = false;
+      p.devilSwordGauge = 0;
+      console.log(`${p.name}'s Devil Sword upgrade has expired! 😈➡️⚔️`);
+    } else {
+      // Decay gauge while upgraded
+      p.devilSwordGauge -= DEVIL_SWORD_GAUGE.DECAY_RATE;
+      if (p.devilSwordGauge <= 0) {
+        p.devilSwordGauge = 0;
+        p.devilSwordUpgraded = false;
+        p.devilSwordUpgradeTimer = 0;
+        console.log(`${p.name}'s Devil Sword power faded away! 😈💨`);
+      }
+    }
+  }
+  
+  // Check if gauge is full and not already upgraded
+  if (p.devilSwordGauge >= DEVIL_SWORD_GAUGE.MAX && !p.devilSwordUpgraded) {
+    p.devilSwordUpgraded = true;
+    p.devilSwordUpgradeTimer = DEVIL_SWORD_GAUGE.UPGRADE_DURATION;
+    console.log(`${p.name}'s Devil Sword is now UPGRADED! All weapons deal extra damage! 😈🔥⚔️`);
   }
 }
 
@@ -2273,7 +2338,12 @@ const players = [
     isDiveKicking: false, isUppercutting: false, uppercutPower: 0,
     mirageActive: false, mirageTimer: 0, mirageDuration: 60, pauseTimer: 0,
     mirageSlashX: 0, mirageSlashY: 0, teleportTrail: null, isTeleporting: false,
-    teleportAlpha: 1.0
+    teleportAlpha: 1.0,
+    devilSwordGauge: 0,
+devilSwordUpgraded: false,
+devilSwordUpgradeTimer: 0,
+devilSwordActivating: false,
+devilSwordActivationStart: 0,
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -2286,6 +2356,11 @@ const players = [
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0,
     judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
     currentWeapon: DANTY_WEAPONS.DEVIL_SWORD, bounceEffect: null, isBeingKnockedBack: false,
+devilSwordGauge: 0,
+devilSwordUpgraded: false,
+devilSwordUpgradeTimer: 0,
+devilSwordActivating: false,
+devilSwordActivationStart: 0,
     hitstun: 0, inHitstun: false, airHitstun: false,
     beowulfCharging: false, beowulfChargeStart: 0, beowulfChargeType: null,
     beowulfDiveKick: false, beowulfDiveDirection: 1, beowulfImpactRadius: 80,
@@ -2632,8 +2707,46 @@ else if (p.charId === 'danty') {
     ctx.fillStyle = "#bbb";
     ctx.globalAlpha = 0.84;
     ctx.fillText("Block", barX + barWidth/2, barY + barHeight + 12);
-    ctx.globalAlpha = 1;
-    ctx.restore();
+  ctx.globalAlpha = 1;
+ctx.restore();
+
+//devil sword gauge
+if (p.charId === 'danty') {
+  const devilBarY = barY + barHeight + 20;
+  const devilGaugeRatio = p.devilSwordGauge / DEVIL_SWORD_GAUGE.MAX;
+  
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.fillStyle = "#222";
+  ctx.fillRect(barX, devilBarY, barWidth, barHeight);
+  
+  ctx.globalAlpha = 0.95;
+  if (p.devilSwordUpgraded) {
+    // Upgraded state - pulsing red/orange
+    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 150);
+    ctx.fillStyle = `rgba(255, ${Math.floor(69 * pulse)}, 0, ${pulse})`;
+  } else {
+    // Normal state - dark red
+    ctx.fillStyle = "#8b0000";
+  }
+  ctx.fillRect(barX, devilBarY, barWidth * devilGaugeRatio, barHeight);
+  
+  // Border
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = p.devilSwordUpgraded ? "#ff4500" : "#8b0000";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(barX, devilBarY, barWidth, barHeight);
+  
+  // Label
+  ctx.font = "bold 10px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = p.devilSwordUpgraded ? "#ff4500" : "#8b0000";
+  ctx.globalAlpha = 0.9;
+  const labelText = p.devilSwordUpgraded ? "DEVIL POWER!" : "Devil Sword";
+  ctx.fillText(labelText, barX + barWidth/2, devilBarY + barHeight + 10);
+  
+  ctx.restore();
+}
   }
   
   // Draw Mirage Blade slash
