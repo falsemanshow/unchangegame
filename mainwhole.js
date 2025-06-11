@@ -67,6 +67,15 @@ const VERGIL_WEAPONS = {
     BEOWULF: 'beowulf',
     MIRAGE_BLADE: 'mirage_blade'
 };
+const MIRAGE_BLADE_CONFIG = {
+    WIDTH: 100,      
+    HEIGHT: 85,      
+    DURATION: 180,    
+    ALPHA_START: 0.9,  
+    ALPHA_END: 0.1,    
+    SCALE_START: 1.0,
+    SCALE_END: 1.2     
+};
 const DANTY_WEAPONS = {
     DEVIL_SWORD: 'devil_sword',
     BALROG: 'balrog',
@@ -145,8 +154,8 @@ const JUDGEMENT_CUT_CONSTANTS = {
     FALL_INITIAL_VY: -8,
     FALL_VX_RANGE: 4,
     LINE_DISPLAY_DURATION: 800,
-    FIRST_THREE_INTERVAL: 30,
-    REMAINING_LINES_DELAY: 100
+    FIRST_THREE_INTERVAL: 30, // Faster line appearance! ⚡
+    REMAINING_LINES_DELAY: 100  // Shorter delay! ⚡
 };
 
 let gameState = { paused: false, pauseReason: null, pauseStartTime: 0 };
@@ -154,7 +163,7 @@ let gameState = { paused: false, pauseReason: null, pauseStartTime: 0 };
 let cameraZoomEffect = {
     active: false, startZoom: 1, targetZoom: 1.5, currentZoom: 1,
     phase: 'idle', startTime: 0,
-    duration: { zoomIn: 4500, hold: 400, zoomOut: 500 }
+    duration: { zoomIn: 3000, hold: 400, zoomOut: 500 }
 };
 
 const impactEffects = [];
@@ -315,174 +324,45 @@ function playParrySound() {
 }
 
 let audioInitialized = false;
-let fadeIntervals = new Map(); // Track fade intervals for each audio
-let targetVolumes = new Map(); // Track target volumes
 
 function initializeAudio() {
   if (!audioInitialized) {
     // Preload audio
     parrySound.load();
     
-    // Preload music and set base volumes
-    vergilTheme.load();
-    dantyTheme.load();
+    // Preload default music
     defaultFightMusic.load();
-    
-    // Set initial volumes (these will be the max volumes)
-    targetVolumes.set(vergilTheme, 0.5);
-    targetVolumes.set(dantyTheme, 0.5);
-    targetVolumes.set(defaultFightMusic, 0.4);
     
     audioInitialized = true;
     musicInitialized = true;
-    console.log("🔊 Audio system with SMOOTH FADING initialized! 🎵✨🔥");
+    console.log("🔊 SIMPLE MUSIC SYSTEM initialized! 🎵🔥");
     
-    // Start with default music (with fade in)
-    playMusicWithFade(defaultFightMusic, "Default Fight Music");
+    // Start default battle music
+    startDefaultMusic();
   }
 }
 
-function fadeOut(audio, duration = 1000, callback = null) {
-  if (!audio || audio.paused) {
-    if (callback) callback();
-    return;
-  }
+function startDefaultMusic() {
+  defaultFightMusic.volume = 0.5;
+  defaultFightMusic.currentTime = 0;
+  defaultFightMusic.play().catch(error => {
+    console.log("Music autoplay blocked - user interaction required first");
+  });
   
-  // Clear any existing fade for this audio
-  if (fadeIntervals.has(audio)) {
-    clearInterval(fadeIntervals.get(audio));
-  }
-  
-  const startVolume = audio.volume;
-  const fadeStep = startVolume / (duration / 50); // 50ms intervals
-  
-  const fadeInterval = setInterval(() => {
-    if (audio.volume > fadeStep) {
-      audio.volume = Math.max(0, audio.volume - fadeStep);
-    } else {
-      audio.volume = 0;
-      audio.pause();
-      audio.currentTime = 0;
-      clearInterval(fadeInterval);
-      fadeIntervals.delete(audio);
-      if (callback) callback();
-      console.log("🔇 Music faded out smoothly ✨");
-    }
-  }, 50);
-  
-  fadeIntervals.set(audio, fadeInterval);
+  console.log("🎵 Default battle music started! Let's fight! ⚔️🔥");
 }
 
-function fadeIn(audio, duration = 1000) {
-  if (!audio) return;
-  
-  // Clear any existing fade for this audio
-  if (fadeIntervals.has(audio)) {
-    clearInterval(fadeIntervals.get(audio));
-  }
-  
-  const targetVolume = targetVolumes.get(audio) || 0.5;
-  audio.volume = 0;
-  
-  try {
-    audio.currentTime = 0;
-    audio.play().catch(error => {
-      console.log("Music autoplay blocked - user interaction required first");
-      return;
-    });
-    
-    const fadeStep = targetVolume / (duration / 50); // 50ms intervals
-    
-    const fadeInterval = setInterval(() => {
-      if (audio.volume < targetVolume - fadeStep) {
-        audio.volume = Math.min(targetVolume, audio.volume + fadeStep);
-      } else {
-        audio.volume = targetVolume;
-        clearInterval(fadeInterval);
-        fadeIntervals.delete(audio);
-        console.log("🎵 Music faded in smoothly ✨");
-      }
-    }, 50);
-    
-    fadeIntervals.set(audio, fadeInterval);
-  } catch (error) {
-    console.log("Music failed to play:", error);
-  }
-}
-
-function playMusicWithFade(newMusic, musicName, fadeOutDuration = 800, fadeInDuration = 1200) {
-  if (!musicInitialized) return;
-  
-  // If same music is already playing, don't restart
-  if (currentMusic === newMusic && !newMusic.paused) {
-    return;
-  }
-  
-  console.log(`🎵 Transitioning to: ${musicName} ✨🔥`);
-  
-  // Fade out current music, then fade in new music
-  if (currentMusic && !currentMusic.paused) {
-    fadeOut(currentMusic, fadeOutDuration, () => {
-      // After fade out completes, fade in new music
-      currentMusic = newMusic;
-      fadeIn(newMusic, fadeInDuration);
-    });
-  } else {
-    // No current music, just fade in new music
-    currentMusic = newMusic;
-    fadeIn(newMusic, fadeInDuration);
-  }
-}
-
-// Legacy function for immediate playback (no fade)
-function playMusic(newMusic, musicName) {
-  playMusicWithFade(newMusic, musicName, 0, 0); // No fade
-}
-
+// Simple function - no dynamic music changes, just keep it playing
 function updateDynamicMusic() {
-  if (!musicInitialized || !players[0].alive || !players[1].alive) return;
-  
-  const p1 = players[0]; // Usually Vergil
-  const p2 = players[1]; // Usually Danty
-  
-  const p1HealthPercent = p1.hp / PLAYER_HP;
-  const p2HealthPercent = p2.hp / PLAYER_HP;
-  
-  // Special override for SDT mode (fast transition for dramatic effect)
-  if (p1.charId === 'danty' && p1.sdtActive) {
-    playMusicWithFade(dantyTheme, "🔥 DANTY'S SIN DEVIL TRIGGER DOMINANCE! 💀", 500, 800);
-    return;
-  }
-  if (p2.charId === 'danty' && p2.sdtActive) {
-    playMusicWithFade(dantyTheme, "🔥 DANTY'S SIN DEVIL TRIGGER DOMINANCE! 💀", 500, 800);
-    return;
+  // Make sure default music is still playing
+  if (musicInitialized && defaultFightMusic.paused) {
+    defaultFightMusic.play().catch(error => {
+      console.log("Music playback failed");
+    });
   }
   
-  // Determine who has higher health (smooth transitions)
-  if (p1HealthPercent > p2HealthPercent + 0.1) { // 10% threshold to avoid constant switching
-    // Player 1 is winning
-    if (p1.charId === 'vergil') {
-      playMusicWithFade(vergilTheme, "⚔️ Vergil's Dominance Theme", 1000, 1500);
-    } else if (p1.charId === 'danty') {
-      playMusicWithFade(dantyTheme, "😈 Danty's Power Theme", 1000, 1500);
-    } else {
-      playMusicWithFade(defaultFightMusic, "Default Fight Music", 1000, 1500);
-    }
-  } else if (p2HealthPercent > p1HealthPercent + 0.1) { // 10% threshold
-    // Player 2 is winning
-    if (p2.charId === 'vergil') {
-      playMusicWithFade(vergilTheme, "⚔️ Vergil's Dominance Theme", 1000, 1500);
-    } else if (p2.charId === 'danty') {
-      playMusicWithFade(dantyTheme, "😈 Danty's Power Theme", 1000, 1500);
-    } else {
-      playMusicWithFade(defaultFightMusic, "Default Fight Music", 1000, 1500);
-    }
-  } else {
-    // Close match - play default music (longer fade for tension)
-    playMusicWithFade(defaultFightMusic, "🔥 Intense Battle Music", 1200, 1800);
-  }
+  // That's it! Just keep the epic battle music going! 🎵⚔️
 }
-
 function updateImpactEffects() {
   for (let i = impactEffects.length - 1; i >= 0; i--) {
     const effect = impactEffects[i];
@@ -831,23 +711,37 @@ function handleMirageBladeAttack() {
     const opp = players[1 - i];
     if (!p.alive || !opp.alive || !p.mirageActive) continue;
 
-    const slashW = 200, slashH = 100;
+    const slashW = p.mirageSlashW || 200; // Use custom width
+    const slashH = p.mirageSlashH || 100; // Use custom height
     const sx = p.mirageSlashX;
     const sy = p.mirageSlashY;
+    
     if (sx < opp.x + opp.w && sx + slashW > opp.x &&
         sy < opp.y + opp.h && sy + slashH > opp.y) {
-      // Interrupt any charging
-      interruptJudgmentCut(opp);
-      interruptDantyCharging(opp);
       
-      opp.pauseTimer = 120;
+      // Only hit if not already hit by this slash
+      if (!p.mirageHasHit) {
+        // Interrupt any charging
+        interruptJudgmentCut(opp);
+        interruptDantyCharging(opp);
+        
+        opp.pauseTimer = 120;
+        p.mirageHasHit = true; // Mark as hit but don't destroy slash!
+        createImpactEffect(p, opp, 'dash');
+        console.log(`${p.name}'s Mirage Blade slash freezes ${opp.name}! ❄️⏳ (Slash persists!)`);
+      }
+    }
+    
+    // Update slash timer - it disappears after duration, not on contact!
+    if (p.mirageTimer > 0) {
+      p.mirageTimer--;
+    } else {
       p.mirageActive = false;
-      createImpactEffect(p, opp, 'dash');
-      console.log(`${p.name}'s Mirage Blade slash freezes ${opp.name}! ❄️⏳`);
+      p.mirageHasHit = false; // Reset for next slash
+      console.log(`${p.name}'s Mirage Blade slash fades away! ✨💨`);
     }
   }
 }
-
 function pauseGame(reason) {
     gameState.paused = true;
     gameState.pauseReason = reason;
@@ -1002,8 +896,8 @@ function executeJudgmentCut(character) {
   
   character.snapCtx.restore();
   
-  setTimeout(() => { AbilityLibrary.judgementCut(character); }, 1500);
-  setTimeout(() => { resumeGame(); }, 6500);
+    setTimeout(() => { AbilityLibrary.judgementCut(character); }, 100); // adjust appearance of lines adjust white lines
+  setTimeout(() => { resumeGame(); }, 5000);
 }
 
 function getControls(pid) {
@@ -1258,8 +1152,7 @@ const AbilityLibrary = {
         };
         
         character.judgementCutEffect = effect;
-        
-        // Lines appear one by one
+            // Lines appear one by one
         for (let i = 0; i < 7; i++) {
             setTimeout(() => {
                 if (character.judgementCutEffect && character.judgementCutEffect.phase === 'lines') {
@@ -1368,10 +1261,17 @@ const AbilityLibrary = {
             }
         }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION);
         
+               // Make Vergil visible DURING line display! ⚔️✨
+        setTimeout(() => {
+            if (character.judgementCutEffect) {
+                character.isInvisibleDuringJudgmentCut = false; // Show Vergil while lines appear!
+                console.log("🎬 Vergil becomes visible during line sequence! ⚔️✨");
+            }
+        }, 200); // Show Vergil very early in the line sequence
+        
         setTimeout(() => {
             if (character.judgementCutEffect) {
                 character.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SHEATHING;
-                character.isInvisibleDuringJudgmentCut = false;
                 character.animState = "sheathing";
                 character.animFrame = 0;
                 character.animTimer = 0;
@@ -1508,16 +1408,24 @@ document.addEventListener("keydown", function(e) {
             console.log(`${p.name} not high enough for Kamen Rider kick! Need 100px height 🚫`);
           }
         }
-      } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
+             } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
         if (p.onGround && !p.mirageActive) {
           p.mirageActive = true;
-          p.mirageTimer = p.mirageDuration;
+          p.mirageTimer = MIRAGE_BLADE_CONFIG.DURATION; // Use config duration!
+          p.mirageMaxTimer = MIRAGE_BLADE_CONFIG.DURATION; // Store max for fade calculations
+          p.mirageHasHit = false;
           
-          const slashW = 200, slashH = 100;
+          // Use config dimensions
+          const slashW = MIRAGE_BLADE_CONFIG.WIDTH;
+          const slashH = MIRAGE_BLADE_CONFIG.HEIGHT;
+          
+          p.mirageSlashW = slashW;
+          p.mirageSlashH = slashH;
+          
           p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
           p.mirageSlashY = p.y + (p.h - slashH)/2;
           
-          console.log(`${p.name} unleashes Mirage Blade big slash! 🔪`);
+          console.log(`${p.name} unleashes CONFIGURED Mirage Blade! ${slashW}x${slashH} for ${MIRAGE_BLADE_CONFIG.DURATION} frames! 🔪⚙️`);
         }
       }
     }
@@ -1769,13 +1677,21 @@ document.addEventListener("keyup", function(e) {
       if (p.charId === 'vergil' && p.judgmentCutCharging) {
         const chargeTime = now - p.judgmentCutChargeStart;
         
-        if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
+               if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
           p.isInvisibleDuringJudgmentCut = true;
           p.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SLASHING;
           p.slashAnimationFrame = 0;
           p.slashAnimationTimer = 0;
           p.judgmentCutCharging = false;
           p.judgmentCutChargeLevel = 0;
+          
+          // Start lines IMMEDIATELY during slashing! ⚡⚔️
+          setTimeout(() => { 
+            AbilityLibrary.judgementCut(p); 
+            console.log("🎬 WHITE LINES starting during slash animation! ⚔️⚡✨");
+          }, 800); // Lines start just 300ms after slashing begins!
+          
+          // Keep the pause for dramatic effect
           executeJudgmentCut(p);
         } else {
           p.judgmentCutCharging = false;
@@ -2340,14 +2256,8 @@ opp.hp -= damage;
           }
         } else {
           winner = p.id;
-               // Play winner's theme with triumphant fade
-          if (musicInitialized) {
-            if (p.charId === 'vergil') {
-              playMusicWithFade(vergilTheme, "🏆 VERGIL VICTORY THEME!", 600, 2000); // Slow triumphant fade in
-            } else if (p.charId === 'danty') {
-              playMusicWithFade(dantyTheme, "🏆 DANTY VICTORY THEME!", 600, 2000); // Slow triumphant fade in
-            }
-          }
+
+            setActiveLayer('vergil', "🏆 VERGIL VICTORY OVERLAY!");
         }
       }
     p.hasDashHit = true;
@@ -2748,10 +2658,8 @@ if (p.charId === 'danty') {
       p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
       console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
       
-      // DRAMATIC MUSIC TRANSITION FOR SDT 🎵💀✨
-      if (musicInitialized && p.charId === 'danty') {
-        playMusicWithFade(dantyTheme, "DANTY'S SIN DEVIL TRIGGER DOMINANCE!", 300, 600); // Fast dramatic transition
-      }
+               // SDT activated - just let the default music keep rocking! 💀🎵
+      console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
     }
   }
   
@@ -3288,24 +3196,12 @@ const parrySound = new Audio();
 parrySound.src = "sounds/parry.ogg";
 parrySound.volume = 1.0; // Adjust volume as needed
 
-
-// DYNAMIC THEME MUSIC SYSTEM 🎵🔥
-const vergilTheme = new Audio();
-vergilTheme.src = "sounds/virgel-theme.ogg"; // or .mp3
-vergilTheme.volume = 0.7;
-vergilTheme.loop = true;
-
-const dantyTheme = new Audio();
-dantyTheme.src = "sounds/danty-theme.ogg"; // or .mp3  
-dantyTheme.volume = 0.5;
-dantyTheme.loop = true;
-
+// SIMPLE DEFAULT MUSIC SYSTEM 🎵🔥
 const defaultFightMusic = new Audio();
 defaultFightMusic.src = "sounds/default-fight-music.ogg"; // or .mp3
-defaultFightMusic.volume = 0.4;
+defaultFightMusic.volume = 0.3; // Good volume for battle
 defaultFightMusic.loop = true;
 
-let currentMusic = null; // Track what's currently playing
 let musicInitialized = false;
 
 // SDT exclusive sprites
@@ -3470,8 +3366,9 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     balrogDiveKick: false, balrogDiveDirection: 1, balrogImpactRadius: 80,
     balrogRecovering: false, balrogRecoveryTimer: 0,
     isDiveKicking: false, isUppercutting: false, uppercutPower: 0,
-    mirageActive: false, mirageTimer: 0, mirageDuration: 60, pauseTimer: 0,
-    mirageSlashX: 0, mirageSlashY: 0, teleportTrail: null, isTeleporting: false,
+     mirageActive: false, mirageTimer: 0, mirageDuration: MIRAGE_BLADE_CONFIG.DURATION, pauseTimer: 0,
+    mirageSlashX: 0, mirageSlashY: 0, mirageSlashW: 0, mirageSlashH: 0, 
+    mirageHasHit: false, mirageMaxTimer: 0, teleportTrail: null, isTeleporting: false,
     teleportAlpha: 1.0,
  devilSwordGauge: 0,
 devilSwordUpgraded: false,
@@ -3531,8 +3428,9 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     balrogDiveKick: false, balrogDiveDirection: 1, balrogImpactRadius: 80,
     balrogRecovering: false, balrogRecoveryTimer: 0,
     isDiveKicking: false, isUppercutting: false, uppercutPower: 0,
-    mirageActive: false, mirageTimer: 0, mirageDuration: 60, pauseTimer: 0,
-    mirageSlashX: 0, mirageSlashY: 0, teleportTrail: null, isTeleporting: false,
+    mirageActive: false, mirageTimer: 0, mirageDuration: MIRAGE_BLADE_CONFIG.DURATION, pauseTimer: 0,
+    mirageSlashX: 0, mirageSlashY: 0, mirageSlashW: 0, mirageSlashH: 0, 
+    mirageHasHit: false, mirageMaxTimer: 0, teleportTrail: null, isTeleporting: false,
     teleportAlpha: 1.0
   }
 ];
@@ -3549,7 +3447,6 @@ function draw() {
   for (let player of players) {
     if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
       applyBWEffect = true;
-      break;
     }
     
     if (player.judgementCutEffect && 
@@ -3557,7 +3454,6 @@ function draw() {
          player.judgementCutEffect.phase === 'preparing' ||
          player.judgementCutEffect.phase === 'slide')) {
       applyBWEffect = true;
-      break;
     }
   }
   
@@ -3603,9 +3499,11 @@ function draw() {
     ctx.restore();
   }
 
-  // Draw slashing animation
+    // Draw slashing animation - MASSIVE SCALE! 💥⚔️
   for (let player of players) {
-    if (player.charId === 'vergil' && player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+     if (player.charId === 'vergil' && 
+      (player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
+       (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines'))) {
       ctx.save();
       
       if (vergilSlashingSprite.complete && vergilSlashingSprite.naturalWidth > 0) {
@@ -3614,12 +3512,24 @@ function draw() {
           const frameWidth = vergilSlashingSprite.naturalWidth / slashAnim.frames;
           const frameHeight = vergilSlashingSprite.naturalHeight;
           
-          const bigSize = PLAYER_SIZE * 5;
-          const spriteX = player.x + player.w/2 - bigSize/2;
-          const spriteY = player.y + player.h/2 - bigSize/2;
+          // EPIC SCALING! 🔥💥
+          const massiveScale = PLAYER_SIZE * 12; // Was 5, now 12! MUCH BIGGER! 💥
+          const spriteWidth = massiveScale;
+          const spriteHeight = massiveScale;
+          
+          const spriteX = player.x + player.w/2 - spriteWidth/2;
+          const spriteY = player.y + player.h/2 - spriteHeight/2;
           
           ctx.globalAlpha = 0.9;
-          ctx.drawImage(vergilSlashingSprite, frameWidth * player.slashAnimationFrame, 0, frameWidth, frameHeight, spriteX, spriteY, bigSize, bigSize);
+          ctx.drawImage(
+            vergilSlashingSprite, 
+            frameWidth * player.slashAnimationFrame, 0, 
+            frameWidth, frameHeight, 
+            spriteX, spriteY, 
+            spriteWidth, spriteHeight
+          );
+          
+          console.log(`🔥 MASSIVE Vergil slash sprite! Scale: ${massiveScale} ⚔️💥`);
         }
       }
       
@@ -4010,12 +3920,47 @@ ctx.restore();
 
   }
   
-  // Draw Mirage Blade slash
+   // Draw Mirage Blade slash - WITH FADE EFFECT! ✨
   for (let p of players) {
     if (p.charId === 'vergil' && p.mirageActive) {
+      ctx.save();
+      
       const img = mirageSlashSprite;
-      const slashW = 200, slashH = 100;
-      ctx.drawImage(img, p.mirageSlashX, p.mirageSlashY, slashW, slashH);
+      const slashW = p.mirageSlashW || MIRAGE_BLADE_CONFIG.WIDTH;
+      const slashH = p.mirageSlashH || MIRAGE_BLADE_CONFIG.HEIGHT;
+      
+      // Calculate fade effect based on remaining time
+      const timeProgress = 1 - (p.mirageTimer / (p.mirageMaxTimer || MIRAGE_BLADE_CONFIG.DURATION));
+      
+      // Alpha fade: starts strong, fades to weak
+      const alpha = MIRAGE_BLADE_CONFIG.ALPHA_START + 
+                   (MIRAGE_BLADE_CONFIG.ALPHA_END - MIRAGE_BLADE_CONFIG.ALPHA_START) * timeProgress;
+      
+      // Scale effect: starts normal, grows slightly
+      const scale = MIRAGE_BLADE_CONFIG.SCALE_START + 
+                   (MIRAGE_BLADE_CONFIG.SCALE_END - MIRAGE_BLADE_CONFIG.SCALE_START) * timeProgress;
+      
+      ctx.globalAlpha = alpha;
+      
+      // Apply scaling from center
+      const centerX = p.mirageSlashX + slashW/2;
+      const centerY = p.mirageSlashY + slashH/2;
+      const scaledW = slashW * scale;
+      const scaledH = slashH * scale;
+      const scaledX = centerX - scaledW/2;
+      const scaledY = centerY - scaledH/2;
+      
+      ctx.drawImage(img, scaledX, scaledY, scaledW, scaledH);
+      
+      // Add glow effect for extra epicness! 🌟
+      if (timeProgress < 0.3) { // Only glow during first 30% of lifetime
+        ctx.globalAlpha = 0.3;
+        ctx.shadowColor = "#00ffff";
+        ctx.shadowBlur = 20;
+        ctx.drawImage(img, scaledX, scaledY, scaledW, scaledH);
+      }
+      
+      ctx.restore();
     }
   }
 
@@ -4338,8 +4283,6 @@ p.blockWasFull = p.block >= p.maxBlock - 0.1;
     handleDantyDiveKickAttack();
     handleMirageBladeAttack();
     updateImpactEffects();
-    
-    // UPDATE DYNAMIC MUSIC BASED ON HEALTH 🎵⚔️
     updateDynamicMusic();
   }
   
