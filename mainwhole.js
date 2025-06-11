@@ -67,14 +67,14 @@ const VERGIL_WEAPONS = {
     BEOWULF: 'beowulf',
     MIRAGE_BLADE: 'mirage_blade'
 };
-const MIRAGE_BLADE_CONFIG = {
+const MIRAGE_BLADE_CONFIG = {//mirage slash
     WIDTH: 100,      
     HEIGHT: 85,      
     DURATION: 180,    
     ALPHA_START: 0.9,  
     ALPHA_END: 0.1,    
     SCALE_START: 1.0,
-    SCALE_END: 1.2     
+    SCALE_END: 1.0     
 };
 const DANTY_WEAPONS = {
     DEVIL_SWORD: 'devil_sword',
@@ -161,9 +161,9 @@ const JUDGEMENT_CUT_CONSTANTS = {
 let gameState = { paused: false, pauseReason: null, pauseStartTime: 0 };
 
 let cameraZoomEffect = {
-    active: false, startZoom: 1, targetZoom: 1.8, currentZoom: 1,
+    active: false, startZoom: 1, targetZoom: 1.6, currentZoom: 1,
     phase: 'idle', startTime: 0,
-    duration: { zoomIn: 3000, hold: 3500, zoomOut: 500 }
+    duration: { zoomIn: 3000, hold: 3630, zoomOut: 450 }
 };
 
 const impactEffects = [];
@@ -331,7 +331,19 @@ function playJudgmentCutSound() {
       // Handle autoplay policy - modern browsers require user interaction first
       console.log("I AM THE STORM THAT IS APPROACHING audio blocked - user interaction required first");
     });
-    console.log("🌩️ I AM THE STORM THAT IS APPROACHING! ⚡⚔️🎵");
+    
+    // Add event listener for when the sound ends (optional backup)
+    judgmentCutSound.onended = function() {
+      // Resume background music when Vergil's epic sound ends
+      if (defaultFightMusic && defaultFightMusic.paused) {
+        defaultFightMusic.play().catch(error => {
+          console.log("Music resume after sound ended failed");
+        });
+        console.log("🎵 Background music resumed after Vergil's epic sound ended! 🎭⚔️");
+      }
+    };
+    
+    console.log("🌩️ I AM THE STORM THAT IS APPROACHING! ⚡⚔️🎵 (Background music SILENCED!)");
   } catch (error) {
     console.log("Judgment Cut sound failed to play:", error);
   }
@@ -914,7 +926,17 @@ function executeJudgmentCut(character) {
   character.snapCtx.restore();
   
     setTimeout(() => { AbilityLibrary.judgementCut(character); }, 100); // adjust appearance of lines adjust white lines
-  setTimeout(() => { resumeGame(); }, 7300);
+   setTimeout(() => { 
+    resumeGame(); 
+    
+    // RESUME BACKGROUND MUSIC AFTER JUDGMENT CUT! 🎵✨
+    if (defaultFightMusic && defaultFightMusic.paused) {
+      defaultFightMusic.play().catch(error => {
+        console.log("Music resume failed");
+      });
+      console.log("🎵 Background music resumed after EPIC JUDGMENT CUT! ⚔️🎭");
+    }
+  }, 7300);
 }
 
 function getControls(pid) {
@@ -1385,9 +1407,33 @@ document.addEventListener("keydown", function(e) {
     if (!p.alive) continue;
     
     const controls = getControls(pid);
-    if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
+      if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
       if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-        if (p.onGround) {
+        // CHECK FOR STORM SLASHES FIRST! ⚡🌩️
+        if (p.stormSlashesReady) {
+          // Find nearby enemy for Storm Slashes
+          const nearbyEnemy = players.find(enemy => {
+            if (enemy === p || !enemy.alive) return false;
+            const dx = Math.abs(enemy.x + enemy.w/2 - (p.x + p.w/2));
+            const dy = Math.abs(enemy.y + enemy.h/2 - (p.y + p.h/2));
+            return dx <= 200 && dy <= 100; // Storm Slashes range
+          });
+          
+          if (nearbyEnemy) {
+            // ACTIVATE STORM SLASHES! ⚡⚔️🌩️
+            p.stormSlashesActive = true;
+            p.stormSlashesDuration = 50; // 2 seconds of slashing
+            p.stormSlashesAnimationFrame = 0;
+            p.stormSlashesAnimationTimer = 0;
+            p.stormSlashesTarget = nearbyEnemy;
+            p.stormSlashesReady = false;
+            p.stormSlashesTimer = 0;
+          
+          } else {
+           
+          }
+        }
+        else if (p.onGround) {
           if (isOpponentInJudgmentCutRange(p)) {
             p.judgmentCutCharging = true;
             p.judgmentCutChargeStart = performance.now();
@@ -1702,6 +1748,12 @@ document.addEventListener("keyup", function(e) {
           p.slashAnimationTimer = 0;
           p.judgmentCutCharging = false;
           p.judgmentCutChargeLevel = 0;
+          
+                  // PAUSE BACKGROUND MUSIC FOR DRAMATIC EFFECT! 🎵❌
+          if (defaultFightMusic && !defaultFightMusic.paused) {
+            defaultFightMusic.pause();
+            console.log("🎵 Background music paused for DRAMATIC JUDGMENT CUT! 🎭⚔️");
+          }
           
           // PLAY THE LEGENDARY VERGIL SOUND! ⚡⚔️🎵
           playJudgmentCutSound();
@@ -2208,7 +2260,7 @@ opp.hp -= damage;
       }
     }
     
-       if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+           if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
       createImpactEffect(p, opp, 'dash');
       if (opp.dizzy > 0) {
         opp.vx = p.facing * DIZZY_KNOCKBACK_X;
@@ -2217,7 +2269,11 @@ opp.hp -= damage;
         opp.vx = p.facing * 8;
         opp.vy = -8;
       }
-      console.log(`${p.name} slashed ${opp.name} with Yamato! ⚔️`);
+      
+      // ENABLE STORM SLASHES FOLLOW-UP! ⚡⚔️🌩️
+      p.stormSlashesReady = true;
+      p.stormSlashesTimer = 90; // 1.5 seconds to use it
+      console.log(`${p.name} slashed ${opp.name} with Yamato! ⚔️ - STORM SLASHES READY! ⚡🌩️`);
        } else if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.devilSwordPhase === 3) {
       // Special behavior for Devil Sword Phase 3 penetration
       if (p.devilSwordUpgraded) {
@@ -2277,8 +2333,6 @@ opp.hp -= damage;
           }
         } else {
           winner = p.id;
-
-            setActiveLayer('vergil', "🏆 VERGIL VICTORY OVERLAY!");
         }
       }
     p.hasDashHit = true;
@@ -2509,9 +2563,52 @@ if (effect.phase === 'slide') {
         }
     }
 
+      // UPDATE STORM SLASHES! ⚡🌩️
+    if (p.stormSlashesReady) {
+      p.stormSlashesTimer--;
+      if (p.stormSlashesTimer <= 0) {
+        p.stormSlashesReady = false;
+        console.log(`${p.name}'s Storm Slashes opportunity expired! ⚡⏰`);
+      }
+    }
+    
+    if (p.stormSlashesActive) {
+      p.stormSlashesDuration--;
+      if (p.stormSlashesDuration <= 0) {
+        p.stormSlashesActive = false;
+        p.stormSlashesTarget = null;
+        console.log(`${p.name}'s Storm Slashes ended! ⚡✨`);
+      } else {
+        // Deal damage to target if still in range
+        const target = p.stormSlashesTarget;
+        if (target && target.alive) {
+          const dx = Math.abs(target.x + target.w/2 - (p.x + p.w/2));
+          const dy = Math.abs(target.y + target.h/2 - (p.y + p.h/2));
+          
+          if (dx <= 250 && dy <= 120) {
+            // Deal damage every 10 frames (6 times per second)
+            if (p.stormSlashesDuration % 10 === 0) {
+              target.hp -= 1; // Small but continuous damage
+              target.justHit = 5;
+              console.log(`${target.name} takes STORM SLASHES damage! Current HP: ${target.hp} ⚡💥`);
+              
+              if (target.hp <= 0) {
+                target.hp = 0;
+                target.alive = false;
+                winner = p.id;
+                p.stormSlashesActive = false;
+                console.log(`${target.name} was defeated by STORM SLASHES! ⚡💀`);
+              }
+            }
+          }
+        }
+      }
+    }
+
     if (p.charId === 'vergil' && (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
                                   p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING ||
-                                  p.judgmentCutCharging)) {
+                                  p.judgmentCutCharging ||
+                                  p.stormSlashesActive)) {
       return;
     }
   }
@@ -3174,6 +3271,9 @@ vergilTeleportTrailSprite.src = "vergil-teleport-trail.png";
 const vergilSlashingSprite = new Image();
 vergilSlashingSprite.src = "vergil-judgment-cut-slashes.png"; 
 
+const vergilStormSlashesSprite = new Image();
+vergilStormSlashesSprite.src = "vergil-storm-slashes.png"; 
+
 const devilSwordStrike1Sprite = new Image();
 devilSwordStrike1Sprite.src = "danty-devilsword-strike1.png";
 
@@ -3293,6 +3393,7 @@ const characterSprites = {
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
+      'storm-slashes': { src: "vergil-storm-slashes.png", frames: 10, w: 200, h: 200, speed: 10 }, 
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
     'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
@@ -3396,6 +3497,14 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
      mirageActive: false, mirageTimer: 0, mirageDuration: MIRAGE_BLADE_CONFIG.DURATION, pauseTimer: 0,
     mirageSlashX: 0, mirageSlashY: 0, mirageSlashW: 0, mirageSlashH: 0, 
     mirageHasHit: false, mirageMaxTimer: 0, teleportTrail: null, isTeleporting: false,
+        // STORM SLASHES ABILITY! ⚡⚔️🌩️
+    stormSlashesReady: false,
+    stormSlashesTimer: 0,
+    stormSlashesActive: false,
+    stormSlashesAnimationFrame: 0,
+    stormSlashesAnimationTimer: 0,
+    stormSlashesDuration: 0,
+    stormSlashesTarget: null,
     teleportAlpha: 1.0,
  devilSwordGauge: 0,
 devilSwordUpgraded: false,
@@ -3424,6 +3533,14 @@ sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
     isInvisibleDuringJudgmentCut: false, slashAnimationFrame: 0, slashAnimationTimer: 0,
     judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
     currentWeapon: DANTY_WEAPONS.DEVIL_SWORD, bounceEffect: null, isBeingKnockedBack: false,
+        // STORM SLASHES ABILITY! ⚡⚔️🌩️
+    stormSlashesReady: false,
+    stormSlashesTimer: 0,
+    stormSlashesActive: false,
+    stormSlashesAnimationFrame: 0,
+    stormSlashesAnimationTimer: 0,
+    stormSlashesDuration: 0,
+    stormSlashesTarget: null,
 devilSwordGauge: 0,
 devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
@@ -3526,11 +3643,12 @@ function draw() {
     ctx.restore();
   }
 
-      // Draw slashing animation - MASSIVE SCALE! 💥⚔️
+         // Draw slashing animation - MASSIVE SCALE! 💥⚔️
   for (let player of players) {
      if (player.charId === 'vergil' && 
       (player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
-       (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines'))) {
+       (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines') ||
+       player.stormSlashesActive)) {
       // Show slashes DURING both slashing phase AND lines phase! ⚔️✨
       ctx.save();
       
@@ -3548,7 +3666,6 @@ function draw() {
           const spriteX = player.x + player.w/2 - spriteWidth/2;
           const spriteY = player.y + player.h/2 - spriteHeight/2;
           
-          ctx.globalAlpha = 0.9;
           ctx.drawImage(
             vergilSlashingSprite, 
             frameWidth * player.slashAnimationFrame, 0, 
@@ -3556,10 +3673,43 @@ function draw() {
             spriteX, spriteY, 
             spriteWidth, spriteHeight
           );
-          
-          console.log(`🔥 MASSIVE Vergil slash sprite! Scale: ${massiveScale} ⚔️💥`);
+
         }
       }
+      
+      ctx.restore();
+    }
+  }
+
+ 
+  for (let player of players) {
+    if (player.charId === 'vergil' && player.stormSlashesActive) {
+      ctx.save();
+      
+      if (vergilStormSlashesSprite.complete && vergilStormSlashesSprite.naturalWidth > 0) {
+        const stormAnim = characterSprites.vergil['storm-slashes'];
+        if (stormAnim) {
+          const frameWidth = vergilStormSlashesSprite.naturalWidth / stormAnim.frames;
+          const frameHeight = vergilStormSlashesSprite.naturalHeight;
+
+          const stormScale = PLAYER_SIZE * 3; 
+          const spriteWidth = stormScale;
+          const spriteHeight = stormScale;
+          
+          const spriteX = player.x + player.w/2 - spriteWidth/2;
+          const spriteY = player.y + player.h/2 - spriteHeight/2;
+          
+          ctx.drawImage(
+            vergilStormSlashesSprite, 
+            frameWidth * player.stormSlashesAnimationFrame, 0, 
+            frameWidth, frameHeight, 
+            spriteX, spriteY, 
+            spriteWidth, spriteHeight
+          );
+          
+   
+        }
+      } 
       
       ctx.restore();
     }
@@ -3870,9 +4020,7 @@ else if (p.charId === 'danty') {
   ctx.strokeText(weaponText, p.x + p.w/2, p.y - 12);
   ctx.fillStyle = "#fff";
   ctx.fillText(weaponText, p.x + p.w/2, p.y - 12);
-  
-  // Show Devil Sword combo if active
-   // Show Devil Sword combo if active
+
   if (p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.devilSwordComboHits > 0) {
     ctx.font = "bold 10px Arial";
     let comboText = "";
@@ -4275,7 +4423,7 @@ ctx.restore();
 function gameLoop() {
   updateCameraZoomEffect();
   
-    // Update Vergil's slashing animation - KEEP PLAYING DURING LINES! ⚔️✨
+        // Update Vergil's JUDGMENT CUT slashing animation! ⚔️✨
   for (let i = 0; i < players.length; ++i) {
     const p = players[i];
     if (p.charId === 'vergil' && 
@@ -4288,6 +4436,19 @@ function gameLoop() {
         const slashAnim = characterSprites.vergil.slashing;
         if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
           p.slashAnimationFrame = 0; // Loop the slashing animation!
+        }
+      }
+    }
+    
+    // Update STORM SLASHES animation separately! ⚡🌩️
+    if (p.charId === 'vergil' && p.stormSlashesActive) {
+      p.stormSlashesAnimationTimer++;
+      if (p.stormSlashesAnimationTimer >= 4) { // Faster animation for Storm Slashes!
+        p.stormSlashesAnimationTimer = 0;
+        p.stormSlashesAnimationFrame++;
+        const stormAnim = characterSprites.vergil['storm-slashes'];
+        if (stormAnim && p.stormSlashesAnimationFrame >= stormAnim.frames) {
+          p.stormSlashesAnimationFrame = 0; // Loop the storm slashes!
         }
       }
     }
