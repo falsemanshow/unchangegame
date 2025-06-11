@@ -1129,14 +1129,14 @@ const AbilityLibrary = {
                 [viewW * 0.22, 0, viewW, viewH * 0.73],
                 [viewW * 0.3, 0, viewW, viewH * 0.48],
                 [0, viewH * 0.2, viewW, viewH * 0.08],
-                [0, viewH * 0.12, viewW, viewH * 0.45],
+               // [0, viewH * 0.12, viewW, viewH * 0.45],
                 [0, viewH * 0.55, viewW, viewH * 0.23],
                 [0, viewH * 0.75, viewW, viewH * 0.19],
                 [0, viewH * 0.2, viewW * 0.55, viewH],
                 [0, viewH, viewW, viewH * 0.25],
                 [viewW * 0.73, 0, viewW, viewH],
-                [viewW, 0, viewW * 0.34, viewH],
-                [viewW, 0, viewW * 0.03, viewH],
+               // [viewW, 0, viewW * 0.34, viewH],
+                //[viewW, 0, viewW * 0.03, viewH],
             ],
             phase: 'lines',
             damage: 35,
@@ -1267,7 +1267,8 @@ const AbilityLibrary = {
                 character.isInvisibleDuringJudgmentCut = false; // Show Vergil while lines appear!
                 console.log("🎬 Vergil becomes visible during line sequence! ⚔️✨");
             }
-        }, 200); // Show Vergil very early in the line sequence
+        }, 200);
+     
         
         setTimeout(() => {
             if (character.judgementCutEffect) {
@@ -3499,11 +3500,12 @@ function draw() {
     ctx.restore();
   }
 
-    // Draw slashing animation - MASSIVE SCALE! 💥⚔️
+      // Draw slashing animation - MASSIVE SCALE! 💥⚔️
   for (let player of players) {
      if (player.charId === 'vergil' && 
       (player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
        (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines'))) {
+      // Show slashes DURING both slashing phase AND lines phase! ⚔️✨
       ctx.save();
       
       if (vergilSlashingSprite.complete && vergilSlashingSprite.naturalWidth > 0) {
@@ -3513,7 +3515,7 @@ function draw() {
           const frameHeight = vergilSlashingSprite.naturalHeight;
           
           // EPIC SCALING! 🔥💥
-          const massiveScale = PLAYER_SIZE * 12; // Was 5, now 12! MUCH BIGGER! 💥
+          const massiveScale = PLAYER_SIZE * 8; // Was 5, now 12! MUCH BIGGER! 💥
           const spriteWidth = massiveScale;
           const spriteHeight = massiveScale;
           
@@ -4247,17 +4249,19 @@ ctx.restore();
 function gameLoop() {
   updateCameraZoomEffect();
   
-  // Update Vergil's slashing animation
+    // Update Vergil's slashing animation - KEEP PLAYING DURING LINES! ⚔️✨
   for (let i = 0; i < players.length; ++i) {
     const p = players[i];
-    if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+    if (p.charId === 'vergil' && 
+        (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
+         (p.judgementCutEffect && p.judgementCutEffect.phase === 'lines'))) {
       p.slashAnimationTimer++;
       if (p.slashAnimationTimer >= 3) {
         p.slashAnimationTimer = 0;
         p.slashAnimationFrame++;
         const slashAnim = characterSprites.vergil.slashing;
         if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
-          p.slashAnimationFrame = 0;
+          p.slashAnimationFrame = 0; // Loop the slashing animation!
         }
       }
     }
