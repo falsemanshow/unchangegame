@@ -149,11 +149,11 @@ const BLOCK_PUSHBACK_X = 9, BLOCK_PUSHBACK_Y = -4;
 const BEOWULF_DIVE_RECOVERY_TIME = 90; // 1.5 seconds at 60fps
 
 const JUDGEMENT_CUT_CONSTANTS = {
-    SLIDE_DURATION: 3000,
-    SLIDE_SPEED: 1.2,
+    SLIDE_DURATION: 4800,
+    SLIDE_SPEED: 0.0001,
     FALL_INITIAL_VY: -8,
     FALL_VX_RANGE: 4,
-    LINE_DISPLAY_DURATION: 800,
+    LINE_DISPLAY_DURATION: 600,
     FIRST_THREE_INTERVAL: 30, // Faster line appearance! ⚡
     REMAINING_LINES_DELAY: 100  // Shorter delay! ⚡
 };
@@ -161,9 +161,9 @@ const JUDGEMENT_CUT_CONSTANTS = {
 let gameState = { paused: false, pauseReason: null, pauseStartTime: 0 };
 
 let cameraZoomEffect = {
-    active: false, startZoom: 1, targetZoom: 1.5, currentZoom: 1,
+    active: false, startZoom: 1, targetZoom: 1.8, currentZoom: 1,
     phase: 'idle', startTime: 0,
-    duration: { zoomIn: 3000, hold: 400, zoomOut: 500 }
+    duration: { zoomIn: 3000, hold: 3500, zoomOut: 500 }
 };
 
 const impactEffects = [];
@@ -323,6 +323,20 @@ function playParrySound() {
   }
 }
 
+function playJudgmentCutSound() {
+  try {
+    // Reset the audio to play from beginning if already playing
+    judgmentCutSound.currentTime = 0;
+    judgmentCutSound.play().catch(error => {
+      // Handle autoplay policy - modern browsers require user interaction first
+      console.log("I AM THE STORM THAT IS APPROACHING audio blocked - user interaction required first");
+    });
+    console.log("🌩️ I AM THE STORM THAT IS APPROACHING! ⚡⚔️🎵");
+  } catch (error) {
+    console.log("Judgment Cut sound failed to play:", error);
+  }
+}
+
 let audioInitialized = false;
 
 function initializeAudio() {
@@ -333,9 +347,12 @@ function initializeAudio() {
     // Preload default music
     defaultFightMusic.load();
     
+    // Preload VERGIL'S LEGENDARY SOUND! ⚡⚔️
+    judgmentCutSound.load();
+    
     audioInitialized = true;
     musicInitialized = true;
-    console.log("🔊 SIMPLE MUSIC SYSTEM initialized! 🎵🔥");
+    console.log("🔊 AUDIO SYSTEM initialized! I AM THE STORM THAT IS APPROACHING! 🎵🔥⚡");
     
     // Start default battle music
     startDefaultMusic();
@@ -897,7 +914,7 @@ function executeJudgmentCut(character) {
   character.snapCtx.restore();
   
     setTimeout(() => { AbilityLibrary.judgementCut(character); }, 100); // adjust appearance of lines adjust white lines
-  setTimeout(() => { resumeGame(); }, 5000);
+  setTimeout(() => { resumeGame(); }, 7300);
 }
 
 function getControls(pid) {
@@ -1129,14 +1146,14 @@ const AbilityLibrary = {
                 [viewW * 0.22, 0, viewW, viewH * 0.73],
                 [viewW * 0.3, 0, viewW, viewH * 0.48],
                 [0, viewH * 0.2, viewW, viewH * 0.08],
-               // [0, viewH * 0.12, viewW, viewH * 0.45],
+              [0, viewH * 0.12, viewW, viewH * 0.45],
                 [0, viewH * 0.55, viewW, viewH * 0.23],
                 [0, viewH * 0.75, viewW, viewH * 0.19],
                 [0, viewH * 0.2, viewW * 0.55, viewH],
                 [0, viewH, viewW, viewH * 0.25],
                 [viewW * 0.73, 0, viewW, viewH],
-               // [viewW, 0, viewW * 0.34, viewH],
-                //[viewW, 0, viewW * 0.03, viewH],
+              [viewW, 0, viewW * 0.34, viewH],
+              [viewW, 0, viewW * 0.03, viewH],
             ],
             phase: 'lines',
             damage: 35,
@@ -1267,7 +1284,7 @@ const AbilityLibrary = {
                 character.isInvisibleDuringJudgmentCut = false; // Show Vergil while lines appear!
                 console.log("🎬 Vergil becomes visible during line sequence! ⚔️✨");
             }
-        }, 200);
+        }, 500);
      
         
         setTimeout(() => {
@@ -1277,14 +1294,14 @@ const AbilityLibrary = {
                 character.animFrame = 0;
                 character.animTimer = 0;
             }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 150);
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 50);
         
         setTimeout(() => {
             if (character.judgementCutEffect) {
                 character.judgementCutEffect.phase = 'slide';
                 character.judgementCutEffect.startTime = performance.now();
             }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 300);
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1300);
         
         setTimeout(() => {
             if (character.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
@@ -1293,7 +1310,7 @@ const AbilityLibrary = {
                 character.animFrame = 0;
                 character.animTimer = 0;
             }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION + 1000);
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION +6000);
         
         return true;
     }
@@ -1678,13 +1695,16 @@ document.addEventListener("keyup", function(e) {
       if (p.charId === 'vergil' && p.judgmentCutCharging) {
         const chargeTime = now - p.judgmentCutChargeStart;
         
-               if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
+                      if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
           p.isInvisibleDuringJudgmentCut = true;
           p.judgementCutPhase = VERGIL_JUDGMENT_CUT_PHASES.SLASHING;
           p.slashAnimationFrame = 0;
           p.slashAnimationTimer = 0;
           p.judgmentCutCharging = false;
           p.judgmentCutChargeLevel = 0;
+          
+          // PLAY THE LEGENDARY VERGIL SOUND! ⚡⚔️🎵
+          playJudgmentCutSound();
           
           // Start lines IMMEDIATELY during slashing! ⚡⚔️
           setTimeout(() => { 
@@ -3203,6 +3223,12 @@ defaultFightMusic.src = "sounds/default-fight-music.ogg"; // or .mp3
 defaultFightMusic.volume = 0.3; // Good volume for battle
 defaultFightMusic.loop = true;
 
+// VERGIL'S LEGENDARY JUDGMENT CUT SOUND! ⚡⚔️🎵
+const judgmentCutSound = new Audio();
+judgmentCutSound.src = "sounds/iamthestormthatisapproaching.ogg";
+judgmentCutSound.volume = 0.8; // EPIC VOLUME! 🔥
+// No loop - let it play until it naturally ends! 🎭
+
 let musicInitialized = false;
 
 // SDT exclusive sprites
@@ -3266,7 +3292,7 @@ const characterSprites = {
     jump: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
-    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 3 },
+    slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
     'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
