@@ -174,7 +174,7 @@ danty: {
   dash: { sprite: "danty-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
   'balrog-dash': { sprite: "danty-balrog-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } },
   // Normal Devil Sword sprites
-  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
+  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 1, w: 90, h: 90, speed: 3, duration: 500, offset: { x: 50, y: 10 } },//right offset
   'devilsword-strike2': { sprite: "danty-devilsword-strike2.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
   'devilsword-strike3': { sprite: "danty-devilsword-strike3.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
   // Sin devil sword sprties
@@ -297,7 +297,189 @@ function destroySpectralSword(owner) {
     owner.spectralSwordControlling = false;
     owner.spectralSwordTransferring = false;
     owner.spectralSwordTransferTimer = 0;
-    console.log(`${owner.name}'s Spectral Sword vanished! Control returned! 👻💨`);
+    console.log(`${owner.name}'s Spectral Sword vanished! Camera returns to ${owner.name}! 👻💨📹`);
+  }
+}
+
+function playParrySound() {
+  try {
+    // Reset the audio to play from beginning if already playing
+    parrySound.currentTime = 0;
+    parrySound.play().catch(error => {
+      // Handle autoplay policy - modern browsers require user interaction first
+      console.log("Audio autoplay blocked - user interaction required first");
+    });
+  } catch (error) {
+    console.log("Parry sound failed to play:", error);
+  }
+}
+
+let audioInitialized = false;
+let fadeIntervals = new Map(); // Track fade intervals for each audio
+let targetVolumes = new Map(); // Track target volumes
+
+function initializeAudio() {
+  if (!audioInitialized) {
+    // Preload audio
+    parrySound.load();
+    
+    // Preload music and set base volumes
+    vergilTheme.load();
+    dantyTheme.load();
+    defaultFightMusic.load();
+    
+    // Set initial volumes (these will be the max volumes)
+    targetVolumes.set(vergilTheme, 0.5);
+    targetVolumes.set(dantyTheme, 0.5);
+    targetVolumes.set(defaultFightMusic, 0.4);
+    
+    audioInitialized = true;
+    musicInitialized = true;
+    console.log("🔊 Audio system with SMOOTH FADING initialized! 🎵✨🔥");
+    
+    // Start with default music (with fade in)
+    playMusicWithFade(defaultFightMusic, "Default Fight Music");
+  }
+}
+
+function fadeOut(audio, duration = 1000, callback = null) {
+  if (!audio || audio.paused) {
+    if (callback) callback();
+    return;
+  }
+  
+  // Clear any existing fade for this audio
+  if (fadeIntervals.has(audio)) {
+    clearInterval(fadeIntervals.get(audio));
+  }
+  
+  const startVolume = audio.volume;
+  const fadeStep = startVolume / (duration / 50); // 50ms intervals
+  
+  const fadeInterval = setInterval(() => {
+    if (audio.volume > fadeStep) {
+      audio.volume = Math.max(0, audio.volume - fadeStep);
+    } else {
+      audio.volume = 0;
+      audio.pause();
+      audio.currentTime = 0;
+      clearInterval(fadeInterval);
+      fadeIntervals.delete(audio);
+      if (callback) callback();
+      console.log("🔇 Music faded out smoothly ✨");
+    }
+  }, 50);
+  
+  fadeIntervals.set(audio, fadeInterval);
+}
+
+function fadeIn(audio, duration = 1000) {
+  if (!audio) return;
+  
+  // Clear any existing fade for this audio
+  if (fadeIntervals.has(audio)) {
+    clearInterval(fadeIntervals.get(audio));
+  }
+  
+  const targetVolume = targetVolumes.get(audio) || 0.5;
+  audio.volume = 0;
+  
+  try {
+    audio.currentTime = 0;
+    audio.play().catch(error => {
+      console.log("Music autoplay blocked - user interaction required first");
+      return;
+    });
+    
+    const fadeStep = targetVolume / (duration / 50); // 50ms intervals
+    
+    const fadeInterval = setInterval(() => {
+      if (audio.volume < targetVolume - fadeStep) {
+        audio.volume = Math.min(targetVolume, audio.volume + fadeStep);
+      } else {
+        audio.volume = targetVolume;
+        clearInterval(fadeInterval);
+        fadeIntervals.delete(audio);
+        console.log("🎵 Music faded in smoothly ✨");
+      }
+    }, 50);
+    
+    fadeIntervals.set(audio, fadeInterval);
+  } catch (error) {
+    console.log("Music failed to play:", error);
+  }
+}
+
+function playMusicWithFade(newMusic, musicName, fadeOutDuration = 800, fadeInDuration = 1200) {
+  if (!musicInitialized) return;
+  
+  // If same music is already playing, don't restart
+  if (currentMusic === newMusic && !newMusic.paused) {
+    return;
+  }
+  
+  console.log(`🎵 Transitioning to: ${musicName} ✨🔥`);
+  
+  // Fade out current music, then fade in new music
+  if (currentMusic && !currentMusic.paused) {
+    fadeOut(currentMusic, fadeOutDuration, () => {
+      // After fade out completes, fade in new music
+      currentMusic = newMusic;
+      fadeIn(newMusic, fadeInDuration);
+    });
+  } else {
+    // No current music, just fade in new music
+    currentMusic = newMusic;
+    fadeIn(newMusic, fadeInDuration);
+  }
+}
+
+// Legacy function for immediate playback (no fade)
+function playMusic(newMusic, musicName) {
+  playMusicWithFade(newMusic, musicName, 0, 0); // No fade
+}
+
+function updateDynamicMusic() {
+  if (!musicInitialized || !players[0].alive || !players[1].alive) return;
+  
+  const p1 = players[0]; // Usually Vergil
+  const p2 = players[1]; // Usually Danty
+  
+  const p1HealthPercent = p1.hp / PLAYER_HP;
+  const p2HealthPercent = p2.hp / PLAYER_HP;
+  
+  // Special override for SDT mode (fast transition for dramatic effect)
+  if (p1.charId === 'danty' && p1.sdtActive) {
+    playMusicWithFade(dantyTheme, "🔥 DANTY'S SIN DEVIL TRIGGER DOMINANCE! 💀", 500, 800);
+    return;
+  }
+  if (p2.charId === 'danty' && p2.sdtActive) {
+    playMusicWithFade(dantyTheme, "🔥 DANTY'S SIN DEVIL TRIGGER DOMINANCE! 💀", 500, 800);
+    return;
+  }
+  
+  // Determine who has higher health (smooth transitions)
+  if (p1HealthPercent > p2HealthPercent + 0.1) { // 10% threshold to avoid constant switching
+    // Player 1 is winning
+    if (p1.charId === 'vergil') {
+      playMusicWithFade(vergilTheme, "⚔️ Vergil's Dominance Theme", 1000, 1500);
+    } else if (p1.charId === 'danty') {
+      playMusicWithFade(dantyTheme, "😈 Danty's Power Theme", 1000, 1500);
+    } else {
+      playMusicWithFade(defaultFightMusic, "Default Fight Music", 1000, 1500);
+    }
+  } else if (p2HealthPercent > p1HealthPercent + 0.1) { // 10% threshold
+    // Player 2 is winning
+    if (p2.charId === 'vergil') {
+      playMusicWithFade(vergilTheme, "⚔️ Vergil's Dominance Theme", 1000, 1500);
+    } else if (p2.charId === 'danty') {
+      playMusicWithFade(dantyTheme, "😈 Danty's Power Theme", 1000, 1500);
+    } else {
+      playMusicWithFade(defaultFightMusic, "Default Fight Music", 1000, 1500);
+    }
+  } else {
+    // Close match - play default music (longer fade for tension)
+    playMusicWithFade(defaultFightMusic, "🔥 Intense Battle Music", 1200, 1800);
   }
 }
 
@@ -580,13 +762,21 @@ function handleBalrogUppercutHit(attacker, opponent) {
       attacker.inHitstun = true;
       attacker.vx = opponent.facing * BLOCK_PUSHBACK_X;
       attacker.vy = BLOCK_PUSHBACK_Y;
-      attacker.isUppercutting = false;
+           attacker.isUppercutting = false;
       attacker.uppercutPower = 0;
       createImpactEffect(attacker, opponent, 'block');
+      
+      // PARRY SOUND FOR UPPERCUT BLOCK 🛡️👊🔊
+      playParrySound();
+      
       const upperType = attacker.sdtActive ? 'SDT Balrog' : 'Balrog';
       console.log(`${opponent.name} blocked ${attacker.name}'s ${upperType} Rising Uppercut! 🛡️👊${attacker.sdtActive ? '💀' : ''}`);
       return true;
     }
+    
+        // Interrupt any charging
+    interruptJudgmentCut(opponent);
+    interruptDantyCharging(opponent);
     
     // Calculate damage (SDT does double damage)
     let baseDamage = 12 + (attacker.uppercutPower * 8);
@@ -644,9 +834,12 @@ function handleMirageBladeAttack() {
     const slashW = 200, slashH = 100;
     const sx = p.mirageSlashX;
     const sy = p.mirageSlashY;
-
     if (sx < opp.x + opp.w && sx + slashW > opp.x &&
         sy < opp.y + opp.h && sy + slashH > opp.y) {
+      // Interrupt any charging
+      interruptJudgmentCut(opp);
+      interruptDantyCharging(opp);
+      
       opp.pauseTimer = 120;
       p.mirageActive = false;
       createImpactEffect(p, opp, 'dash');
@@ -850,6 +1043,107 @@ function interruptJudgmentCut(player) {
   return false;
 }
 
+
+function interruptDantyCharging(player) {
+  if (player.charId !== 'danty') return false;
+  
+  let wasInterrupted = false;
+  
+  // INTERRUPT SPECTRAL SWORD CONTROL 👻💥❌
+  if (player.spectralSwordControlling && player.spectralSword) {
+    // Create dramatic ghost vanishing effect
+    const sword = player.spectralSword;
+    
+    // Create ghost vanishing particles at sword location
+    for (let i = 0; i < 15; i++) {
+      particles.push({
+        type: "smoke",
+        x: sword.x + sword.w/2 + (Math.random() - 0.5) * 40,
+        y: sword.y + sword.h/2 + (Math.random() - 0.5) * 40,
+        life: 30
+      });
+    }
+    
+    // Additional ghostly explosion particles
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        type: "explosion",
+        x: sword.x + sword.w/2 + (Math.random() - 0.5) * 30,
+        y: sword.y + sword.h/2 + (Math.random() - 0.5) * 30,
+        life: 20,
+        vx: (Math.random() - 0.5) * 8,
+        vy: Math.random() * -6 - 1
+      });
+    }
+    
+    // Destroy the spectral sword (attacked = true)
+    destroySpectralSword(player, true);
+    
+    // Reset Danty's animation
+    player.animState = "hit";
+    player.animFrame = 0;
+    player.animTimer = 0;
+    
+    console.log(`${player.name} was attacked! The Spectral Sword connection SEVERED! Ghost vanished! 👻💥💔📹`);
+    wasInterrupted = true;
+  }
+  
+  // Interrupt Devil Trigger charging
+  if (player.devilSwordActivating) {
+    player.devilSwordActivating = false;
+    player.devilSwordActivationStart = 0;
+    player.animState = "hit";
+    player.animFrame = 0;
+    player.animTimer = 0;
+    
+    // Add knockback
+    player.vx = (Math.random() - 0.5) * 6;
+    player.vy = -4;
+    
+    // Create interruption particles
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        type: "smoke",
+        x: player.x + player.w/2 + (Math.random() - 0.5) * 25,
+        y: player.y + player.h/2 + (Math.random() - 0.5) * 25,
+        life: 20
+      });
+    }
+    
+    console.log(`${player.name}'s Devil Trigger charging was INTERRUPTED! 😈💥❌`);
+    wasInterrupted = true;
+  }
+  
+  // Interrupt SDT charging
+  if (player.sdtCharging) {
+    player.sdtCharging = false;
+    player.sdtChargeStart = 0;
+    player.animState = "hit";
+    player.animFrame = 0;
+    player.animTimer = 0;
+    
+    // Add stronger knockback for SDT interrupt
+    player.vx = (Math.random() - 0.5) * 8;
+    player.vy = -6;
+    
+    // Create more dramatic interruption particles
+    for (let i = 0; i < 12; i++) {
+      particles.push({
+        type: "explosion",
+        x: player.x + player.w/2 + (Math.random() - 0.5) * 30,
+        y: player.y + player.h/2 + (Math.random() - 0.5) * 30,
+        life: 25,
+        vx: (Math.random() - 0.5) * 6,
+        vy: Math.random() * -4 - 2
+      });
+    }
+    
+    console.log(`${player.name}'s SIN DEVIL TRIGGER charging was BRUTALLY INTERRUPTED! 💀💥❌🔥`);
+    wasInterrupted = true;
+  }
+  
+  return wasInterrupted;
+}
 function isOpponentInJudgmentCutRange(caster) {
     for (let i = 0; i < players.length; i++) {
         const opponent = players[i];
@@ -1106,15 +1400,35 @@ const AbilityLibrary = {
 
 function getCamera() {
   const p1 = players[0], p2 = players[1];
-  const x1 = p1.x + p1.w / 2, y1 = p1.y + p1.h / 2;
-  const x2 = p2.x + p2.w / 2, y2 = p2.y + p2.h / 2;
+  
+  // Get player 1 position (or spectral sword if controlling)
+  let x1, y1;
+  if (p1.charId === 'danty' && p1.spectralSwordControlling && p1.spectralSword) {
+    // Camera follows spectral sword for player 1
+    x1 = p1.spectralSword.x + p1.spectralSword.w / 2;
+    y1 = p1.spectralSword.y + p1.spectralSword.h / 2;
+  } else {
+    x1 = p1.x + p1.w / 2;
+    y1 = p1.y + p1.h / 2;
+  }
+  
+  // Get player 2 position (or spectral sword if controlling)
+  let x2, y2;
+  if (p2.charId === 'danty' && p2.spectralSwordControlling && p2.spectralSword) {
+    // Camera follows spectral sword for player 2
+    x2 = p2.spectralSword.x + p2.spectralSword.w / 2;
+    y2 = p2.spectralSword.y + p2.spectralSword.h / 2;
+  } else {
+    x2 = p2.x + p2.w / 2;
+    y2 = p2.y + p2.h / 2;
+  }
 
   let cx = (x1 + x2) / 2;
   let cy = (y1 + y2) / 2;
 
   const extra = 80;
-  const playersW = Math.abs(x2 - x1) + p1.w + p2.w + extra;
-  const playersH = Math.abs(y2 - y1) + p1.h + p2.h + extra;
+  const playersW = Math.abs(x2 - x1) + 100 + extra; // Use fixed width since sword size varies
+  const playersH = Math.abs(y2 - y1) + 100 + extra; // Use fixed height since sword size varies
 
   const zoomW = canvas.width / playersW;
   const zoomH = canvas.height / playersH;
@@ -1328,7 +1642,7 @@ if (k === weaponSwitchKey) {
         if (p.spectralSword) {
           destroySpectralSword(p);
         }
-        console.log(`${p.name} switched to Spectral Sword (Entity Control)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'}`);
+             console.log(`${p.name} switched to Spectral Sword (Entity Control)! ${p.onGround ? '🟢 Ground' : '🔵 Mid-Air'} 👻⚔️`);
       } else {
         // Destroy spectral sword when switching away
         if (p.spectralSword) {
@@ -1549,14 +1863,22 @@ function handleDiveKickAttack() {
             p.balrogDiveKick = false;
           }
           
-          p.isDiveKicking = false;
+                   p.isDiveKicking = false;
           p.vy = -4;
           p.hitstun = HEAVY_HITSTUN_FRAMES;
           p.inHitstun = true;
           createImpactEffect(opp, p, 'block');
+          
+          // PARRY SOUND FOR DIVE KICK BLOCK 🛡️🦆🔊
+          playParrySound();
+          
           const kickType = hasSDTDive ? 'SDT dive kick' : hasBeowulfDive ? 'Beowulf dive kick' : 'Balrog dive kick';
           console.log(`${opp.name} blocked ${p.name}'s ${kickType}! 🛡️${hasSDTDive ? '💀' : ''}`);
-        } else {
+               } else {
+          // Interrupt any charging
+          interruptJudgmentCut(opp);
+          interruptDantyCharging(opp);
+          
           // Calculate damage (SDT does double damage)
           let damage = 12;
           if (hasSDTDive) {
@@ -1645,6 +1967,72 @@ function handleDantyDiveKickAttack() {
   }
 }
 
+function handleSpectralSwordAttack() {
+  for (let i = 0; i < 2; i++) {
+    const p = players[i];
+    const opp = players[1 - i];
+    if (!p.alive || !opp.alive || !p.spectralSword) continue;
+
+    const sword = p.spectralSword;
+    if (sword.dash > 0 && !sword.hasDashHit) {
+      // Check collision between sword and opponent
+      if (sword.x < opp.x + opp.w && sword.x + sword.w > opp.x &&
+          sword.y < opp.y + opp.h && sword.y + sword.h > opp.y) {
+        
+        // Check if opponent is blocking
+        const isBlocking = opp.blocking && opp.block > 0 && !opp.inHitstun &&
+                          (opp.charId === 'danty' || opp.facing === -Math.sign(sword.vx || sword.facing));
+        
+        if (isBlocking) {
+                  sword.vx = opp.facing * BLOCK_PUSHBACK_X * 0.5;
+          sword.vy = BLOCK_PUSHBACK_Y * 0.5;
+          sword.hasDashHit = true;
+          createImpactEffect(p, opp, 'block');
+          
+          // PARRY SOUND FOR SPECTRAL SWORD BLOCK 🛡️👻🔊
+          playParrySound();
+          
+          console.log(`${opp.name} blocked ${p.name}'s Spectral Sword! 🛡️👻`);
+               } else if (opp.justHit === 0) {
+          // Interrupt any charging
+          interruptJudgmentCut(opp);
+          interruptDantyCharging(opp);
+          
+          // Spectral sword hits
+          let damage = SPECTRAL_SWORD.DASH_DAMAGE;
+          if (p.sdtActive) {
+            damage = Math.floor(damage * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER);
+            console.log(`${p.name}'s SDT Spectral Sword deals DOUBLE DAMAGE! ${damage} 💀👻💥`);
+          }
+          
+          opp.hp -= damage;
+          opp.justHit = 20;
+          opp.hitstun = HITSTUN_FRAMES;
+          opp.inHitstun = true;
+          
+          // Knockback opponent
+          opp.vx = sword.facing * 8;
+          opp.vy = -6;
+          
+          // Slight recoil for sword
+          sword.vx *= 0.3;
+          sword.vy *= 0.3;
+          
+          sword.hasDashHit = true;
+          createImpactEffect(p, opp, 'spectral-sword-dash');
+          console.log(`${p.name}'s Spectral Sword strikes ${opp.name}! 👻⚔️💥`);
+          
+          if (opp.hp <= 0) {
+            opp.hp = 0;
+            opp.alive = false;
+            winner = p.id;
+          }
+        }
+      }
+    }
+  }
+}
+
 function handleDashAttack() {
   let simultaneousCollision = false;
   let p1 = players[0], p2 = players[1];
@@ -1676,6 +2064,12 @@ function handleDashAttack() {
 function handleSimultaneousDashCollision(p1, p2) {
   console.log("⚡ Simultaneous dash collision detected!");
   
+  // Interrupt any charging before checking blocking
+  interruptJudgmentCut(p1);
+  interruptJudgmentCut(p2);
+  interruptDantyCharging(p1);
+  interruptDantyCharging(p2);
+  
   let p1Blocking = p2.blocking && p2.block > 0 && !p2.dizzy && !p2.inHitstun &&
                      (p2.charId === 'danty' || (p2.facing === -Math.sign(p1.vx || p1.facing)));
  let p2Blocking = p1.blocking && p1.block > 0 && !p1.dizzy && !p1.inHitstun &&
@@ -1691,18 +2085,27 @@ function handleSimultaneousDashCollision(p1, p2) {
     p1.vy = p2.vy = BLOCK_PUSHBACK_Y;
     createImpactEffect(p1, p2, 'block');
     createImpactEffect(p2, p1, 'block');
+    
+    // DOUBLE PARRY SOUND 🛡️🛡️🔊
+    playParrySound();
   } else if (p1Blocking) { // p2's dash was blocked by p1
     p2.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
     p2.inHitstun = true;
     p2.vx = p1.facing * BLOCK_PUSHBACK_X;
     p2.vy = BLOCK_PUSHBACK_Y;
     createImpactEffect(p2, p1, 'block');
+    
+    // PARRY SOUND 🛡️🔊
+    playParrySound();
   } else if (p2Blocking) { // p1's dash was blocked by p2
     p1.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
     p1.inHitstun = true;
     p1.vx = p2.facing * BLOCK_PUSHBACK_X;
     p1.vy = BLOCK_PUSHBACK_Y;
     createImpactEffect(p1, p2, 'block');
+    
+    // PARRY SOUND 🛡️🔊
+    playParrySound();
   } else {
     if (p1.justHit === 0 && p2.justHit === 0) {
       p1.hp -= DASH_DAMAGE;
@@ -1778,6 +2181,7 @@ if (isBlocking) {
       p.vy = BLOCK_PUSHBACK_Y;
       p.hasDashHit = true;
       createImpactEffect(p, opp, 'block');
+       playParrySound();
       
       // ADD DEVIL SWORD GAUGE GAIN ON SUCCESSFUL BLOCK:
       if (opp.charId === 'danty' && opp.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && !opp.devilSwordUpgraded) {
@@ -1792,6 +2196,13 @@ if (isBlocking) {
   
   if (opp.justHit === 0) {
     interruptJudgmentCut(opp);
+    
+    // Special dramatic effect for spectral sword users
+    if (opp.charId === 'danty' && opp.spectralSwordControlling && opp.spectralSword) {
+      console.log(`💥 ${p.name} attacks ${opp.name}! The ghost connection wavers! 👻⚡💔`);
+    }
+    
+    interruptDantyCharging(opp); // Add this line! 😈⚔️
 let damage = DASH_DAMAGE;
 if (p.charId === 'danty' && p.sdtActive) {
   damage = Math.floor(DASH_DAMAGE * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER); // DOUBLE DAMAGE IN SDT 💀💥
@@ -1914,19 +2325,31 @@ opp.hp -= damage;
       }
     }
     
-    if (opp.hp <= 0) { 
-      opp.hp = 0; 
-      opp.alive = false; 
-      
-      if (p.hp <= 0) {
-        p.hp = 0;
-        p.alive = false;
-        winner = "draw";
-        console.log("💀 DOUBLE KO! Both players defeated!");
-      } else {
-        winner = p.id;
+        if (opp.hp <= 0) { 
+        opp.hp = 0; 
+        opp.alive = false; 
+        
+        if (p.hp <= 0) {
+          p.hp = 0;
+          p.alive = false;
+          winner = "draw";
+          console.log("💀 DOUBLE KO! Both players defeated!");
+          // Stop all music for dramatic effect
+          if (currentMusic) {
+            currentMusic.pause();
+          }
+        } else {
+          winner = p.id;
+               // Play winner's theme with triumphant fade
+          if (musicInitialized) {
+            if (p.charId === 'vergil') {
+              playMusicWithFade(vergilTheme, "🏆 VERGIL VICTORY THEME!", 600, 2000); // Slow triumphant fade in
+            } else if (p.charId === 'danty') {
+              playMusicWithFade(dantyTheme, "🏆 DANTY VICTORY THEME!", 600, 2000); // Slow triumphant fade in
+            }
+          }
+        }
       }
-    }
     p.hasDashHit = true;
   }
 }
@@ -2320,10 +2743,15 @@ if (p.charId === 'danty') {
     p.sdtExplosionTimer--;
     if (p.sdtExplosionTimer <= 0) {
       p.sdtAnimationPhase = 'active';
-      p.sdtActive = true;
+          p.sdtActive = true;
       p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
       p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
       console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
+      
+      // DRAMATIC MUSIC TRANSITION FOR SDT 🎵💀✨
+      if (musicInitialized && p.charId === 'danty') {
+        playMusicWithFade(dantyTheme, "DANTY'S SIN DEVIL TRIGGER DOMINANCE!", 300, 600); // Fast dramatic transition
+      }
     }
   }
   
@@ -2350,6 +2778,68 @@ if (p.charId === 'danty') {
     if (now - p.devilSwordLastHitTime > DEVIL_SWORD_PROGRESSION.HIT_COMBO_RESET_TIME) {
       p.devilSwordComboHits = 0;
       p.devilSwordPhase = 0;
+    }
+  }
+    
+   if (p.spectralSwordTransferring) {
+    p.spectralSwordTransferTimer--;
+    if (p.spectralSwordTransferTimer <= 0) {
+      p.spectralSwordTransferring = false;
+      p.spectralSwordControlling = true;
+      p.animState = "controlling-spectral";
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} now controls the Spectral Sword! Camera following the ghost! 👻⚔️🎮📹`);
+    }
+  }
+  
+  if (p.spectralSword) {
+    const sword = p.spectralSword;
+    
+        // Update spectral sword physics
+    sword.x += sword.vx;
+    sword.y += sword.vy;
+    
+    // Keep sword within screen bounds
+    sword.x = Math.max(0, Math.min(WIDTH - sword.w, sword.x));
+    sword.y = Math.max(0, Math.min(HEIGHT - sword.h, sword.y));
+    
+    // Update base position for floating effect
+    sword.baseY = sword.y;
+    
+    // Floating animation (subtle up/down bobbing)
+    sword.floatTimer += 1;
+    const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3; // Smaller float effect
+    
+    // Spectral Sword Animation States 👻⚔️
+    if (sword.dash > 0) {
+      sword.animState = "dash";
+    } else if (Math.abs(sword.vx) > 0.5 || Math.abs(sword.vy) > 0.5) {
+      sword.animState = "walk";
+    } else {
+      sword.animState = "idle";
+    }
+    
+    // Update spectral sword animation
+    updateSpectralSwordAnimation(sword);
+    
+    // Update sword dash
+    if (sword.dash > 0) {
+      sword.dash--;
+    } else {
+      sword.hasDashHit = false;
+    }
+    
+    if (sword.dashCooldown > 0) sword.dashCooldown--;
+    
+    // Drain gauge continuously
+    if (p.currentWeapon === DANTY_WEAPONS.SPECTRAL_SWORD) {
+      p.devilSwordGauge -= SPECTRAL_SWORD.GAUGE_DRAIN;
+      if (p.devilSwordGauge <= 0) {
+        p.devilSwordGauge = 0;
+        destroySpectralSword(p);
+        console.log(`${p.name}'s Spectral Sword ran out of power! 👻💨⚡`);
+      }
     }
   }
 }
@@ -2383,37 +2873,78 @@ if (p.inHitstun) {
   if (p.dash > 0) {
     p.dash--;
   } else {
-        // Player can't move during hitstun
-    if (!p.inHitstun) {
-      // SDT SPEED BOOST 🔥⚡
-      const moveSpeed = (p.charId === 'danty' && p.sdtActive) ? PLAYER_SPEED * SIN_DEVIL_TRIGGER.SPEED_MULTIPLIER : PLAYER_SPEED;
-      
-      if (keys[controls.left] && !keys[controls.right] && !p.blocking && !p.inHitstun) {
-        p.vx = -moveSpeed; p.facing = -1;
-      }
-      if (keys[controls.right] && !keys[controls.left] && !p.blocking && !p.inHitstun) {
-        p.vx = moveSpeed; p.facing = 1;
-      }
-      if ((!keys[controls.left] && !keys[controls.right]) || p.blocking) {
-        p.vx *= FRICTION;
-        if (Math.abs(p.vx) < 0.3) p.vx = 0;
-      }
+        // SPECTRAL SWORD CONTROL OVERRIDE 👻⚔️
+  if (p.charId === 'danty' && p.spectralSwordControlling && p.spectralSword) {
+    // Danty is frozen while controlling spectral sword
+    p.vx *= FRICTION;
+    if (Math.abs(p.vx) < 0.3) p.vx = 0;
+    
+    // Control the spectral sword instead
+    const sword = p.spectralSword;
+    const swordMoveSpeed = SPECTRAL_SWORD.MOVE_SPEED;
+    
+    if (keys[controls.left] && !keys[controls.right]) {
+      sword.vx = -swordMoveSpeed;
+      sword.facing = -1;
+    } else if (keys[controls.right] && !keys[controls.left]) {
+      sword.vx = swordMoveSpeed;
+      sword.facing = 1;
     } else {
-      // During hitstun, only apply friction to knockback velocity
+      sword.vx *= FRICTION;
+      if (Math.abs(sword.vx) < 0.3) sword.vx = 0;
+    }
+    
+      if (keys[controls.up] && !keys[controls.down]) {
+      sword.vy = -swordMoveSpeed;
+      // Debug message (remove later)
+      if (Math.random() < 0.005) console.log(`${p.name}'s Spectral Sword ascending! Camera tracking! ⬆️👻📹`);
+    } else if (keys[controls.down] && !keys[controls.up]) {
+      sword.vy = swordMoveSpeed;
+      // Debug message (remove later)
+      if (Math.random() < 0.005) console.log(`${p.name}'s Spectral Sword descending! Camera tracking! ⬇️👻📹`);
+    } else {
+      sword.vy *= FRICTION;
+      if (Math.abs(sword.vy) < 0.3) sword.vy = 0;
+    }
+  }
+  // NORMAL PLAYER MOVEMENT
+  else if (!p.inHitstun) {
+    // SDT SPEED BOOST 🔥⚡
+    const moveSpeed = (p.charId === 'danty' && p.sdtActive) ? PLAYER_SPEED * SIN_DEVIL_TRIGGER.SPEED_MULTIPLIER : PLAYER_SPEED;
+    
+    if (keys[controls.left] && !keys[controls.right] && !p.blocking && !p.inHitstun) {
+      p.vx = -moveSpeed; p.facing = -1;
+    }
+    if (keys[controls.right] && !keys[controls.left] && !p.blocking && !p.inHitstun) {
+      p.vx = moveSpeed; p.facing = 1;
+    }
+    if ((!keys[controls.left] && !keys[controls.right]) || p.blocking) {
       p.vx *= FRICTION;
       if (Math.abs(p.vx) < 0.3) p.vx = 0;
     }
+  } else {
+    // During hitstun, only apply friction to knockback velocity
+    p.vx *= FRICTION;
+    if (Math.abs(p.vx) < 0.3) p.vx = 0;
+  }
   }
 
   let slowFallActive = false;
   if (!p.onGround && keys[controls.up]) slowFallActive = true;
   
-    if (keys[controls.up] && !p.inHitstun) {
-    if ((p.onGround || p.jumps < MAX_JUMPS) && !p.jumpHeld && !p.blocking) {
-      p.vy = -JUMP_VEL; p.jumps++; p.jumpHeld = true;
-    }
-  } else {
+  // SPECTRAL SWORD CONTROL: Don't let Danty jump while controlling sword
+  if (p.charId === 'danty' && p.spectralSwordControlling && p.spectralSword) {
+    // Danty can't jump while controlling spectral sword
     p.jumpHeld = false;
+  } else {
+    // Normal jump controls for player
+    if (keys[controls.up] && !p.inHitstun) {
+      if ((p.onGround || p.jumps < MAX_JUMPS) && !p.jumpHeld && !p.blocking) {
+        p.vy = -JUMP_VEL; p.jumps++; p.jumpHeld = true;
+      }
+    } else {
+      p.jumpHeld = false;
+    }
   }
 
   if (p.dashCooldown > 0) p.dashCooldown--;
@@ -2585,15 +3116,20 @@ function updatePlayerAnimState(p, pid) {
       return;
     }
 
-    if (p.balrogCharging && p.balrogChargeType === 'uppercut') {
-      if (!p.onGround) {
-        p.balrogCharging = false;
-        p.balrogChargeType = null;
-        return;
+     // Handle SDT charging animation
+    if (p.sdtCharging) {
+      if (p.animState !== "transferring-control") {
+        p.animState = "idle"; // Vulnerable while charging!
+        p.animFrame = 0;
+        p.animTimer = 0;
       }
-      
-      if (p.animState !== "balrog-charging") {
-        p.animState = "balrog-charging";
+      return;
+    }
+    
+    // Handle Devil Trigger charging animation
+    if (p.devilSwordActivating) {
+      if (p.animState !== "transferring-control") {
+        p.animState = "idle"; // Vulnerable while charging!
         p.animFrame = 0;
         p.animTimer = 0;
       }
@@ -2637,6 +3173,21 @@ function updatePlayerAnimState(p, pid) {
     p.animFrame = 0;
     p.animTimer = 0;
   }
+}
+
+function updateSpectralSwordAnimation(sword) {
+  const anim = characterSprites.spectralSword?.[sword.animState];
+  if (!anim) { sword.animFrame = 0; sword.animTimer = 0; return; }
+  
+  sword.animTimer++;
+  if (sword.animTimer >= anim.speed) {
+    sword.animTimer = 0;
+    sword.animFrame = (sword.animFrame + 1) % anim.frames;
+  }
+}
+
+function getSpectralSwordAnim(sword) {
+  return characterSprites.spectralSword?.[sword.animState];
 }
 
 function updateAnimation(p) {
@@ -2727,6 +3278,35 @@ spectralSwordImpactSprite.src = "danty-spectral-sword-impact.png";
 
 const dantyControllingSprite = new Image();
 dantyControllingSprite.src = "danty-controlling-spectral.png";
+
+// Spectral Sword animation sprites
+const spectralSwordMoveSprite = new Image();
+spectralSwordMoveSprite.src = "danty-spectral-sword-move.png";
+
+// SOUND EFFECTS 🔊🔥//
+const parrySound = new Audio();
+parrySound.src = "sounds/parry.ogg";
+parrySound.volume = 1.0; // Adjust volume as needed
+
+
+// DYNAMIC THEME MUSIC SYSTEM 🎵🔥
+const vergilTheme = new Audio();
+vergilTheme.src = "sounds/virgel-theme.ogg"; // or .mp3
+vergilTheme.volume = 0.7;
+vergilTheme.loop = true;
+
+const dantyTheme = new Audio();
+dantyTheme.src = "sounds/danty-theme.ogg"; // or .mp3  
+dantyTheme.volume = 0.5;
+dantyTheme.loop = true;
+
+const defaultFightMusic = new Audio();
+defaultFightMusic.src = "sounds/default-fight-music.ogg"; // or .mp3
+defaultFightMusic.volume = 0.4;
+defaultFightMusic.loop = true;
+
+let currentMusic = null; // Track what's currently playing
+let musicInitialized = false;
 
 // SDT exclusive sprites
 const sdtIdleSprite = new Image();
@@ -2827,7 +3407,7 @@ const characterSprites = {
   'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 5, w: 50, h: 50, speed: 3 },
   'balrog-divekick': { src: "danty-balrog-divekick.png", frames: 3, w: 50, h: 50, speed: 4 },
   'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 4, w: 50, h: 50, speed: 8 },
-  // SDT EXCLUSIVE SPRITES 🔥💀 Yes lez gooo
+  // SDT EXCLUSIVE SPRITES 
   'sdt-idle': { src: "danty-sdt-idle.png", frames: 8, w: 60, h: 60, speed: 10 },
   'sdt-walk': { src: "danty-sdt-walk.png", frames: 12, w: 60, h: 60, speed: 3 },
   'sdt-dash': { src: "danty-sdt-dash.png", frames: 4, w: 60, h: 60, speed: 2 },
@@ -2836,9 +3416,16 @@ const characterSprites = {
   'sdt-uppercut': { src: "danty-sdt-uppercut.png", frames: 6, w: 60, h: 60, speed: 2 },
   'sdt-divekick': { src: "danty-sdt-divekick.png", frames: 5, w: 60, h: 60, speed: 3 },
   'sdt-charging': { src: "danty-sdt-charging.png", frames: 5, w: 60, h: 60, speed: 6 },
-  // Spectral Sword control animation
+    // Spectral Sword control animation
   'controlling-spectral': { src: "danty-controlling-spectral.png", frames: 8, w: 50, h: 50, speed: 8 },
   'transferring-control': { src: "danty-transferring-control.png", frames: 6, w: 50, h: 50, speed: 5 }
+},
+
+// SPECTRAL SWORD ENTITY ANIMATIONS 👻⚔️
+spectralSword: {
+  idle: { src: "danty-spectral-sword-idle.png", frames: 6, w: 40, h: 40, speed: 12 },
+  walk: { src: "danty-spectral-sword-move.png", frames: 8, w: 40, h: 40, speed: 6 },
+  dash: { src: "danty-spectral-sword-dash.png", frames: 4, w: 40, h: 40, speed: 3 }
 },
 };
 
@@ -3337,8 +3924,8 @@ else if (p.charId === 'danty') {
   let weaponText = "🗡️"; // Default Devil Sword
   if (p.currentWeapon === DANTY_WEAPONS.BALROG) {
     weaponText = "👊";
-  } else if (p.currentWeapon === DANTY_WEAPONS.TAUNT) {
-    weaponText = "😤";
+  } else if (p.currentWeapon === DANTY_WEAPONS.SPECTRAL_SWORD) {
+    weaponText = "👻⚔️";
   }
   
   ctx.font = "12px Arial";
@@ -3429,6 +4016,91 @@ ctx.restore();
       const img = mirageSlashSprite;
       const slashW = 200, slashH = 100;
       ctx.drawImage(img, p.mirageSlashX, p.mirageSlashY, slashW, slashH);
+    }
+  }
+
+  // Draw Spectral Swords 👻⚔️
+  for (let p of players) {
+    if (p.spectralSword && p.charId === 'danty') {
+      const sword = p.spectralSword;
+      
+      ctx.save();
+      
+      // Draw spectral sword aura/glow
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = p.sdtActive ? "#8b008b" : "#4b0082";
+      ctx.beginPath();
+      ctx.arc(sword.x + sword.w/2, sword.y + sword.h/2, sword.w/2 + 5, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Draw spectral sword main body
+      ctx.globalAlpha = 0.9;
+      if (sword.dash > 0) {
+        // Dashing - brighter and larger
+        ctx.fillStyle = p.sdtActive ? "#ff00ff" : "#6a0dad";
+        ctx.globalAlpha = 1.0;
+        const dashScale = 1.2;
+        const scaledW = sword.w * dashScale;
+        const scaledH = sword.h * dashScale;
+        ctx.fillRect(sword.x - (scaledW - sword.w)/2, sword.y - (scaledH - sword.h)/2, scaledW, scaledH);
+      } else {
+        // Normal - floating
+        ctx.fillStyle = p.sdtActive ? "#da70d6" : "#8a2be2";
+        ctx.fillRect(sword.x, sword.y, sword.w, sword.h);
+      }
+      
+           // Draw spectral sword with proper animation 👻⚔️
+      const swordAnim = getSpectralSwordAnim(sword);
+      const swordSpritesheet = swordAnim && spritesheetCache[swordAnim.src];
+      
+      if (swordAnim && swordSpritesheet && swordSpritesheet.complete && swordSpritesheet.naturalWidth > 0) {
+        ctx.globalAlpha = 1.0;
+        
+        // Add floating effect to rendered position
+        const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
+        const renderY = sword.y + floatOffset;
+        
+        if (sword.facing === 1) {
+          ctx.save();
+          ctx.translate(sword.x + sword.w/2, renderY + sword.h/2);
+          ctx.scale(-1, 1);
+          ctx.translate(-sword.w/2, -sword.h/2);
+          ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, sword.w, sword.h);
+          ctx.restore();
+        } else {
+          ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, sword.x, renderY, sword.w, sword.h);
+        }
+      } else {
+        // Fallback rendering - just use the colored rectangles
+        const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
+        const renderY = sword.y + floatOffset;
+        
+        if (sword.dash > 0) {
+          ctx.fillStyle = p.sdtActive ? "#ff00ff" : "#6a0dad";
+          ctx.globalAlpha = 1.0;
+          const dashScale = 1.2;
+          const scaledW = sword.w * dashScale;
+          const scaledH = sword.h * dashScale;
+          ctx.fillRect(sword.x - (scaledW - sword.w)/2, renderY - (scaledH - sword.h)/2, scaledW, scaledH);
+        } else {
+          ctx.fillStyle = p.sdtActive ? "#da70d6" : "#8a2be2";
+          ctx.fillRect(sword.x, renderY, sword.w, sword.h);
+        }
+      }
+      
+      // Draw energy trail if moving
+      if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
+        ctx.globalAlpha = 0.4;
+        for (let i = 1; i <= 3; i++) {
+          ctx.fillStyle = p.sdtActive ? "#8b008b" : "#4b0082";
+          const trailX = sword.x - sword.vx * i * 2;
+          const trailY = sword.y - sword.vy * i * 2;
+          const trailSize = sword.w * (1 - i * 0.2);
+          ctx.fillRect(trailX + (sword.w - trailSize)/2, trailY + (sword.h - trailSize)/2, trailSize, trailSize);
+        }
+      }
+      
+      ctx.restore();
     }
   }
 
@@ -3646,7 +4318,7 @@ function gameLoop() {
     }
   }
   
-  if (!gameState.paused) {
+   if (!gameState.paused) {
     for (let i = 0; i < players.length; ++i) {
       const p = players[i];
       if (p.justHit > 0) p.justHit--;
@@ -3660,11 +4332,15 @@ if (p.block >= p.maxBlock - 0.1 && !p.blockWasFull) {
 p.blockWasFull = p.block >= p.maxBlock - 0.1;
       if (p.blockGlowTimer > 0) p.blockGlowTimer--;
     }
+    handleSpectralSwordAttack(); // Add this line! 👻⚔️
     handleDashAttack();
     handleDiveKickAttack();
     handleDantyDiveKickAttack();
     handleMirageBladeAttack();
     updateImpactEffects();
+    
+    // UPDATE DYNAMIC MUSIC BASED ON HEALTH 🎵⚔️
+    updateDynamicMusic();
   }
   
   updateUI();
@@ -3675,6 +4351,9 @@ p.blockWasFull = p.block >= p.maxBlock - 0.1;
 
 // Character selection
 document.addEventListener("keydown", function(e) {
+  // Initialize audio on first keypress (required for autoplay policy)
+  initializeAudio();
+  
   if (e.key === "1") {
     const p = players[0];
     p.charId = "vergil";
