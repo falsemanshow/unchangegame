@@ -25,3 +25,142 @@ body { background: #292d3e; margin: 0; }
   background: linear-gradient(90deg, #ffeb3b 30%, #ffa726 100%);
   transition: width 0.1s;
 }
+
+/* Character Select Styles */
+.char-select {
+  display: none;
+  background: #1a1a2e;
+  padding: 40px;
+  border-radius: 15px;
+  box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  margin-bottom: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.char-select.active {
+  display: block;
+}
+
+.char-select h2 {
+  color: #ffeb3b;
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 32px;
+  text-shadow: 2px 2px 4px #000;
+}
+
+.players-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 80px;
+}
+
+.player-select {
+  text-align: center;
+}
+
+.player-select h3 {
+  color: #fff;
+  margin-bottom: 20px;
+  font-size: 24px;
+}
+
+.character-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.character-option {
+  width: 120px;
+  height: 120px;
+  border: 3px solid #44476a;
+  border-radius: 10px;
+  background: #2a2a3e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.character-option:hover {
+  border-color: #666;
+  background: #3a3a4e;
+}
+
+.character-option.selected {
+  border-color: #ffeb3b;
+  background: #4a4a2e;
+  box-shadow: 0 0 15px rgba(255, 235, 59, 0.5);
+}
+
+.character-option.p1-selected {
+  border-color: #42a5f5;
+  background: #2e3a4a;
+  box-shadow: 0 0 15px rgba(66, 165, 245, 0.5);
+}
+
+.character-option.p2-selected {
+  border-color: #ef5350;
+  background: #4a2e2e;
+  box-shadow: 0 0 15px rgba(239, 83, 80, 0.5);
+}
+
+.character-name {
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  margin-top: 10px;
+  text-shadow: 1px 1px 2px #000;
+}
+
+.character-icon {
+  width: 60px;
+  height: 60px;
+  background: #555;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.controls-info {
+  color: #aaa;
+  font-size: 14px;
+  margin-top: 15px;
+  line-height: 1.4;
+}
+
+.start-button {
+  background: #ffeb3b;
+  color: #000;
+  border: none;
+  padding: 15px 30px;
+  font-size: 20px;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 30px;
+  transition: all 0.3s;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.start-button:hover {
+  background: #fff176;
+  transform: translateY(-2px);
+}
+
+.start-button:disabled {
+  background: #666;
+  color: #999;
+  cursor: not-allowed;
+  transform: none;
+}
