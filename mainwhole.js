@@ -94,7 +94,7 @@ const SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
   CHARGE_RATE: 2,
   ACTIVATION_HOLD_TIME: 2500,
-  BIG_DRAW_SCALE: 2.0, // 🔥 ADJUSTABLE SIZE! Change this number!
+  BIG_DRAW_SCALE: 5, // 🔥 ADJUSTABLE SIZE! Change this number!
   BIG_DRAW_DURATION: 60, // How long big draw plays
   TRANSFORMATION_DURATION: 48, // How long transformation takes
   SWORD_FALL_DURATION: 90,
@@ -3567,6 +3567,8 @@ devilSwordEnhancedStrike3Sprite.src = "danty-devilsword-enhanced-strike3.png";
 
 const sdtSwordSprite = new Image();
 sdtSwordSprite.src = "danty-sdt-sword-pierce.png"; // The sword that falls and pierces Danty 🥵
+const sdtExplosionBigDrawSprite = new Image();
+sdtExplosionBigDrawSprite.src = "sdt-explosion-big-draw.png"; // BIG
 
 // SDT Transformation sprites
 const vergilSdtTransformingSprite = new Image();
@@ -4829,112 +4831,36 @@ if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
     }
   }
 
-  // Draw BIG DRAW and TRANSFORMATION! 💥💀
-  for (let p of players) {
-    if (p.charId === 'danty' && (p.sdtAnimationPhase === 'big_draw' || p.sdtAnimationPhase === 'transforming')) {
+    // Draw BIG DRAW - SIMPLE RED SQUARE! 🔥
+   for (let p of players) {
+    if (p.charId === 'danty' && p.sdtAnimationPhase === 'big_draw') {
       ctx.save();
       
-      if (p.sdtAnimationPhase === 'big_draw') {
-        // DRAW MASSIVE BIG DRAW SPRITE! 💥🔥
-        const bigDrawSize = p.w * SIN_DEVIL_TRIGGER.BIG_DRAW_SCALE; // ADJUSTABLE SIZE!
-        const spriteX = p.x + p.w/2 - bigDrawSize/2;
-        const spriteY = p.y + p.h/2 - bigDrawSize/2;
-        
-        // Pulsing effect
-        const pulse = 0.9 + 0.1 * Math.sin(performance.now() / 50);
-        const finalSize = bigDrawSize * pulse;
-        const finalX = p.x + p.w/2 - finalSize/2;
-        const finalY = p.y + p.h/2 - finalSize/2;
-        
-        // Try to draw sprite (add your sprite here!)
-        if (sdtExplosionBigDrawSprite.complete && sdtExplosionBigDrawSprite.naturalWidth > 0) {
-          ctx.globalAlpha = 0.9;
-          ctx.drawImage(sdtExplosionBigDrawSprite, finalX, finalY, finalSize, finalSize);
-               } else {
-          // 🔥 EPIC FALLBACK BIG DRAW WITH SIZE INDICATORS! 🔥
-          ctx.globalAlpha = 0.8;
-          
-          // Main explosion rings
-          for (let i = 0; i < 5; i++) {
-            ctx.strokeStyle = i % 2 === 0 ? "#ff4500" : "#ff0000";
-            ctx.lineWidth = 12 - (i * 2);
-            ctx.beginPath();
-            ctx.arc(p.x + p.w/2, p.y + p.h/2, (finalSize/2) - (i * 15), 0, 2 * Math.PI);
-            ctx.stroke();
-          }
-          
-          // 🎯 SIZE INDICATOR LINES! 🎯
-          ctx.globalAlpha = 1.0;
-          ctx.strokeStyle = "#00ff00"; // BRIGHT GREEN for visibility!
-          ctx.lineWidth = 3;
-          ctx.setLineDash([10, 5]); // Dashed line
-          
-          // Outer boundary circle
-          ctx.beginPath();
-          ctx.arc(p.x + p.w/2, p.y + p.h/2, finalSize/2, 0, 2 * Math.PI);
-          ctx.stroke();
-          
-          // Size measurement lines (cross)
-          ctx.setLineDash([]); // Solid line
-          ctx.lineWidth = 2;
-          
-          // Horizontal line
-          ctx.beginPath();
-          ctx.moveTo(p.x + p.w/2 - finalSize/2, p.y + p.h/2);
-          ctx.lineTo(p.x + p.w/2 + finalSize/2, p.y + p.h/2);
-          ctx.stroke();
-          
-          // Vertical line
-          ctx.beginPath();
-          ctx.moveTo(p.x + p.w/2, p.y + p.h/2 - finalSize/2);
-          ctx.lineTo(p.x + p.w/2, p.y + p.h/2 + finalSize/2);
-          ctx.stroke();
-          
-          // SIZE TEXT! 📏
-          ctx.font = "bold 16px Arial";
-          ctx.fillStyle = "#00ff00";
-          ctx.strokeStyle = "#000";
-          ctx.lineWidth = 2;
-          ctx.textAlign = "center";
-          const sizeText = `${(finalSize/50).toFixed(1)}x Player Size`;
-          ctx.strokeText(sizeText, p.x + p.w/2, p.y + p.h/2 - finalSize/2 - 20);
-          ctx.fillText(sizeText, p.x + p.w/2, p.y + p.h/2 - finalSize/2 - 20);
-          
-          // Scale value text
-          const scaleText = `Scale: ${SIN_DEVIL_TRIGGER.BIG_DRAW_SCALE}`;
-          ctx.strokeText(scaleText, p.x + p.w/2, p.y + p.h/2 + finalSize/2 + 30);
-          ctx.fillText(scaleText, p.x + p.w/2, p.y + p.h/2 + finalSize/2 + 30);
-          
-          // Center flash
-          ctx.fillStyle = "#ffff00";
-          ctx.globalAlpha = 1.0;
-          ctx.beginPath();
-          ctx.arc(p.x + p.w/2, p.y + p.h/2, finalSize/4, 0, 2 * Math.PI);
-          ctx.fill();
-        }
-        
-      } else if (p.sdtAnimationPhase === 'transforming') {
-        // TRANSFORMATION GLOW! 💀⚡
-        ctx.globalAlpha = 0.7;
-        ctx.fillStyle = "#8b008b";
-        ctx.beginPath();
-        ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w * 1.5, 0, 2 * Math.PI);
-        ctx.fill();
-        
-        // Transformation sparks
-        for (let i = 0; i < 8; i++) {
-          const angle = (i / 8) * Math.PI * 2 + (performance.now() / 100);
-          const sparkX = p.x + p.w/2 + Math.cos(angle) * (p.w * 1.2);
-          const sparkY = p.y + p.h/2 + Math.sin(angle) * (p.w * 1.2);
-          
-          ctx.fillStyle = "#ff00ff";
-          ctx.beginPath();
-          ctx.arc(sparkX, sparkY, 5, 0, 2 * Math.PI);
-          ctx.fill();
-        }
-      }
+      // STATIONARY SIZE - NO PULSING!
+      const bigDrawSize = p.w * SIN_DEVIL_TRIGGER.BIG_DRAW_SCALE;
+      
+      // PLAYER STANDS ON GROUND - SQUARE EXTENDS UP FROM GROUND! 🎯
+      const squareX = p.x + p.w/2 - bigDrawSize/2;
+      const squareY = p.y + p.h - bigDrawSize; // Square sits on ground like player!
+      
+      // SIMPLE RED SQUARE OUTLINE! 🔥
+      ctx.strokeStyle = "#ff0000"; // RED!
+      ctx.lineWidth = 3;
+      ctx.strokeRect(squareX, squareY, bigDrawSize, bigDrawSize);
+      
+      // SIZE TEXT ABOVE SQUARE! 📏
+      ctx.font = "bold 16px Arial";
+      ctx.fillStyle = "#ff0000";
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1;
+      ctx.textAlign = "center";
+      const sizeText = `${(bigDrawSize/50).toFixed(1)}x Player Size`;
+      ctx.strokeText(sizeText, p.x + p.w/2, squareY - 10);
+      ctx.fillText(sizeText, p.x + p.w/2, squareY - 10);
       
       ctx.restore();
+  
+    
     
       ctx.save();
       
