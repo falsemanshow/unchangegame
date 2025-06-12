@@ -751,13 +751,13 @@ danty: {
   dash: { sprite: "danty-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
   'balrog-dash': { sprite: "danty-balrog-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } },
   // Normal Devil Sword sprites
-  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 1, w: 90, h: 90, speed: 3, duration: 20, offset: { x: 50, y: 10 } },//right offset
-  'devilsword-strike2': { sprite: "danty-devilsword-strike2.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
-  'devilsword-strike3': { sprite: "danty-devilsword-strike3.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
+  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 5, w: 250, h: 250, speed: 8, duration: 20, offset: { x: 50, y: 10 } },//right offset
+  'devilsword-strike2': { sprite: "danty-devilsword-strike2.png", frames: 8,  w: 250, h: 250, speed: 8, duration: 20, offset: { x: 60, y: -10 } },
+  'devilsword-strike3': { sprite: "danty-devilsword-strike3.png", frames: 5, w: 250, h: 250, speed: 8, duration: 20, offset: { x: 60, y: -10 } },
   // Sin devil sword sprties
-  'devilsword-enhanced-strike1': { sprite: "danty-devilsword-enhanced-strike1.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
-  'devilsword-enhanced-strike2': { sprite: "danty-devilsword-enhanced-strike2.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
-  'devilsword-enhanced-strike3': { sprite: "danty-devilsword-enhanced-strike3.png", frames: 1, w: 140, h: 90, speed: 3, duration: 25, offset: { x: 70, y: -15 } },
+  'devilsword-enhanced-strike1': { sprite: "danty-devilsword-enhanced-strike1.png", frames: 5, w: 250, h: 250, speed: 8, duration: 25, offset: { x: 70, y: -15 } },
+  'devilsword-enhanced-strike2': { sprite: "danty-devilsword-enhanced-strike2.png", frames: 8, w: 250, h: 250, speed: 8, duration: 25, offset: { x: 70, y: -15 } },
+  'devilsword-enhanced-strike3': { sprite: "danty-devilsword-enhanced-strike3.png", frames: 5, w: 250, h: 250, speed: 8, duration: 25, offset: { x: 70, y: -15 } },
     // SDT IMPACT EFFECTS 💀🔥
   'sdt-dash': { sprite: "danty-sdt-dash-impact.png", frames: 1, w: 120, h: 100, speed: 2, duration: 30, offset: { x: -20, y: -50 } },
   'sdt-uppercut': { sprite: "danty-sdt-uppercut-impact.png", frames: 2, w: 100, h: 120, speed: 2, duration: 25, offset: { x: -15, y: -60 } },
