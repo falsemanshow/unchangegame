@@ -98,13 +98,25 @@ const SIN_DEVIL_TRIGGER = {
   PIERCE_OFFSET_Y: -200,
   SWORD_FALL_SPEED: 4,
   SDT_DURATION: 900,
-  // SDT Power Boosts
   DAMAGE_MULTIPLIER: 2.0, // Double damage
   SPEED_MULTIPLIER: 1.5,  // 50% faster movement
   DASH_SPEED_MULTIPLIER: 1.8, // 80% faster dash
   FLOAT_HEIGHT: 10, // How much above ground SDT floats
   GRAVITY_REDUCTION: 0.8, // Only slight gravity reduction (was 0.3 - too low!)
   JUMP_MULTIPLIER: 1.0 // Normal jump height in SDT
+};
+const VERGIL_SIN_DEVIL_TRIGGER = {
+  GAUGE_MAX: 100,
+  CHARGE_RATE: 1.2, // Slightly faster than Danty (Vergil is more skilled)
+  ACTIVATION_HOLD_TIME: 1800, // Shorter than Danty (18 frames less)
+  JUDGMENT_CUT_COST: 50, // 50% gauge to use Judgment Cut
+  JUDGMENT_CUT_REQUIREMENT: 50, // Need 50% minimum to execute
+  SDT_DURATION: 600, // Shorter but more intense than Danty
+  DAMAGE_MULTIPLIER: 2.8, // HIGHER than Danty! (Vergil is stronger)
+  SPEED_MULTIPLIER: 2.2,  // FASTER than Danty! ⚡
+  DASH_SPEED_MULTIPLIER: 2.8, // TELEPORT-SPEED! 🌩️
+  STORM_SLASHES_SCALE: 5, // MASSIVE Storm Slashes in SDT! 💀⚡
+  FEAR_AURA_RANGE: 200, // Terrify opponents within this range! 👹
 };
 const SPECTRAL_SWORD = {
   SPAWN_DISTANCE: 100, // How far from Danty it spawns
@@ -1407,10 +1419,17 @@ document.addEventListener("keydown", function(e) {
     if (!p.alive) continue;
     
     const controls = getControls(pid);
-      if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
+        if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
       if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-        // CHECK FOR STORM SLASHES FIRST! ⚡🌩️
-        if (p.stormSlashesReady) {
+        // CHECK FOR VERGIL SDT FIRST! 💀⚡🌩️
+        if (p.vergilSdtGauge >= VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.vergilSdtActive && !p.vergilSdtCharging) {
+          p.vergilSdtCharging = true;
+          p.vergilSdtChargeStart = performance.now();
+          console.log(`${p.name} is charging SIN DEVIL TRIGGER! I AM THE STORM THAT IS APPROACHING! 💀⚡🌩️`);
+          return; // Exit early to prevent other abilities
+        }
+        // CHECK FOR STORM SLASHES SECOND! ⚡🌩️ (only if not SDT charging)
+        else if (p.stormSlashesReady && !p.vergilSdtCharging) {
           // Find nearby enemy for Storm Slashes
           const nearbyEnemy = players.find(enemy => {
             if (enemy === p || !enemy.alive) return false;
@@ -1420,20 +1439,38 @@ document.addEventListener("keydown", function(e) {
           });
           
           if (nearbyEnemy) {
+            // Check if we have enough SDT gauge for Judgment Cut in SDT mode
+            if (p.vergilSdtActive && p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST) {
+              console.log(`${p.name} needs ${VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST}% SDT gauge for Storm Slashes in SDT! 💀❌`);
+              return;
+            }
+            
             // ACTIVATE STORM SLASHES! ⚡⚔️🌩️
             p.stormSlashesActive = true;
-            p.stormSlashesDuration = 50; // 2 seconds of slashing
+            p.stormSlashesDuration = p.vergilSdtActive ? 40 : 30; // Longer in SDT!
             p.stormSlashesAnimationFrame = 0;
             p.stormSlashesAnimationTimer = 0;
             p.stormSlashesTarget = nearbyEnemy;
             p.stormSlashesReady = false;
             p.stormSlashesTimer = 0;
-          
-          } else {
-           
+            
+            // Consume SDT gauge if in SDT mode
+            if (p.vergilSdtActive) {
+              p.vergilSdtGauge -= VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST;
+              console.log(`${p.name} unleashes SDT STORM SLASHES! 💀⚡🌩️ Gauge: ${p.vergilSdtGauge}%`);
+            } else {
+              console.log(`${p.name} unleashes Storm Slashes! ⚡🌩️`);
+            }
           }
         }
-        else if (p.onGround) {
+        // JUDGMENT CUT (only if not charging SDT and has required gauge)
+        else if (p.onGround && !p.vergilSdtCharging) {
+          // Check SDT gauge requirement for Judgment Cut
+          if (p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_REQUIREMENT) {
+            console.log(`${p.name} needs ${VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_REQUIREMENT}% SDT gauge for Judgment Cut! Current: ${p.vergilSdtGauge.toFixed(0)}% ⚡❌`);
+            return;
+          }
+          
           if (isOpponentInJudgmentCutRange(p)) {
             p.judgmentCutCharging = true;
             p.judgmentCutChargeStart = performance.now();
@@ -1441,12 +1478,14 @@ document.addEventListener("keydown", function(e) {
             p.animState = "charging";
             p.animFrame = 0;
             p.animTimer = 0;
+            console.log(`${p.name} charging Judgment Cut! Gauge: ${p.vergilSdtGauge.toFixed(0)}% ⚔️⚡`);
           } else {
             rangeWarningText.show = true;
             rangeWarningText.timer = 60;
           }
         }
       } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        // Rest of Beowulf logic stays the same... else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
         if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
           p.beowulfCharging = true;
           p.beowulfChargeStart = performance.now();
@@ -2193,11 +2232,14 @@ if (isBlocking) {
     
     interruptDantyCharging(opp); // Add this line! 😈⚔️
 let damage = DASH_DAMAGE;
-if (p.charId === 'danty' && p.sdtActive) {
+if (p.charId === 'vergil' && p.vergilSdtActive) {
+  damage = Math.floor(DASH_DAMAGE * VERGIL_SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER); // VERGIL SDT DAMAGE! 💀⚡💥
+  console.log(`${p.name}'s VERGIL SDT DEVASTATING DAMAGE! ${damage} instead of ${DASH_DAMAGE} 💀⚡🌩️`);
+} else if (p.charId === 'danty' && p.sdtActive) {
   damage = Math.floor(DASH_DAMAGE * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER); // DOUBLE DAMAGE IN SDT 💀💥
   console.log(`${p.name}'s SDT DOUBLE DAMAGE! ${damage} instead of ${DASH_DAMAGE} 💀💥🔥`);
 } else if (p.charId === 'danty' && p.devilSwordUpgraded) {
-  damage = Math.floor(DASH_DAMAGE * 1.5); // 50% extra damage when upgraded
+  damage = Math.floor(DASH_DAMAGE * 1.2); // 50% extra damage when upgraded
   console.log(`${p.name}'s upgraded weapon deals extra damage! ${damage} instead of ${DASH_DAMAGE} 😈💥`);
 }
 opp.hp -= damage;
@@ -2605,6 +2647,70 @@ if (effect.phase === 'slide') {
       }
     }
 
+    // VERGIL SDT SYSTEM! 💀⚡🌩️
+    if (p.vergilSdtActive) {
+      p.vergilSdtTimer--;
+      if (p.vergilSdtTimer <= 0) {
+        p.vergilSdtActive = false;
+        p.vergilSdtAnimationPhase = null;
+        p.vergilSdtFearAura = false;
+        console.log(`${p.name} returns from the storm... The power fades... ⚡➡️⚔️`);
+      } else {
+        // FEAR AURA EFFECT! 👹💀
+        p.vergilSdtFearAura = true;
+        
+        // Terrify nearby opponents! 👹
+        for (let enemy of players) {
+          if (enemy !== p && enemy.alive) {
+            const dx = Math.abs(enemy.x + enemy.w/2 - (p.x + p.w/2));
+            const dy = Math.abs(enemy.y + enemy.h/2 - (p.y + p.h/2));
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distance <= VERGIL_SIN_DEVIL_TRIGGER.FEAR_AURA_RANGE) {
+              // Add fear trembling effect
+              enemy.x += (Math.random() - 0.5) * 2;
+              enemy.y += (Math.random() - 0.5) * 1;
+            }
+          }
+        }
+      }
+    }
+    
+    // SDT Animation phases
+    if (p.vergilSdtAnimationPhase === 'lightning_strike') {
+      p.vergilSdtLightningY += 6;
+      if (p.vergilSdtLightningY >= p.y + p.h/2) {
+        p.vergilSdtAnimationPhase = 'explosion';
+        p.vergilSdtExplosionTimer = 25;
+        console.log(`${p.name} is struck by divine lightning! 💀⚡💥`);
+      }
+    } else if (p.vergilSdtAnimationPhase === 'explosion') {
+      p.vergilSdtExplosionTimer--;
+      if (p.vergilSdtExplosionTimer <= 0) {
+        p.vergilSdtAnimationPhase = 'active';
+        p.vergilSdtActive = true;
+        p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
+        p.vergilSdtFearAura = true;
+        console.log(`${p.name} HAS AWAKENED! I AM THE STORM! ⚡💀👹🌩️`);
+      }
+    }
+    
+    // Vergil SDT gauge charging (when holding special with Yamato and not in combat)
+    if (p.currentWeapon === VERGIL_WEAPONS.YAMATO && !p.vergilSdtActive && p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX) {
+      // Only charge when holding special key
+      const specialKey = pid === 0 ? 'e' : 'p';
+      if (keys[specialKey] && !p.judgmentCutCharging && !p.stormSlashesActive && p.onGround) {
+        p.vergilSdtGauge += VERGIL_SIN_DEVIL_TRIGGER.CHARGE_RATE;
+        if (p.vergilSdtGauge > VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX) {
+          p.vergilSdtGauge = VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX;
+        }
+        // Only log occasionally to avoid spam
+        if (Math.floor(p.vergilSdtGauge) % 10 === 0) {
+          console.log(`${p.name} is charging SDT gauge: ${p.vergilSdtGauge.toFixed(0)}% I AM THE STORM! ⚡💀`);
+        }
+      }
+    }
+
     if (p.charId === 'vergil' && (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
                                   p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING ||
                                   p.judgmentCutCharging ||
@@ -2936,7 +3042,13 @@ if (p.inHitstun) {
   // NORMAL PLAYER MOVEMENT
   else if (!p.inHitstun) {
     // SDT SPEED BOOST 🔥⚡
-    const moveSpeed = (p.charId === 'danty' && p.sdtActive) ? PLAYER_SPEED * SIN_DEVIL_TRIGGER.SPEED_MULTIPLIER : PLAYER_SPEED;
+       // SDT SPEED BOOST 🔥⚡💀
+    let moveSpeed = PLAYER_SPEED;
+    if (p.charId === 'vergil' && p.vergilSdtActive) {
+      moveSpeed = PLAYER_SPEED * VERGIL_SIN_DEVIL_TRIGGER.SPEED_MULTIPLIER; // VERGIL SDT SPEED! ⚡💀
+    } else if (p.charId === 'danty' && p.sdtActive) {
+      moveSpeed = PLAYER_SPEED * SIN_DEVIL_TRIGGER.SPEED_MULTIPLIER; // DANTY SDT SPEED! 💀🔥
+    }
     
     if (keys[controls.left] && !keys[controls.right] && !p.blocking && !p.inHitstun) {
       p.vx = -moveSpeed; p.facing = -1;
@@ -3506,6 +3618,17 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     stormSlashesDuration: 0,
     stormSlashesTarget: null,
     teleportAlpha: 1.0,
+        // VERGIL SIN DEVIL TRIGGER! 💀⚡🌩️
+    vergilSdtGauge: 0,
+    vergilSdtActive: false,
+    vergilSdtTimer: 0,
+    vergilSdtCharging: false,
+    vergilSdtChargeStart: 0,
+    vergilSdtAnimationPhase: null,
+    vergilSdtLightningX: 0,
+    vergilSdtLightningY: 0,
+    vergilSdtExplosionTimer: 0,
+    vergilSdtFearAura: false,
  devilSwordGauge: 0,
 devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
@@ -3541,6 +3664,17 @@ sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
     stormSlashesAnimationTimer: 0,
     stormSlashesDuration: 0,
     stormSlashesTarget: null,
+       
+    vergilSdtGauge: 0,
+    vergilSdtActive: false,
+    vergilSdtTimer: 0,
+    vergilSdtCharging: false,
+    vergilSdtChargeStart: 0,
+    vergilSdtAnimationPhase: null,
+    vergilSdtLightningX: 0,
+    vergilSdtLightningY: 0,
+    vergilSdtExplosionTimer: 0,
+    vergilSdtFearAura: false,
 devilSwordGauge: 0,
 devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
@@ -3691,7 +3825,9 @@ function draw() {
           const frameWidth = vergilStormSlashesSprite.naturalWidth / stormAnim.frames;
           const frameHeight = vergilStormSlashesSprite.naturalHeight;
 
-          const stormScale = PLAYER_SIZE * 3; 
+                    const stormScale = player.vergilSdtActive ? 
+            PLAYER_SIZE * VERGIL_SIN_DEVIL_TRIGGER.STORM_SLASHES_SCALE : // MASSIVE in SDT! 💀⚡
+            PLAYER_SIZE * 3; // Normal size
           const spriteWidth = stormScale;
           const spriteHeight = stormScale;
           
@@ -4483,20 +4619,68 @@ document.addEventListener("keydown", function(e) {
   // Initialize audio on first keypress (required for autoplay policy)
   initializeAudio();
   
-  if (e.key === "1") {
+   if (e.key === "1") {
     const p = players[0];
     p.charId = "vergil";
     p.name = "Vergil";
     p.color = "#4a90e2";
     p.judgementCutCooldown = 0;
-    console.log("Player 1 is now Vergil! Q=Switch Weapon, E=Judgment Cut(Yamato)");
+    
+    // RESET ALL VERGIL PROPERTIES! ⚔️⚡
+    p.currentWeapon = VERGIL_WEAPONS.YAMATO;
+    p.judgmentCutCharging = false;
+    p.judgmentCutChargeStart = 0;
+    p.judgmentCutChargeLevel = 0;
+    p.beowulfCharging = false;
+    p.beowulfChargeStart = 0;
+    p.beowulfChargeType = null;
+    p.stormSlashesReady = false;
+    p.stormSlashesActive = false;
+    p.mirageActive = false;
+    
+    // RESET DANTY PROPERTIES TOO!
+    p.devilSwordGauge = 0;
+    p.devilSwordUpgraded = false;
+    p.devilSwordActivating = false;
+    p.sdtActive = false;
+    p.sdtCharging = false;
+    p.balrogCharging = false;
+    if (p.spectralSword) destroySpectralSword(p);
+    
+    console.log("Player 1 is now Vergil! ALL PROPERTIES RESET! Q=Switch Weapon, E=Judgment Cut(Yamato) ⚔️⚡");
   }
-   if (e.key === "2") {
+    if (e.key === "2") {
     const p = players[0];
     p.charId = "danty";
     p.name = "Danty";
    p.color = "#ef5350"; 
     p.judgementCutCooldown = 0;
+    
+    // RESET ALL DANTY PROPERTIES! 😈⚔️
+    p.currentWeapon = DANTY_WEAPONS.DEVIL_SWORD;
+    p.devilSwordGauge = 0;
+    p.devilSwordUpgraded = false;
+    p.devilSwordActivating = false;
+    p.devilSwordActivationStart = 0;
+    p.devilSwordComboHits = 0;
+    p.devilSwordPhase = 0;
+    p.sdtActive = false;
+    p.sdtCharging = false;
+    p.sdtGauge = 0;
+    p.balrogCharging = false;
+    p.balrogChargeStart = 0;
+    p.balrogChargeType = null;
+    if (p.spectralSword) destroySpectralSword(p);
+    
+    // RESET VERGIL PROPERTIES TOO!
+    p.judgmentCutCharging = false;
+    p.judgmentCutChargeStart = 0;
+    p.beowulfCharging = false;
+    p.stormSlashesReady = false;
+    p.stormSlashesActive = false;
+    p.mirageActive = false;
+    
+    console.log("Player 1 is now Danty! ALL PROPERTIES RESET! Q=Switch Weapon, E=Devil Trigger 😈⚔️");
   }
   
   if (e.key === "3") {
@@ -4505,13 +4689,62 @@ document.addEventListener("keydown", function(e) {
     p.name = "Vergil";
     p.color = "#4a90e2";
     p.judgementCutCooldown = 0;
+    
+    // RESET ALL VERGIL PROPERTIES FOR PLAYER 2! ⚔️⚡
+    p.currentWeapon = VERGIL_WEAPONS.YAMATO;
+    p.judgmentCutCharging = false;
+    p.judgmentCutChargeStart = 0;
+    p.judgmentCutChargeLevel = 0;
+    p.beowulfCharging = false;
+    p.beowulfChargeStart = 0;
+    p.beowulfChargeType = null;
+    p.stormSlashesReady = false;
+    p.stormSlashesActive = false;
+    p.mirageActive = false;
+    
+    // RESET DANTY PROPERTIES TOO!
+    p.devilSwordGauge = 0;
+    p.devilSwordUpgraded = false;
+    p.devilSwordActivating = false;
+    p.sdtActive = false;
+    p.sdtCharging = false;
+    p.balrogCharging = false;
+    if (p.spectralSword) destroySpectralSword(p);
+    
+    console.log("Player 2 is now Vergil! ALL PROPERTIES RESET! I=Switch Weapon, P=Judgment Cut(Yamato) ⚔️⚡");
   }
-   if (e.key === "4") {
+    if (e.key === "4") {
     const p = players[1];
-    p.charId = "chicken";
+    p.charId = "danty"; // FIXED: Should be danty, not chicken! 
     p.name = "Danty";
    p.color = "#ef5350"; 
     p.judgementCutCooldown = 0;
+    
+    // RESET ALL DANTY PROPERTIES FOR PLAYER 2! 😈⚔️
+    p.currentWeapon = DANTY_WEAPONS.DEVIL_SWORD;
+    p.devilSwordGauge = 0;
+    p.devilSwordUpgraded = false;
+    p.devilSwordActivating = false;
+    p.devilSwordActivationStart = 0;
+    p.devilSwordComboHits = 0;
+    p.devilSwordPhase = 0;
+    p.sdtActive = false;
+    p.sdtCharging = false;
+    p.sdtGauge = 0;
+    p.balrogCharging = false;
+    p.balrogChargeStart = 0;
+    p.balrogChargeType = null;
+    if (p.spectralSword) destroySpectralSword(p);
+    
+    // RESET VERGIL PROPERTIES TOO!
+    p.judgmentCutCharging = false;
+    p.judgmentCutChargeStart = 0;
+    p.beowulfCharging = false;
+    p.stormSlashesReady = false;
+    p.stormSlashesActive = false;
+    p.mirageActive = false;
+    
+    console.log("Player 2 is now Danty! ALL PROPERTIES RESET! I=Switch Weapon, P=Devil Trigger 😈⚔️");
   }
 });
 
