@@ -3645,10 +3645,9 @@ function draw() {
 
          // Draw slashing animation - MASSIVE SCALE! 💥⚔️
   for (let player of players) {
-     if (player.charId === 'vergil' && 
+        if (player.charId === 'vergil' && 
       (player.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
-       (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines') ||
-       player.stormSlashesActive)) {
+       (player.judgementCutEffect && player.judgementCutEffect.phase === 'lines'))) {
       // Show slashes DURING both slashing phase AND lines phase! ⚔️✨
       ctx.save();
       
@@ -4430,13 +4429,9 @@ function gameLoop() {
         (p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING || 
          (p.judgementCutEffect && p.judgementCutEffect.phase === 'lines'))) {
       p.slashAnimationTimer++;
-      if (p.slashAnimationTimer >= 3) {
+      if (p.slashAnimationTimer >= 1) {
         p.slashAnimationTimer = 0;
         p.slashAnimationFrame++;
-        const slashAnim = characterSprites.vergil.slashing;
-        if (slashAnim && p.slashAnimationFrame >= slashAnim.frames) {
-          p.slashAnimationFrame = 0; // Loop the slashing animation!
-        }
       }
     }
     
