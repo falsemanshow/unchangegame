@@ -69,13 +69,15 @@ const VERGIL_WEAPONS = {
     MIRAGE_BLADE: 'mirage_blade'
 };
 const MIRAGE_BLADE_CONFIG = {//mirage slash
-    WIDTH: 100,      
-    HEIGHT: 85,      
+    WIDTH: 200,      
+    HEIGHT: 200,      
     DURATION: 180,    
     ALPHA_START: 0.9,  
     ALPHA_END: 0.1,    
     SCALE_START: 1.0,
-    SCALE_END: 1.0     
+    SCALE_END: 1.0,
+     FRAMES: 8,        // Number of frames in the sprite sheet
+    FRAME_SPEED: 8,       
 };
 const DANTY_WEAPONS = {
     DEVIL_SWORD: 'devil_sword',
@@ -770,6 +772,16 @@ function handleMirageBladeAttack() {
     const opp = players[1 - i];
     if (!p.alive || !opp.alive || !p.mirageActive) continue;
 
+    // Update frame animation - NO LOOPING!
+    p.mirageSlashFrameTimer++;
+    if (p.mirageSlashFrameTimer >= MIRAGE_BLADE_CONFIG.FRAME_SPEED) {
+      p.mirageSlashFrameTimer = 0;
+      if (p.mirageSlashFrame < MIRAGE_BLADE_CONFIG.FRAMES - 1) {
+        p.mirageSlashFrame++; // Only advance if not at last frame
+      }
+      // Frame stays at last frame (no looping)
+    }
+
     const slashW = p.mirageSlashW || 200; // Use custom width
     const slashH = p.mirageSlashH || 100; // Use custom height
     const sx = p.mirageSlashX;
@@ -797,6 +809,8 @@ function handleMirageBladeAttack() {
     } else {
       p.mirageActive = false;
       p.mirageHasHit = false; // Reset for next slash
+      p.mirageSlashFrame = 0;      // Reset frame
+      p.mirageSlashFrameTimer = 0; // Reset frame timer
       console.log(`${p.name}'s Mirage Blade slash fades away! ✨💨`);
     }
   }
@@ -2615,16 +2629,19 @@ if (p.charId === 'vergil' && p.mirageSlashing) {
     p.mirageTimer = MIRAGE_BLADE_CONFIG.DURATION;
     p.mirageMaxTimer = MIRAGE_BLADE_CONFIG.DURATION;
     p.mirageHasHit = false;
+    p.mirageSlashFrame = 0;      // Initialize frame
+p.mirageSlashFrameTimer = 0; // Initialize frame timer
     
     // Use config dimensions
-    const slashW = MIRAGE_BLADE_CONFIG.WIDTH;
-    const slashH = MIRAGE_BLADE_CONFIG.HEIGHT;
+    const slashW = 120;
+    const slashH = 120;
     
     p.mirageSlashW = slashW;
     p.mirageSlashH = slashH;
     
-    p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
+     p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
     p.mirageSlashY = p.y + (p.h - slashH)/2;
+    p.mirageSlashFacing = p.facing; // Store the facing direction when slash is created
     
     console.log(`${p.name} releases the Mirage Blade! Slash appears! 🗡️💨✨`);
   }
@@ -3636,13 +3653,13 @@ parrySound.volume = 1.0; // Adjust volume as needed
 // SIMPLE DEFAULT MUSIC SYSTEM 🎵🔥
 const defaultFightMusic = new Audio();
 defaultFightMusic.src = "sounds/default-fight-music.ogg"; // or .mp3
-defaultFightMusic.volume = 0.3; // Good volume for battle
+defaultFightMusic.volume = 0.1; // Good volume for battle
 defaultFightMusic.loop = true;
 
 // VERGIL'S LEGENDARY JUDGMENT CUT SOUND! ⚡⚔️🎵
 const judgmentCutSound = new Audio();
 judgmentCutSound.src = "sounds/iamthestormthatisapproaching.ogg";
-judgmentCutSound.volume = 0.8; // EPIC VOLUME! 🔥
+judgmentCutSound.volume = 0.7; // EPIC VOLUME! 🔥
 // No loop - let it play until it naturally ends! 🎭
 
 let musicInitialized = false;
@@ -3751,21 +3768,19 @@ const characterSprites = {
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
       attack: { src: "vergil-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
   attack_air: { src: "vergil-attack-air.png", frames: 1, w: 100, h: 100, speed: 2 },
-  hit: { src: "vergil-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
+  hit: { src: "vergil-idle.png", frames: 1, w: 100, h: 100, speed: 8 },
   dizzy: { src: "vergil-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
   defeat: { src: "vergil-defeat.png", frames: 1, w: 100, h: 100, speed: 10 },
   victory: { src: "vergil-victory.png", frames: 1, w: 100, h: 100, speed: 6 },
-    sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
+    sheathing: { src: "vergil-sheathing.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
       'storm-slashes': { src: "vergil-storm-slashes.png", frames: 10, w: 200, h: 200, speed: 10 }, 
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
      'beowulf-hit': { src: "vergil-beowulf-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
-    'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
-    'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
-    'beowulf-block': { src: "vergil-beowulf-block.png", frames: 3, w: 100, h: 100, speed: 6 },
-    'beowulf-blocking': { src: "vergil-beowulf-blocking.png", frames: 2, w: 100, h: 100, speed: 8 },
+    'beowulf-idle': { src: "vergil-beowulf-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+    'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 2, w: 100, h: 100, speed: 5 },
+    'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 8, w: 100, h: 100, speed: 6 },
     'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-charging': { src: "vergil-beowulf-charging.png", frames: 4, w: 100, h: 100, speed: 8 },
@@ -3783,11 +3798,11 @@ const characterSprites = {
   'mirage-defeat': { src: "vergil-mirage-defeat.png", frames: 1, w: 100, h: 100, speed: 10 },
   'mirage-victory': { src: "vergil-mirage-victory.png", frames: 1, w: 100, h: 100, speed: 6 },
     'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
+    'mirage-dash': { src: "vergil-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
      'mirage-attack': { src: "vergil-mirage-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
   'mirage-attack_air': { src: "vergil-mirage-attack-air.png", frames: 1, w: 100, h: 100, speed: 2 },
-  'mirage-slash': { src: "mirage-slash.png", frames: 3, w: 100, h: 100, speed: 5 },
+  'mirage-slash': { src: "mirage-slash.png", frames: 3, w: 100, h: 100, speed: 8 },
     
    // VERGIL SDT EXCLUSIVE SPRITES! 
 'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
@@ -3882,6 +3897,8 @@ const players = [
     mirageSlashing: false,
 mirageSlashTimer: 0,
 sdtSwordX: 0,
+mirageSlashFrame: 0,       // Current frame
+mirageSlashFrameTimer: 0, 
 sdtExplosionTimer: 0,
 // Spectral Sword properties
 spectralSword: null, // The floating sword entity
@@ -3901,6 +3918,7 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     mirageHasHit: false, mirageMaxTimer: 0, teleportTrail: null, isTeleporting: false,
         // STORM SLASHES ABILITY! ⚡⚔️🌩️
     stormSlashesReady: false,
+    mirageSlashFacing: 1, 
     stormSlashesTimer: 0,
     stormSlashesActive: false,
     stormSlashesAnimationFrame: 0,
@@ -3914,6 +3932,8 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     vergilSdtTimer: 0,
     vergilSdtCharging: false,
     vergilSdtChargeStart: 0,
+    mirageSlashFrame: 0,       // Current frame
+mirageSlashFrameTimer: 0, 
     vergilSdtAnimationPhase: null,
     vergilSdtLightningX: 0,
     vergilSdtLightningY: 0,
@@ -3951,6 +3971,7 @@ sdtTransformTimer: 0,
         // STORM SLASHES ABILITY! ⚡⚔️🌩️
     stormSlashesReady: false,
     vergilSdtBigDrawTimer: 0,
+    mirageSlashFacing: -1, 
     mirageSlashing: false,
 mirageSlashTimer: 0,
     stormSlashesTimer: 0,
@@ -4639,7 +4660,7 @@ ctx.restore();
 
   }
   
-   // Draw Mirage Blade slash - WITH FADE EFFECT! ✨
+  // Draw Mirage Blade slash - WITH FACING AND NON-LOOPING ANIMATION! ✨⚔️
   for (let p of players) {
     if (p.charId === 'vergil' && p.mirageActive) {
       ctx.save();
@@ -4669,14 +4690,79 @@ ctx.restore();
       const scaledX = centerX - scaledW/2;
       const scaledY = centerY - scaledH/2;
       
-      ctx.drawImage(img, scaledX, scaledY, scaledW, scaledH);
+      // Draw the animated frame with proper facing
+      if (img.complete && img.naturalWidth > 0) {
+        // Calculate frame position in sprite sheet
+        const frameWidth = img.naturalWidth / MIRAGE_BLADE_CONFIG.FRAMES;
+        const frameHeight = img.naturalHeight;
+        const frameX = frameWidth * p.mirageSlashFrame;
+        
+        // Handle facing direction (image faces left by default)
+        if (p.mirageSlashFacing === 1) {
+          // Player facing right, need to flip the left-facing image
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.scale(-1, 1); // Flip horizontally
+          ctx.translate(-scaledW/2, -scaledH/2);
+          ctx.drawImage(
+            img,
+            frameX, 0,                    // Source position
+            frameWidth, frameHeight,      // Source size
+            0, 0,                        // Destination position (after transform)
+            scaledW, scaledH             // Destination size
+          );
+          ctx.restore();
+        } else {
+          // Player facing left, use image as-is
+          ctx.drawImage(
+            img,
+            frameX, 0,                    // Source position
+            frameWidth, frameHeight,      // Source size
+            scaledX, scaledY,            // Destination position
+            scaledW, scaledH             // Destination size
+          );
+        }
+      } else {
+        // Fallback if image not loaded
+        ctx.fillStyle = `rgba(0, 255, 255, ${alpha})`;
+        ctx.fillRect(scaledX, scaledY, scaledW, scaledH);
+      }
       
-      // Add glow effect for extra epicness! 🌟
-      if (timeProgress < 0.3) { // Only glow during first 30% of lifetime
-        ctx.globalAlpha = 0.3;
+      // Add animated glow effect for extra epicness! 🌟
+      if (timeProgress < 0.3) {
+        ctx.globalAlpha = 0.3 * (1 - timeProgress * 3.33); // Fade glow faster
         ctx.shadowColor = "#00ffff";
-        ctx.shadowBlur = 20;
-        ctx.drawImage(img, scaledX, scaledY, scaledW, scaledH);
+        ctx.shadowBlur = 20 + Math.sin(performance.now() / 100) * 5; // Pulsing glow
+        
+        if (img.complete && img.naturalWidth > 0) {
+          const frameWidth = img.naturalWidth / MIRAGE_BLADE_CONFIG.FRAMES;
+          const frameHeight = img.naturalHeight;
+          const frameX = frameWidth * p.mirageSlashFrame;
+          
+          // Apply same facing logic for glow
+          if (p.mirageSlashFacing === 1) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.scale(-1, 1);
+            ctx.translate(-scaledW/2, -scaledH/2);
+            ctx.drawImage(
+              img,
+              frameX, 0,
+              frameWidth, frameHeight,
+              0, 0,
+              scaledW, scaledH
+            );
+            ctx.restore();
+          } else {
+            ctx.drawImage(
+              img,
+              frameX, 0,
+              frameWidth, frameHeight,
+              scaledX, scaledY,
+              scaledW, scaledH
+            );
+          }
+        }
       }
       
       ctx.restore();
