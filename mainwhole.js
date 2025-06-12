@@ -1,6 +1,5 @@
 // ==================== COMPREHENSIVE SOUND SYSTEM ====================
 
-// Audio objects for all sound effects
 const audioSystem = {
     // Dash sounds
     vergilDash: null,
@@ -30,10 +29,13 @@ const audioSystem = {
     dantyPhase1Hit: null,
     dantyPhase2Hit: null,
     dantyPhase3Hit: null,
-    dantyPhase3EnhancedHit: null
+    dantyPhase3EnhancedHit: null,
+    
+    // Victory sounds
+    goldVictory: null  
 };
 
-// Initialize all audio files
+// Initialize all audio files sound
 function initializeAudioSystem() {
     try {
         // Dash sounds
@@ -65,6 +67,7 @@ function initializeAudioSystem() {
         audioSystem.dantyPhase2Hit = new Audio('./sounds/danty_phase2_hit.mp3');
         audioSystem.dantyPhase3Hit = new Audio('./sounds/danty_phase3_hit.mp3');
         audioSystem.dantyPhase3EnhancedHit = new Audio('./sounds/danty_phase3_enhanced_hit.mp3');
+        audioSystem.goldVictory = new Audio('./sounds/gold_victory.mp3');
         
         // Set volume for all sounds
         Object.values(audioSystem).forEach(audio => {
@@ -144,6 +147,10 @@ function playDantyPhaseHitSound(phase, isEnhanced = false) {
         }
     }
 }
+
+function playGoldVictorySound() { 
+    playSound('goldVictory', 1.5); // Slightly louder for victory celebration
+}  // ADD THIS ENTIRE FUNCTION
 
 // Bridge functions for character select integration
 window.initializeGameWithCharacters = function(player1Char, player2Char) {
@@ -717,9 +724,9 @@ const JUDGEMENT_CUT_CONSTANTS = {
 let gameState = { paused: false, pauseReason: null, pauseStartTime: 0 };
 
 let cameraZoomEffect = {
-    active: false, startZoom: 1, targetZoom: 1.6, currentZoom: 1,
+    active: false, startZoom: 1, targetZoom: 1.8, currentZoom: 1,
     phase: 'idle', startTime: 0,
-    duration: { zoomIn: 3000, hold: 3630, zoomOut: 450 }
+    duration: { zoomIn: 3000, hold: 3730, zoomOut: 450 }
 };
 
 const impactEffects = [];
@@ -1916,7 +1923,7 @@ const AbilityLibrary = {
                 character.animFrame = 0;
                 character.animTimer = 0;
             }
-        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION +6000);
+        }, JUDGEMENT_CUT_CONSTANTS.LINE_DISPLAY_DURATION +6500);
         
         return true;
     }
@@ -2890,40 +2897,45 @@ opp.hp -= damage;
       // Calculate current phase (cycles 1→2→3→1→2→3...)
       p.devilSwordPhase = ((p.devilSwordComboHits - 1) % 3) + 1;
       
-      // Create appropriate effect and log based on phase
-         // Create appropriate effect and log based on phase and enhancement state
-      let effectType = "";
-      if (p.devilSwordUpgraded) {
-        // Enhanced Devil Sword (Devil Trigger mode)
-        if (p.devilSwordPhase === 1) {
-          effectType = 'devilsword-enhanced-strike1';
-          console.log(`${p.name}'s ENHANCED Devil Sword - First Strike! 😈🔥⚔️ (Enhanced Phase 1)`);
-           playDantyPhaseHitSound(1, p.devilSwordUpgraded);
-  playPlayerHurtSound();
-        } else if (p.devilSwordPhase === 2) {
-          effectType = 'devilsword-enhanced-strike2';
-          console.log(`${p.name}'s ENHANCED Devil Sword - Second Strike! 😈🔥⚔️⚔️ (Enhanced Phase 2)`);
-           playDantyPhaseHitSound(1, p.devilSwordUpgraded);
-  playPlayerHurtSound();
-        } else if (p.devilSwordPhase === 3) {
-          effectType = 'devilsword-enhanced-strike3';
-           playDantyPhaseHitSound(1, p.devilSwordUpgraded);
-  playPlayerHurtSound();
-          console.log(`${p.name}'s ENHANCED Devil Sword - DEVASTATING PENETRATION! 😈🔥👻⚔️ (Enhanced Phase 3)`);
-        }
-      } else {
-        // Normal Devil Sword
-        if (p.devilSwordPhase === 1) {
-          effectType = 'devilsword-strike1';
-          console.log(`${p.name}'s Devil Sword - First Strike! 😈⚔️ (Phase 1)`);
-        } else if (p.devilSwordPhase === 2) {
-          effectType = 'devilsword-strike2';
-          console.log(`${p.name}'s Devil Sword - Second Strike! 😈⚔️⚔️ (Phase 2)`);
-        } else if (p.devilSwordPhase === 3) {
-          effectType = 'devilsword-strike3';
-          console.log(`${p.name}'s Devil Sword - PENETRATING STRIKE! Passes through blocks! 😈👻⚔️ (Phase 3)`);
-        }
-      }
+      // Create appropriate effect and log based on phase and enhancement state
+let effectType = "";
+if (p.devilSwordUpgraded) {
+  // Enhanced Devil Sword (Devil Trigger mode)
+  if (p.devilSwordPhase === 1) {
+    effectType = 'devilsword-enhanced-strike3';
+    console.log(`${p.name}'s ENHANCED Devil Sword - First Strike! 😈🔥⚔️ (Enhanced Phase 1)`);
+    playDantyPhaseHitSound(3, true); // true = enhanced
+    playPlayerHurtSound();
+  } else if (p.devilSwordPhase === 2) {
+    effectType = 'devilsword-enhanced-strike3';
+    console.log(`${p.name}'s ENHANCED Devil Sword - Second Strike! 😈🔥⚔️⚔️ (Enhanced Phase 2)`);
+    playDantyPhaseHitSound(3, true); // true = enhanced
+    playPlayerHurtSound();
+  } else if (p.devilSwordPhase === 3) {
+    effectType = 'devilsword-enhanced-strike3';
+    playDantyPhaseHitSound(3, true); // true = enhanced
+    playPlayerHurtSound();
+    console.log(`${p.name}'s ENHANCED Devil Sword - DEVASTATING PENETRATION! 😈🔥👻⚔️ (Enhanced Phase 3)`);
+  }
+} else {
+  // Normal Devil Sword
+  if (p.devilSwordPhase === 1) {
+    effectType = 'devilsword-strike1';
+    playDantyPhaseHitSound(1, false); // false = normal
+    playPlayerHurtSound();
+    console.log(`${p.name}'s Devil Sword - First Strike! 😈⚔️ (Phase 1)`);
+  } else if (p.devilSwordPhase === 2) {
+    effectType = 'devilsword-strike2';
+    playDantyPhaseHitSound(2, false); // false = normal
+    playPlayerHurtSound();
+    console.log(`${p.name}'s Devil Sword - Second Strike! 😈⚔️⚔️ (Phase 2)`);
+  } else if (p.devilSwordPhase === 3) {
+    effectType = 'devilsword-strike3';
+    playDantyPhaseHitSound(3, false); // false = normal
+    playPlayerHurtSound();
+    console.log(`${p.name}'s Devil Sword - PENETRATING STRIKE! Passes through blocks! 😈👻⚔️ (Phase 3)`);
+  }
+}
       
       createImpactEffect(p, opp, effectType);
       
@@ -3008,23 +3020,29 @@ opp.hp -= damage;
       }
     }
     
-        if (opp.hp <= 0) { 
-        opp.hp = 0; 
-        opp.alive = false; 
-        
-        if (p.hp <= 0) {
-          p.hp = 0;
-          p.alive = false;
-          winner = "draw";
-          console.log("💀 DOUBLE KO! Both players defeated!");
-          // Stop all music for dramatic effect
-          if (currentMusic) {
-            currentMusic.pause();
-          }
-        } else {
-          winner = p.id;
-        }
+      if (opp.hp <= 0) { 
+    opp.hp = 0; 
+    opp.alive = false; 
+    
+    // Play victory sound for gold character
+    if (p.charId === 'gold') {
+        playGoldVictorySound();
+        console.log(`🏆 ${p.name} achieves GOLDEN VICTORY! 🥇✨`);
+    }
+    
+    if (p.hp <= 0) {
+      p.hp = 0;
+      p.alive = false;
+      winner = "draw";
+      console.log("💀 DOUBLE KO! Both players defeated!");
+      // Stop all music for dramatic effect
+      if (currentMusic) {
+        currentMusic.pause();
       }
+    } else {
+      winner = p.id;
+    }
+  }
     p.hasDashHit = true;
   }
 }
@@ -4326,28 +4344,30 @@ const characterSprites = {
     walk: { src: "gold-walk.png", frames: 10, w: 50, h: 50, speed: 4 },
     jump: { src: "gold-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
     fall: { src: "gold-fall.png", frames: 1, w: 50, h: 50, speed: 7 },
-    attack: { src: "gold-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
-    attack_air: { src: "gold-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
-    block: { src: "gold-block.png", frames: 2, w: 38, h: 38, speed: 6 },
-    hit: { src: "gold-hit.png", frames: 2, w: 38, h: 38, speed: 8 },
-    dizzy: { src: "gold-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
+    attack: { src: "gold-attack.png", frames: 3, w: 50, h: 50, speed: 2 },
+    attack_air: { src: "gold-attack-air.png", frames: 2, w: 50, h: 50, speed: 2 },
+    block: { src: "gold-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
+     blocking: { src: "gold-jump.png", frames: 1, w: 50, h: 50, speed: 6 },
+    hit: { src: "gold-idle.png", frames: 2, w: 50, h: 50, speed: 8 },
+    dizzy: { src: "gold-idle.png", frames: 3, w: 50, h: 50, speed: 8 },
     dash: { src: "gold-dash.png", frames: 2, w: 50, h: 50, speed: 3 },
-    defeat: { src: "gold-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
-    victory: { src: "gold-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
+    defeat: { src: "gold-fall.png", frames: 1, w: 50, h: 50, speed: 10 },
+    victory: { src: "gold-jump.png", frames: 3, w: 50, h: 50, speed: 2 }
   },
   chicken: {
     idle: { src: "chicken-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
     walk: { src: "chicken-walk.png", frames: 7, w: 50, h: 50, speed: 4 },
     jump: { src: "chicken-jump.png", frames: 4, w: 50, h: 50, speed: 6 },
     fall: { src: "chicken-fall.png", frames: 3, w: 50, h: 50, speed: 15 },
-    attack: { src: "chicken-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
-    attack_air: { src: "chicken-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
+    attack: { src: "chicken-attack.png", frames: 3, w: 50, h: 50, speed: 2 },
+    attack_air: { src: "chicken-attack-air.png", frames: 2, w: 50, h: 50, speed: 2 },
     block: { src: "chicken-block.png", frames: 2, w: 50, h: 50, speed: 11 },
     hit: { src: "chicken-hit.png", frames: 3, w: 50, h: 50, speed: 8 },
-    dizzy: { src: "chicken-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
+    dizzy: { src: "chicken-dizzy.png", frames: 3, w: 50, h: 50, speed: 8 },
     dash: { src: "chicken-dash.png", frames: 3, w: 50, h: 50, speed: 4 },
-    defeat: { src: "chicken-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
-    victory: { src: "chicken-victory.png", frames: 6, w: 38, h: 38, speed: 6 }
+    defeat: { src: "chicken-block.png", frames: 1, w: 50, h: 50, speed: 10 },
+    victory: { src: "chicken-fall.png", frames: 3, w: 50, h: 50, speed: 10 },
+     blocking: { src: "chicken-block.png", frames: 1, w: 50, h: 50, speed: 6 },
   },
   vergil: {
     // Yamato sprites
@@ -4361,25 +4381,25 @@ const characterSprites = {
       attack: { src: "vergil-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
   attack_air: { src: "vergil-attack-air.png", frames: 1, w: 100, h: 100, speed: 2 },
   hit: { src: "vergil-idle.png", frames: 1, w: 100, h: 100, speed: 8 },
-  dizzy: { src: "vergil-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
-  defeat: { src: "vergil-defeat.png", frames: 1, w: 100, h: 100, speed: 10 },
-  victory: { src: "vergil-victory.png", frames: 1, w: 100, h: 100, speed: 6 },
-    sheathing: { src: "vergil-sheathing.png", frames: 14, w: 100, h: 100, speed: 8 }, 
+  dizzy: { src: "vergil-idle.png", frames: 1, w: 100, h: 100, speed: 8 },
+  defeat: { src: "vergil-block.png", frames: 1, w: 100, h: 100, speed: 10 },
+  victory: { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 6 },
+    sheathing: { src: "vergil-sheathing.png", frames: 14, w: 100, h: 100, speed: 11 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
       'storm-slashes': { src: "vergil-storm-slashes.png", frames: 10, w: 200, h: 200, speed: 10 }, 
-    charging: { src: "gold-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
+    charging: { src: "vergil-charging.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
      'beowulf-hit': { src: "vergil-beowulf-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
     'beowulf-idle': { src: "vergil-beowulf-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 2, w: 100, h: 100, speed: 5 },
     'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 8, w: 100, h: 100, speed: 6 },
-    'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
+    'beowulf-jump': { src: "beowulf-uppercut.png", frames: 1, w: 100, h: 100, speed: 12 },
     'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-charging': { src: "gold-idle.png", frames: 4, w: 100, h: 100, speed: 8 },
-    'beowulf-uppercut': { src: "gold-idle.png", frames: 5, w: 100, h: 100, speed: 3 },
+    'beowulf-charging': { src: "beowulf-charging.png", frames: 8, w: 100, h: 100, speed: 3 },
+    'beowulf-uppercut': { src: "beowulf-uppercut.png", frames: 1, w: 100, h: 100, speed: 10 },
     'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
-    'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
-      'beowulf-dizzy': { src: "vergil-beowulf-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
+    'beowulf-recovery': { src: "vergil-beowulf-idle.png", frames: 4, w: 100, h: 100, speed: 8 },
+      'beowulf-dizzy': { src: "vergil-beowulf-idle.png", frames: 1, w: 100, h: 100, speed: 8 },
     // Mirage Blade sprites
       'mirage-jump': { src: "vergil-mirage-jump.png", frames: 1, w: 100, h: 100, speed: 6 },
   'mirage-fall': { src: "vergil-mirage-fall.png", frames: 1, w: 100, h: 100, speed: 7 },
@@ -4400,10 +4420,10 @@ const characterSprites = {
 'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-walk': { src: "vergil-sdt-walk.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-dash': { src: "vergil-sdt-dash.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-jump': { src: "vergil-sdt-jump.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-fall': { src: "vergil-sdt-fall.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-jump': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-fall': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-block': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-blocking': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-attack': { src: "vergil-sdt-attack.png", frames: 1, w: 160, h: 140, speed: 2 },
 'vergil-sdt-attack_air': { src: "vergil-sdt-attack-air.png", frames: 1, w: 160, h: 140, speed: 2 },
@@ -4412,10 +4432,11 @@ const characterSprites = {
 'vergil-sdt-defeat': { src: "vergil-sdt-defeat.png", frames: 1, w: 160, h: 140, speed: 10 },
 'vergil-sdt-victory': { src: "vergil-sdt-victory.png", frames: 1, w: 160, h: 140, speed: 6 },
 'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 2, w: 160, h: 140, speed: 2 },
+'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-uppercut.png", frames: 2, w: 160, h: 140, speed: 2 },
+'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
 // Vergil SDT transformation - using 160x160 to match other SDT sprites
-'vergil-sdt-transforming': { src: "vergil-sdt-transforming.png", frames: 1, w: 160, h: 140, speed: 6 },
+'vergil-sdt-transforming': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 6 },
   },
  danty: {
   idle: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
@@ -5940,6 +5961,22 @@ p.blockWasFull = p.block >= p.maxBlock - 0.1;
     updateDynamicMusic();
     updateRoundSystem(); // ADD THIS LINE HERE!
   }
+  else {
+  // Even during pause, update animations for players in special states
+  for (let i = 0; i < players.length; ++i) {
+    const p = players[i];
+    
+    // Allow sheathing animation to continue during pause
+    if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
+      updateAnimation(p);
+    }
+    
+    // Also allow slashing animation to continue if needed
+    if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SLASHING) {
+      updateAnimation(p);
+    }
+  }
+}
   
   updateUI();
   updateParticles();
