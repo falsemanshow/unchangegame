@@ -1,3 +1,150 @@
+// ==================== COMPREHENSIVE SOUND SYSTEM ====================
+
+// Audio objects for all sound effects
+const audioSystem = {
+    // Dash sounds
+    vergilDash: null,
+    dantyDash: null,
+    vergilSDTDash: null,
+    dantySDTDash: null,
+    
+    // Hit sounds
+    yamatoHit: null,
+    balrogUppercutHit: null,
+    beowulfUppercutHit: null,
+    balrogDiveKickHit: null,
+    beowulfDiveKickHit: null,
+    spectralSwordHit: null,
+    
+    // Damage/hurt sounds
+    playerHurt: null,
+    
+    // Transformation sounds
+    sdtTransform: null,
+    
+    // Charging sounds
+    judgmentCutCharge: null,
+    uppercutCharge: null,
+    
+    // Danty phase sounds
+    dantyPhase1Hit: null,
+    dantyPhase2Hit: null,
+    dantyPhase3Hit: null,
+    dantyPhase3EnhancedHit: null
+};
+
+// Initialize all audio files
+function initializeAudioSystem() {
+    try {
+        // Dash sounds
+        audioSystem.vergilDash = new Audio('./sounds/vergil_dash.mp3');
+        audioSystem.dantyDash = new Audio('./sounds/danty_dash.mp3');
+        audioSystem.vergilSDTDash = new Audio('./sounds/vergil_sdt_dash.mp3');
+        audioSystem.dantySDTDash = new Audio('./sounds/danty_sdt_dash.mp3');
+        
+        // Hit sounds
+        audioSystem.yamatoHit = new Audio('./sounds/yamato_hit.mp3');
+        audioSystem.balrogUppercutHit = new Audio('./sounds/balrog_uppercut_hit.mp3');
+        audioSystem.beowulfUppercutHit = new Audio('./sounds/beowulf_uppercut_hit.mp3');
+        audioSystem.balrogDiveKickHit = new Audio('./sounds/balrog_divekick_hit.mp3');
+        audioSystem.beowulfDiveKickHit = new Audio('./sounds/beowulf_divekick_hit.mp3');
+        audioSystem.spectralSwordHit = new Audio('./sounds/spectral_sword_hit.mp3');
+        
+        // Damage sound
+        audioSystem.playerHurt = new Audio('./sounds/player_hurt.mp3');
+        
+        // Transformation sound
+        audioSystem.sdtTransform = new Audio('./sounds/sdt_transform.mp3');
+        
+        // Charging sounds
+        audioSystem.judgmentCutCharge = new Audio('./sounds/judgment_cut_charge.mp3');
+        audioSystem.uppercutCharge = new Audio('./sounds/uppercut_charge.mp3');
+        
+        // Danty phase sounds
+        audioSystem.dantyPhase1Hit = new Audio('./sounds/danty_phase1_hit.mp3');
+        audioSystem.dantyPhase2Hit = new Audio('./sounds/danty_phase2_hit.mp3');
+        audioSystem.dantyPhase3Hit = new Audio('./sounds/danty_phase3_hit.mp3');
+        audioSystem.dantyPhase3EnhancedHit = new Audio('./sounds/danty_phase3_enhanced_hit.mp3');
+        
+        // Set volume for all sounds
+        Object.values(audioSystem).forEach(audio => {
+            if (audio) {
+                audio.volume = 0.7;
+                audio.preload = 'auto';
+            }
+        });
+        
+        console.log('Audio system initialized successfully');
+    } catch (error) {
+        console.warn('Some audio files could not be loaded:', error);
+    }
+}
+
+// Play sound with error handling
+function playSound(audioName, volume = 1.0) {
+    const audio = audioSystem[audioName];
+    if (audio) {
+        try {
+            audio.currentTime = 0;
+            audio.volume = Math.min(volume, 1.0);
+            audio.play().catch(e => console.warn(`Failed to play ${audioName}:`, e));
+        } catch (error) {
+            console.warn(`Error playing ${audioName}:`, error);
+        }
+    }
+}
+
+// Sound effect functions
+function playDashSound(player) {
+    if (!player) return;
+    
+    if (player.charId === 'vergil') {
+        if (player.vergilSdtActive) {
+            playSound('vergilSDTDash');
+        } else {
+            playSound('vergilDash');
+        }
+    } else if (player.charId === 'danty') {
+        if (player.sdtActive) {
+            playSound('dantySDTDash');
+        } else {
+            playSound('dantyDash');
+        }
+    }
+}
+
+function playYamatoHitSound() { playSound('yamatoHit'); }
+function playUppercutHitSound(weaponType) {
+    if (weaponType === 'balrog' || weaponType === 'sdt') {
+        playSound('balrogUppercutHit');
+    } else if (weaponType === 'beowulf') {
+        playSound('beowulfUppercutHit');
+    }
+}
+function playDiveKickHitSound(weaponType) {
+    if (weaponType === 'balrog' || weaponType === 'sdt') {
+        playSound('balrogDiveKickHit');
+    } else if (weaponType === 'beowulf') {
+        playSound('beowulfDiveKickHit');
+    }
+}
+function playSpectralSwordHitSound() { playSound('spectralSwordHit'); }
+function playPlayerHurtSound() { playSound('playerHurt'); }
+function playSDTTransformSound() { playSound('sdtTransform'); }
+function playJudgmentCutChargeSound() { playSound('judgmentCutCharge'); }
+function playUppercutChargeSound() { playSound('uppercutCharge'); }
+function playDantyPhaseHitSound(phase, isEnhanced = false) {
+    if (phase === 1 || phase === 2) {
+        playSound('dantyPhase1Hit'); // Phase 1 and 2 same sound
+    } else if (phase === 3) {
+        if (isEnhanced) {
+            playSound('dantyPhase3EnhancedHit');
+        } else {
+            playSound('dantyPhase3Hit');
+        }
+    }
+}
+
 // Bridge functions for character select integration
 window.initializeGameWithCharacters = function(player1Char, player2Char) {
     console.log(`Initializing game: ${player1Char} vs ${player2Char}`);
@@ -767,20 +914,18 @@ let audioInitialized = false;
 
 function initializeAudio() {
   if (!audioInitialized) {
-    // Preload audio
+    // Initialize the new comprehensive audio system
+    initializeAudioSystem();
+    
+    // Keep existing audio initialization
     parrySound.load();
-    
-    // Preload default music
     defaultFightMusic.load();
-    
-    // Preload VERGIL'S LEGENDARY SOUND! ⚡⚔️
     judgmentCutSound.load();
     
     audioInitialized = true;
     musicInitialized = true;
-    console.log("🔊 AUDIO SYSTEM initialized! I AM THE STORM THAT IS APPROACHING! 🎵🔥⚡");
+    console.log("🔊 COMPREHENSIVE AUDIO SYSTEM initialized! All sounds ready! 🎵🔥⚡");
     
-    // Start default battle music
     startDefaultMusic();
   }
 }
@@ -878,6 +1023,9 @@ function drawImpactEffects(ctx) {
 }
 
 function executeUppercut(player, chargeTime, weaponType = 'beowulf') {
+    if (chargeTime <= 200) { // When charging just started
+    playUppercutChargeSound();
+  }
   const chargingProp = weaponType === 'beowulf' ? 'beowulfCharging' : 'balrogCharging';
   const chargeTypeProp = weaponType === 'beowulf' ? 'beowulfChargeType' : 'balrogChargeType';
   
@@ -1039,6 +1187,8 @@ if (attacker.charId === 'danty' && attacker.devilSwordUpgraded) {
 }
     opponent.hp -= damage;
     opponent.justHit = 20;
+    playUppercutHitSound('beowulf');
+playPlayerHurtSound();
     
     // Set special uppercut hitstun that lasts until landing
     opponent.hitstun = 999999; // Very high number so it doesn't run out
@@ -1119,6 +1269,9 @@ function handleBalrogUppercutHit(attacker, opponent) {
     
     opponent.hp -= damage;
     opponent.justHit = 20;
+    const weaponType = attacker.sdtActive ? 'sdt' : 'balrog';
+playUppercutHitSound(weaponType);
+playPlayerHurtSound();
     
     // Set special uppercut hitstun that lasts until landing
     opponent.hitstun = 999999;
@@ -2162,6 +2315,8 @@ if (k === weaponSwitchKey) {
           const dashMultiplier = (p.charId === 'danty' && p.sdtActive) ? SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.0;
           p.vx = -DASH_SPEED * dashMultiplier;
         }
+        
+  playDashSound(p);
         p.dash = DASH_FRAMES;
         p.dashCooldown = DASH_COOLDOWN;
         dashTapState[pid].lastTapDir = null;
@@ -2188,6 +2343,8 @@ if (k === weaponSwitchKey) {
           const dashMultiplier = (p.charId === 'danty' && p.sdtActive) ? SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.0;
           p.vx = DASH_SPEED * dashMultiplier;
         }
+        
+  playDashSound(p);
         p.dash = DASH_FRAMES;
         p.dashCooldown = DASH_COOLDOWN;
         dashTapState[pid].lastTapDir = null;
@@ -2226,6 +2383,9 @@ document.addEventListener("keyup", function(e) {
 }
       
       if (p.charId === 'vergil' && p.judgmentCutCharging) {
+          if (chargeTime <= 200) { // When charging just started
+    playJudgmentCutChargeSound();
+  }
         const chargeTime = now - p.judgmentCutChargeStart;
         
                       if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
@@ -2374,6 +2534,9 @@ function handleDiveKickAttack() {
           
           opp.hp -= damage;
           opp.justHit = 20;
+          const kickType = hasSDTDive ? 'sdt' : hasBeowulfDive ? 'beowulf' : 'balrog';
+playDiveKickHitSound(kickType);
+playPlayerHurtSound();
           opp.hitstun = HITSTUN_FRAMES;
           opp.inHitstun = true;
           
@@ -2493,6 +2656,8 @@ function handleSpectralSwordAttack() {
           
           opp.hp -= damage;
           opp.justHit = 20;
+          playSpectralSwordHitSound();
+playPlayerHurtSound();
           opp.hitstun = HITSTUN_FRAMES;
           opp.inHitstun = true;
           
@@ -2732,11 +2897,17 @@ opp.hp -= damage;
         if (p.devilSwordPhase === 1) {
           effectType = 'devilsword-enhanced-strike1';
           console.log(`${p.name}'s ENHANCED Devil Sword - First Strike! 😈🔥⚔️ (Enhanced Phase 1)`);
+           playDantyPhaseHitSound(1, p.devilSwordUpgraded);
+  playPlayerHurtSound();
         } else if (p.devilSwordPhase === 2) {
           effectType = 'devilsword-enhanced-strike2';
           console.log(`${p.name}'s ENHANCED Devil Sword - Second Strike! 😈🔥⚔️⚔️ (Enhanced Phase 2)`);
+           playDantyPhaseHitSound(1, p.devilSwordUpgraded);
+  playPlayerHurtSound();
         } else if (p.devilSwordPhase === 3) {
           effectType = 'devilsword-enhanced-strike3';
+           playDantyPhaseHitSound(1, p.devilSwordUpgraded);
+  playPlayerHurtSound();
           console.log(`${p.name}'s ENHANCED Devil Sword - DEVASTATING PENETRATION! 😈🔥👻⚔️ (Enhanced Phase 3)`);
         }
       } else {
@@ -2772,6 +2943,8 @@ opp.hp -= damage;
     
            if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
       createImpactEffect(p, opp, 'dash');
+        playYamatoHitSound();
+  playPlayerHurtSound();
       if (opp.dizzy > 0) {
         opp.vx = p.facing * DIZZY_KNOCKBACK_X;
         opp.vy = DIZZY_KNOCKBACK_Y;
@@ -3233,6 +3406,7 @@ if (p.vergilSdtAnimationPhase === 'big_draw') {
     p.vergilSdtAnimationPhase = 'active';
     p.vergilSdtActive = true;
     p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
+    playSDTTransformSound();
     p.vergilSdtFearAura = true;
     console.log(`${p.name} HAS AWAKENED! I AM THE STORM! ⚡💀👹🌩️`);
   }
@@ -3429,6 +3603,7 @@ if (p.sdtAnimationPhase === 'big_draw') {
     p.sdtAnimationPhase = 'active';
     p.sdtActive = true;
     p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
+    playSDTTransformSound();
     p.devilSwordUpgraded = true;
     console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
   }
