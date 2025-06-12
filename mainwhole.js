@@ -1547,26 +1547,17 @@ if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging &&
             }
           }
         }
-             } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
-        if (p.onGround && !p.mirageActive) {
-          p.mirageActive = true;
-          p.mirageTimer = MIRAGE_BLADE_CONFIG.DURATION; // Use config duration!
-          p.mirageMaxTimer = MIRAGE_BLADE_CONFIG.DURATION; // Store max for fade calculations
-          p.mirageHasHit = false;
-          
-          // Use config dimensions
-          const slashW = MIRAGE_BLADE_CONFIG.WIDTH;
-          const slashH = MIRAGE_BLADE_CONFIG.HEIGHT;
-          
-          p.mirageSlashW = slashW;
-          p.mirageSlashH = slashH;
-          
-          p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
-          p.mirageSlashY = p.y + (p.h - slashH)/2;
-          
-          console.log(`${p.name} unleashes CONFIGURED Mirage Blade! ${slashW}x${slashH} for ${MIRAGE_BLADE_CONFIG.DURATION} frames! 🔪⚙️`);
-        }
-      }
+          } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
+  if (p.onGround && !p.mirageActive && !p.mirageSlashing) {
+    // START SLASHING ANIMATION FIRST! ⚔️✨
+    p.mirageSlashing = true;
+    p.mirageSlashTimer = 12; // Animation duration (4 frames * 3 speed = 12 ticks)
+    p.animState = "mirage-slash";
+    p.animFrame = 0;
+    p.animTimer = 0;
+    console.log(`${p.name} begins Mirage Blade slash animation! ⚔️✨`);
+  }
+}
     }
  if (k === controls.special && p.charId === 'danty') {
       // SDT STATE: Can use ALL abilities regardless of weapon! 💀🔥
@@ -2614,8 +2605,34 @@ function updatePlayer(p, pid) {
     return; // Exit early, no other updates needed for dead players
   }
 
- if (p.charId === 'vergil') {
-    if (p.judgementCutCooldown > 0) p.judgementCutCooldown--;
+ // Add Mirage Blade slashing animation update
+if (p.charId === 'vergil' && p.mirageSlashing) {
+  p.mirageSlashTimer--;
+  if (p.mirageSlashTimer <= 0) {
+    // SLASH ANIMATION FINISHED - NOW CREATE THE MIRAGE! ⚔️💨
+    p.mirageSlashing = false;
+    p.mirageActive = true;
+    p.mirageTimer = MIRAGE_BLADE_CONFIG.DURATION;
+    p.mirageMaxTimer = MIRAGE_BLADE_CONFIG.DURATION;
+    p.mirageHasHit = false;
+    
+    // Use config dimensions
+    const slashW = MIRAGE_BLADE_CONFIG.WIDTH;
+    const slashH = MIRAGE_BLADE_CONFIG.HEIGHT;
+    
+    p.mirageSlashW = slashW;
+    p.mirageSlashH = slashH;
+    
+    p.mirageSlashX = p.facing > 0 ? p.x + p.w : p.x - slashW;
+    p.mirageSlashY = p.y + (p.h - slashH)/2;
+    
+    console.log(`${p.name} releases the Mirage Blade! Slash appears! 🗡️💨✨`);
+  }
+  return; // Don't allow other actions while slashing
+}
+
+if (p.charId === 'vergil') {
+  if (p.judgementCutCooldown > 0) p.judgementCutCooldown--;
     
     // Handle Beowulf recovery state
     if (p.beowulfRecovering) {
@@ -3347,7 +3364,16 @@ function updatePlayerAnimState(p, pid) {
   const prevState = p.animState;
   const other = players[1 - pid];
   
-  if (p.charId === 'vergil' && p.judgmentCutCharging) {
+ if (p.charId === 'vergil' && p.mirageSlashing) {
+  if (p.animState !== "mirage-slash") {
+    p.animState = "mirage-slash";
+    p.animFrame = 0;
+    p.animTimer = 0;
+  }
+  return;
+}
+
+if (p.charId === 'vergil' && p.judgmentCutCharging) {
       // Handle recovery state first
   if (p.beowulfRecovering) {
     if (p.animState !== "beowulf-recovery") {
@@ -3723,11 +3749,18 @@ const characterSprites = {
     blocking: { src: "vergil-blocking.png", frames: 3, w: 100, h: 100, speed: 8 },
     jump: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
     fall: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+      attack: { src: "vergil-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
+  attack_air: { src: "vergil-attack-air.png", frames: 1, w: 100, h: 100, speed: 2 },
+  hit: { src: "vergil-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
+  dizzy: { src: "vergil-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
+  defeat: { src: "vergil-defeat.png", frames: 1, w: 100, h: 100, speed: 10 },
+  victory: { src: "vergil-victory.png", frames: 1, w: 100, h: 100, speed: 6 },
     sheathing: { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
       'storm-slashes': { src: "vergil-storm-slashes.png", frames: 10, w: 200, h: 200, speed: 10 }, 
     charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
+     'beowulf-hit': { src: "vergil-beowulf-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
     'beowulf-idle': { src: "vergil-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-dash': { src: "vergil-beowulf-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
@@ -3739,10 +3772,22 @@ const characterSprites = {
     'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
     'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
     'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
+      'beowulf-dizzy': { src: "vergil-beowulf-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
     // Mirage Blade sprites
+      'mirage-jump': { src: "vergil-mirage-jump.png", frames: 1, w: 100, h: 100, speed: 6 },
+  'mirage-fall': { src: "vergil-mirage-fall.png", frames: 1, w: 100, h: 100, speed: 7 },
+  'mirage-block': { src: "vergil-mirage-block.png", frames: 1, w: 100, h: 100, speed: 6 },
+  'mirage-blocking': { src: "vergil-mirage-blocking.png", frames: 1, w: 100, h: 100, speed: 8 },
+  'mirage-hit': { src: "vergil-mirage-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
+  'mirage-dizzy': { src: "vergil-mirage-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
+  'mirage-defeat': { src: "vergil-mirage-defeat.png", frames: 1, w: 100, h: 100, speed: 10 },
+  'mirage-victory': { src: "vergil-mirage-victory.png", frames: 1, w: 100, h: 100, speed: 6 },
     'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
+     'mirage-attack': { src: "vergil-mirage-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
+  'mirage-attack_air': { src: "vergil-mirage-attack-air.png", frames: 1, w: 100, h: 100, speed: 2 },
+  'mirage-slash': { src: "mirage-slash.png", frames: 3, w: 140, h: 100, speed: 3 },
     
    // VERGIL SDT EXCLUSIVE SPRITES! 
 'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
@@ -3753,9 +3798,12 @@ const characterSprites = {
 'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-beowulf-idle': { src: "vergil-sdt-beowulf-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-beowulf-dash': { src: "vergil-sdt-beowulf-dash.png", frames: 1, w: 160, h: 140, speed: 8 },
-'vergil-sdt-beowulf-walk': { src: "vergil-sdt-beowulf-walk.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-attack': { src: "vergil-sdt-attack.png", frames: 1, w: 160, h: 140, speed: 2 },
+'vergil-sdt-attack_air': { src: "vergil-sdt-attack-air.png", frames: 1, w: 160, h: 140, speed: 2 },
+'vergil-sdt-hit': { src: "vergil-sdt-hit.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-dizzy': { src: "vergil-sdt-dizzy.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-defeat': { src: "vergil-sdt-defeat.png", frames: 1, w: 160, h: 140, speed: 10 },
+'vergil-sdt-victory': { src: "vergil-sdt-victory.png", frames: 1, w: 160, h: 140, speed: 6 },
 'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 1, w: 160, h: 140, speed: 8 },
 'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png", frames: 1, w: 160, h: 140, speed: 8 },
@@ -3768,22 +3816,21 @@ const characterSprites = {
   jump: { src: "danty-jump.png", frames: 1, w: 100, h: 100, speed: 6 },
   fall: { src: "danty-fall.png", frames: 1, w: 100, h: 100, speed: 7 },
   attack: { src: "danty-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
-  attack_air: { src: "danty-attack-air.png", frames: 1, w: 100, h: 100, speed: 13 },
-  block: { src: "danty-block.png", frames: 1, frames: 1, w: 100, h: 100, speed: 13 },
   blocking: { src: "danty-blocking.png", frames: 1, w: 100, h: 100, speed: 13 },
   hit: { src: "danty-hit.png",frames: 1, w: 100, h: 100, speed: 13 },
   dizzy: { src: "danty-dizzy.png", frames: 1, w: 100, h: 100, speed: 13 },
   dash: { src: "danty-dash.png", frames: 1, w: 100, h: 100, speed: 3 },
   defeat: { src: "danty-defeat.png",frames: 1, w: 100, h: 100, speed: 13 },
   victory: { src: "danty-victory.png", frames: 1, w: 100, h: 100, speed: 13 },
+  block: { src: "danty-block.png", frames: 1, w: 100, h: 100, speed: 6 },
   // Balrog sprites
   'balrog-charging': { src: "danty-balrog-charging.png",frames: 1, w: 100, h: 100, speed: 13 },
   'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 1, w: 100, h: 100, speed: 13 },
   'balrog-divekick': { src: "danty-balrog-divekick.png", frames: 1, w: 100, h: 100, speed: 13 },
   'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 1, w: 100, h: 100, speed: 13 },
   // SDT EXCLUSIVE SPRITES 
-  'sdt-idle': { src: "danty-sdt-idle.png", frames: 1, w: 120, h: 120, speed: 10 },
-  'sdt-walk': { src: "danty-sdt-walk.png", frames: 12, w: 60, h: 60, speed: 3 },
+  'sdt-idle': { src: "danty-sdt-idle.png", frames: 11, w: 170, h: 180, speed: 10 },
+  'sdt-walk': { src: "danty-sdt-walk.png", frames: 4, w: 170, h: 180, speed: 3 },
   'sdt-dash': { src: "danty-sdt-dash.png", frames: 4, w: 60, h: 60, speed: 2 },
   'sdt-jump': { src: "danty-sdt-jump.png", frames: 4, w: 60, h: 60, speed: 5 },
   'sdt-fall': { src: "danty-sdt-fall.png", frames: 3, w: 60, h: 60, speed: 6 },
@@ -3832,6 +3879,8 @@ const players = [
     currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
     sdtSwordY: 0,
     vergilSdtBigDrawTimer: 0,
+    mirageSlashing: false,
+mirageSlashTimer: 0,
 sdtSwordX: 0,
 sdtExplosionTimer: 0,
 // Spectral Sword properties
@@ -3902,6 +3951,8 @@ sdtTransformTimer: 0,
         // STORM SLASHES ABILITY! ⚡⚔️🌩️
     stormSlashesReady: false,
     vergilSdtBigDrawTimer: 0,
+    mirageSlashing: false,
+mirageSlashTimer: 0,
     stormSlashesTimer: 0,
     stormSlashesActive: false,
     stormSlashesAnimationFrame: 0,
@@ -4211,7 +4262,7 @@ if (p.charId === 'danty' && p.sdtAnimationPhase === 'transforming') {
         ctx.translate(-anim.w/2, -anim.h/2);
         ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, 0, 0, anim.w, anim.h);
         ctx.restore();
-      } else {
+      } else {  
         ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, p.x, p.y, p.w, p.h);
       }
     } else {
@@ -4911,53 +4962,58 @@ for (let p of players) {
 }
     
     
-      ctx.save();
-      
-      if (p.sdtAnimationPhase === 'sword_falling') {
-        // Draw falling sword
-        ctx.globalAlpha = 0.9;
-        if (sdtSwordSprite.complete && sdtSwordSprite.naturalWidth > 0) {
-          const swordWidth = 60;
-          const swordHeight = 120;
-          ctx.drawImage(sdtSwordSprite, p.sdtSwordX - swordWidth/2, p.sdtSwordY, swordWidth, swordHeight);
-        } else {
-          // Fallback sword
-          ctx.fillStyle = "#4b0082";
-          ctx.fillRect(p.sdtSwordX - 15, p.sdtSwordY, 30, 80);
-          ctx.fillStyle = "#8b008b";
-          ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY, 10, 80);
-        }
-        
-        // Sword trail effect
-        for (let i = 1; i <= 5; i++) {
-          ctx.globalAlpha = 0.3 - (i * 0.05);
-          ctx.fillStyle = "#8b008b";
-          ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY - (i * 20), 10, 40);
-        }
-      } else if (p.sdtAnimationPhase === 'piercing') {
-        // Draw explosion effect
-        const explosionIntensity = 1 - (p.sdtExplosionTimer / SIN_DEVIL_TRIGGER.EXPLOSION_DURATION);
-        const explosionSize = 100 * explosionIntensity;
-        
-        // Multiple explosion rings
-        for (let i = 0; i < 3; i++) {
-          ctx.globalAlpha = 0.6 - (i * 0.15) - (explosionIntensity * 0.3);
-          ctx.strokeStyle = i === 0 ? "#8b008b" : i === 1 ? "#4b0082" : "#000";
-          ctx.lineWidth = 8 - (i * 2);
-          ctx.beginPath();
-          ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize + (i * 20), 0, 2 * Math.PI);
-          ctx.stroke();
-        }
-        
-        // Center flash
-        ctx.globalAlpha = 0.8 - explosionIntensity;
-        ctx.fillStyle = "#fff";
-        ctx.beginPath();
-        ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize * 0.3, 0, 2 * Math.PI);
-        ctx.fill();
+      // Draw SDT sword falling/piercing animations
+for (let p of players) {
+  if (p.charId === 'danty' && (p.sdtAnimationPhase === 'sword_falling' || p.sdtAnimationPhase === 'piercing')) {
+    ctx.save();
+    
+    if (p.sdtAnimationPhase === 'sword_falling') {
+      // Draw falling sword
+      ctx.globalAlpha = 0.9;
+      if (sdtSwordSprite.complete && sdtSwordSprite.naturalWidth > 0) {
+        const swordWidth = 60;
+        const swordHeight = 120;
+        ctx.drawImage(sdtSwordSprite, p.sdtSwordX - swordWidth/2, p.sdtSwordY, swordWidth, swordHeight);
+      } else {
+        // Fallback sword
+        ctx.fillStyle = "#4b0082";
+        ctx.fillRect(p.sdtSwordX - 15, p.sdtSwordY, 30, 80);
+        ctx.fillStyle = "#8b008b";
+        ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY, 10, 80);
       }
       
-      ctx.restore();
+      // Sword trail effect
+      for (let i = 1; i <= 5; i++) {
+        ctx.globalAlpha = 0.3 - (i * 0.05);
+        ctx.fillStyle = "#8b008b";
+        ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY - (i * 20), 10, 40);
+      }
+    } else if (p.sdtAnimationPhase === 'piercing') {
+      // Draw explosion effect
+      const explosionIntensity = 1 - (p.sdtExplosionTimer / SIN_DEVIL_TRIGGER.EXPLOSION_DURATION);
+      const explosionSize = 100 * explosionIntensity;
+      
+      // Multiple explosion rings
+      for (let i = 0; i < 3; i++) {
+        ctx.globalAlpha = 0.6 - (i * 0.15) - (explosionIntensity * 0.3);
+        ctx.strokeStyle = i === 0 ? "#8b008b" : i === 1 ? "#4b0082" : "#000";
+        ctx.lineWidth = 8 - (i * 2);
+        ctx.beginPath();
+        ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize + (i * 20), 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+      
+      // Center flash
+      ctx.globalAlpha = 0.8 - explosionIntensity;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize * 0.3, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    
+    ctx.restore();
+  }
+}
   
 
   // Draw Judgment Cut lines
