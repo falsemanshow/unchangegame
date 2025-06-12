@@ -3493,6 +3493,30 @@ if (p.charId === 'vergil' && p.judgmentCutCharging) {
   if (!p.alive) { p.animState = "defeat"; return; }
   if (p.dizzy > 0) { p.animState = "dizzy"; return; }
   if (p.justHit > 0) { p.animState = "hit"; return; }
+    // Handle uppercut animation states 👊⬆️
+  if (p.isUppercutting) {
+    let uppercutAnim = null;
+    
+    if (p.charId === 'vergil') {
+      uppercutAnim = "beowulf-uppercut";
+    } else if (p.charId === 'danty') {
+      if (p.sdtActive) {
+        uppercutAnim = "sdt-uppercut";
+      } else {
+        uppercutAnim = "balrog-uppercut";
+      }
+    }
+    
+    if (uppercutAnim && p.animState !== uppercutAnim) {
+      p.animState = uppercutAnim;
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} playing uppercut animation: ${uppercutAnim} 👊⬆️✨`);
+    } else if (uppercutAnim) {
+      p.animState = uppercutAnim;
+    }
+    return;
+  }
   
   if (p.blocking) { 
     const blockAnim = getAnimForPlayer({...p, animState: "block"});
@@ -3775,7 +3799,7 @@ const characterSprites = {
     sheathing: { src: "vergil-sheathing.png", frames: 6, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
       'storm-slashes': { src: "vergil-storm-slashes.png", frames: 10, w: 200, h: 200, speed: 10 }, 
-    charging: { src: "vergil-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
+    charging: { src: "gold-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
     // Beowulf sprites
      'beowulf-hit': { src: "vergil-beowulf-hit.png", frames: 1, w: 100, h: 100, speed: 8 },
     'beowulf-idle': { src: "vergil-beowulf-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
@@ -3783,8 +3807,8 @@ const characterSprites = {
     'beowulf-walk': { src: "vergil-beowulf-walk.png", frames: 8, w: 100, h: 100, speed: 6 },
     'beowulf-jump': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'beowulf-fall': { src: "vergil-beowulf-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
-    'beowulf-charging': { src: "vergil-beowulf-charging.png", frames: 4, w: 100, h: 100, speed: 8 },
-    'beowulf-uppercut': { src: "vergil-beowulf-uppercut.png", frames: 5, w: 100, h: 100, speed: 3 },
+    'beowulf-charging': { src: "gold-idle.png", frames: 4, w: 100, h: 100, speed: 8 },
+    'beowulf-uppercut': { src: "gold-idle.png", frames: 5, w: 100, h: 100, speed: 3 },
     'beowulf-divekick': { src: "vergil-idle.png", frames: 3, w: 100, h: 100, speed: 4 },
     'beowulf-recovery': { src: "vergil-beowulf-recovery.png", frames: 4, w: 100, h: 100, speed: 8 },
       'beowulf-dizzy': { src: "vergil-beowulf-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
@@ -4285,8 +4309,8 @@ if (p.charId === 'danty' && p.sdtAnimationPhase === 'transforming') {
         ctx.save();
         ctx.translate(p.x + p.w/2, p.y + p.h/2);
         
-        // Calculate rotation angle based on velocity direction
-        let rotationAngle = Math.atan2(p.vy, Math.abs(p.vx)) * 0.7; // Reduce angle for better look
+              // 80 degree rotation for dive kick! 🦶💥
+        let rotationAngle = -30 * (Math.PI / 180); // -80 degrees (counter-clockwise)
         
         // Adjust rotation direction based on facing
         if (p.facing === 1) {
@@ -4312,7 +4336,7 @@ if (p.charId === 'danty' && p.sdtAnimationPhase === 'transforming') {
           const trailY = p.y - p.vy * i * 0.8;
           
           ctx.translate(trailX + p.w/2, trailY + p.h/2);
-          ctx.rotate(p.facing === 1 ? rotationAngle * 0.5 : -rotationAngle * 0.5);
+                    ctx.rotate(p.facing === 1 ? rotationAngle * 0.6 : -rotationAngle * 0.6);
           ctx.scale(p.facing === 1 ? -scaleX * (1 - i * 0.1) : scaleX * (1 - i * 0.1), scaleY * (1 - i * 0.1));
           ctx.translate(-anim.w/2, -anim.h/2);
           
