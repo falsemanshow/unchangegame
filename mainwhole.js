@@ -2080,29 +2080,31 @@ console.log(`${p.name} is CLOSE! Charging Judgment Cut EXECUTION! ⚔️💀⚡`
         console.log(`${p.name} is already THE STORM! ⚡💀🌩️`);
       }
     }
-          } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        // SDT STATE: Can use Beowulf with ANY weapon! 💀👊
-        if (p.vergilSdtActive || (p.currentWeapon === VERGIL_WEAPONS.BEOWULF)) {
-          if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
-            p.beowulfCharging = true;
-            p.beowulfChargeStart = performance.now();
-            p.beowulfChargeType = 'uppercut';
-            p.animState = "beowulf-charging";
-            p.animFrame = 0;
-            p.animTimer = 0;
-            const sdtText = p.vergilSdtActive ? ' SDT' : '';
-            console.log(`${p.name} is charging${sdtText} Beowulf Rising Uppercut! 👊⬆️${p.vergilSdtActive ? '💀' : ''}`);
-          } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+       } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF || p.vergilSdtActive) {
+  // SDT STATE: Can use Beowulf with ANY weapon! 💀👊
+  // NORMAL STATE: Only when Beowulf is equipped
+  if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF || p.vergilSdtActive) {
+        if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+  p.beowulfCharging = true;
+  p.beowulfChargeStart = performance.now();
+  p.beowulfChargeType = 'uppercut';
+  // Use appropriate animation state for SDT
+  p.animState = p.vergilSdtActive ? "vergil-sdt-beowulf-charging" : "beowulf-charging";
+  p.animFrame = 0;
+  p.animTimer = 0;
+  const sdtText = p.vergilSdtActive ? ' SDT' : '';
+  console.log(`${p.name} is charging${sdtText} Beowulf Rising Uppercut! 👊⬆️${p.vergilSdtActive ? '💀' : ''}`);
+} else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
             const currentHeight = GROUND - (p.y + p.h);
             const requiredHeight = p.vergilSdtActive ? 30 : 50; // Lower requirement for SDT
             
             if (currentHeight >= requiredHeight) {
-              p.beowulfDiveKick = true;
-              p.beowulfDiveDirection = p.facing;
-              p.vy = p.vergilSdtActive ? 20 : 16; // Stronger for SDT
-              p.vx = p.facing * (p.vergilSdtActive ? 22 : 18); // Faster for SDT
-              p.isDiveKicking = true;
-              p.animState = "beowulf-divekick";
+            p.beowulfDiveKick = true;
+p.beowulfDiveDirection = p.facing;
+p.vy = p.vergilSdtActive ? 20 : 16; // Stronger for SDT
+p.vx = p.facing * (p.vergilSdtActive ? 22 : 18); // Faster for SDT
+p.isDiveKicking = true;
+p.animState = p.vergilSdtActive ? "vergil-sdt-beowulf-divekick" : "beowulf-divekick";
               p.animFrame = 0;
               p.animTimer = 0;
               const sdtText = p.vergilSdtActive ? ' SDT DEVASTATING' : ' SUPER DIAGONAL';
@@ -3928,6 +3930,14 @@ if (p.charId === 'vergil' && p.vergilSdtActive) {
   const vergilSdtAnimState = `vergil-sdt-${p.animState}`;
   if (charAnim[vergilSdtAnimState]) {
     return charAnim[vergilSdtAnimState];
+  }
+  
+  // Fallback to regular Beowulf animations if SDT versions don't exist
+  if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    const beowulfAnimState = `beowulf-${p.animState}`;
+    if (charAnim[beowulfAnimState]) {
+      return charAnim[beowulfAnimState];
+    }
   }
 }
   
