@@ -94,6 +94,9 @@ const SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
   CHARGE_RATE: 2,
   ACTIVATION_HOLD_TIME: 2500,
+  BIG_DRAW_SCALE: 2.0, // 🔥 ADJUSTABLE SIZE! Change this number!
+  BIG_DRAW_DURATION: 60, // How long big draw plays
+  TRANSFORMATION_DURATION: 48, // How long transformation takes
   SWORD_FALL_DURATION: 90,
   EXPLOSION_DURATION: 30,
   PIERCE_OFFSET_Y: -200,
@@ -1919,16 +1922,13 @@ if (p.charId === 'danty' && p.sdtCharging) {
     // Released too early
     p.sdtCharging = false;
     console.log(`${p.name} released too early! Need to hold longer for Sin Devil Trigger! 😈💀❌`);
-  } else {
-    // START TRANSFORMATION SEQUENCE! 💀🔥
-    p.sdtCharging = false;
-    p.sdtAnimationPhase = 'transforming';
-    p.sdtTransformTimer = 48; // 6 frames * 8 speed = 48 ticks  
-    /*p.animState = "sdt-transforming";
-    p.animFrame = 0;
-    p.animTimer = 0;*/
-    console.log(`${p.name} begins SIN DEVIL TRANSFORMATION! 😈💀🔥⚡`);
-  }
+} else {
+  // START BIG DRAW SEQUENCE! 💥🔥
+  p.sdtCharging = false;
+  p.sdtAnimationPhase = 'big_draw';
+  p.sdtBigDrawTimer = SIN_DEVIL_TRIGGER.BIG_DRAW_DURATION;
+  console.log(`${p.name} unleashes the BIG DRAW! 💥🔥💀`);
+}
 }
     }
   }
@@ -2978,37 +2978,27 @@ if (p.charId === 'danty') {
   }
   
   
- if (p.sdtAnimationPhase === 'transforming') {
+if (p.sdtAnimationPhase === 'big_draw') {
+  // BIG DRAW PHASE! 💥🔥
+  p.sdtBigDrawTimer--;
+  if (p.sdtBigDrawTimer <= 0) {
+    // BIG DRAW FINISHED - START TRANSFORMATION!
+    p.sdtAnimationPhase = 'transforming';
+    p.sdtTransformTimer = SIN_DEVIL_TRIGGER.TRANSFORMATION_DURATION;
+    console.log(`${p.name} begins the FINAL TRANSFORMATION! 💀🔥⚡`);
+  }
+} else if (p.sdtAnimationPhase === 'transforming') {
+  // TRANSFORMATION PHASE! 💀⚡
   p.sdtTransformTimer--;
   if (p.sdtTransformTimer <= 0) {
-    // SKIP sword falling and piercing - go straight to active SDT!
+    // TRANSFORMATION COMPLETE!
     p.sdtAnimationPhase = 'active';
     p.sdtActive = true;
     p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
-    p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
-    p.animState = "idle";
+    p.devilSwordUpgraded = true;
     console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
   }
-} else if (p.sdtAnimationPhase === 'sword_falling') {
-    p.sdtSwordY += SIN_DEVIL_TRIGGER.SWORD_FALL_SPEED;
-    if (p.sdtSwordY >= p.y + p.h/2) {
-      p.sdtAnimationPhase = 'piercing';
-      p.sdtExplosionTimer = SIN_DEVIL_TRIGGER.EXPLOSION_DURATION;
-      console.log(`${p.name} is pierced by the Sin Devil Sword! 💀⚔️💥`);
-    }
-  } else if (p.sdtAnimationPhase === 'piercing') {
-    p.sdtExplosionTimer--;
-    if (p.sdtExplosionTimer <= 0) {
-      p.sdtAnimationPhase = 'active';
-          p.sdtActive = true;
-      p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
-      p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
-      console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
-      
-               // SDT activated - just let the default music keep rocking! 💀🎵
-      console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
-    }
-  }
+}
   
   // SDT gauge charging (fixed) - only when Devil Trigger is active and holding special
   if (p.devilSwordUpgraded && p.currentWeapon === DANTY_WEAPONS.DEVIL_SWORD && p.sdtGauge < SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.sdtActive) {
@@ -4839,9 +4829,113 @@ if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
     }
   }
 
-  // Draw SDT sword falling animation
+  // Draw BIG DRAW and TRANSFORMATION! 💥💀
   for (let p of players) {
-    if (p.charId === 'danty' && (p.sdtAnimationPhase === 'sword_falling' || p.sdtAnimationPhase === 'piercing')) {
+    if (p.charId === 'danty' && (p.sdtAnimationPhase === 'big_draw' || p.sdtAnimationPhase === 'transforming')) {
+      ctx.save();
+      
+      if (p.sdtAnimationPhase === 'big_draw') {
+        // DRAW MASSIVE BIG DRAW SPRITE! 💥🔥
+        const bigDrawSize = p.w * SIN_DEVIL_TRIGGER.BIG_DRAW_SCALE; // ADJUSTABLE SIZE!
+        const spriteX = p.x + p.w/2 - bigDrawSize/2;
+        const spriteY = p.y + p.h/2 - bigDrawSize/2;
+        
+        // Pulsing effect
+        const pulse = 0.9 + 0.1 * Math.sin(performance.now() / 50);
+        const finalSize = bigDrawSize * pulse;
+        const finalX = p.x + p.w/2 - finalSize/2;
+        const finalY = p.y + p.h/2 - finalSize/2;
+        
+        // Try to draw sprite (add your sprite here!)
+        if (sdtExplosionBigDrawSprite.complete && sdtExplosionBigDrawSprite.naturalWidth > 0) {
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(sdtExplosionBigDrawSprite, finalX, finalY, finalSize, finalSize);
+               } else {
+          // 🔥 EPIC FALLBACK BIG DRAW WITH SIZE INDICATORS! 🔥
+          ctx.globalAlpha = 0.8;
+          
+          // Main explosion rings
+          for (let i = 0; i < 5; i++) {
+            ctx.strokeStyle = i % 2 === 0 ? "#ff4500" : "#ff0000";
+            ctx.lineWidth = 12 - (i * 2);
+            ctx.beginPath();
+            ctx.arc(p.x + p.w/2, p.y + p.h/2, (finalSize/2) - (i * 15), 0, 2 * Math.PI);
+            ctx.stroke();
+          }
+          
+          // 🎯 SIZE INDICATOR LINES! 🎯
+          ctx.globalAlpha = 1.0;
+          ctx.strokeStyle = "#00ff00"; // BRIGHT GREEN for visibility!
+          ctx.lineWidth = 3;
+          ctx.setLineDash([10, 5]); // Dashed line
+          
+          // Outer boundary circle
+          ctx.beginPath();
+          ctx.arc(p.x + p.w/2, p.y + p.h/2, finalSize/2, 0, 2 * Math.PI);
+          ctx.stroke();
+          
+          // Size measurement lines (cross)
+          ctx.setLineDash([]); // Solid line
+          ctx.lineWidth = 2;
+          
+          // Horizontal line
+          ctx.beginPath();
+          ctx.moveTo(p.x + p.w/2 - finalSize/2, p.y + p.h/2);
+          ctx.lineTo(p.x + p.w/2 + finalSize/2, p.y + p.h/2);
+          ctx.stroke();
+          
+          // Vertical line
+          ctx.beginPath();
+          ctx.moveTo(p.x + p.w/2, p.y + p.h/2 - finalSize/2);
+          ctx.lineTo(p.x + p.w/2, p.y + p.h/2 + finalSize/2);
+          ctx.stroke();
+          
+          // SIZE TEXT! 📏
+          ctx.font = "bold 16px Arial";
+          ctx.fillStyle = "#00ff00";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 2;
+          ctx.textAlign = "center";
+          const sizeText = `${(finalSize/50).toFixed(1)}x Player Size`;
+          ctx.strokeText(sizeText, p.x + p.w/2, p.y + p.h/2 - finalSize/2 - 20);
+          ctx.fillText(sizeText, p.x + p.w/2, p.y + p.h/2 - finalSize/2 - 20);
+          
+          // Scale value text
+          const scaleText = `Scale: ${SIN_DEVIL_TRIGGER.BIG_DRAW_SCALE}`;
+          ctx.strokeText(scaleText, p.x + p.w/2, p.y + p.h/2 + finalSize/2 + 30);
+          ctx.fillText(scaleText, p.x + p.w/2, p.y + p.h/2 + finalSize/2 + 30);
+          
+          // Center flash
+          ctx.fillStyle = "#ffff00";
+          ctx.globalAlpha = 1.0;
+          ctx.beginPath();
+          ctx.arc(p.x + p.w/2, p.y + p.h/2, finalSize/4, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+        
+      } else if (p.sdtAnimationPhase === 'transforming') {
+        // TRANSFORMATION GLOW! 💀⚡
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = "#8b008b";
+        ctx.beginPath();
+        ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w * 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Transformation sparks
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2 + (performance.now() / 100);
+          const sparkX = p.x + p.w/2 + Math.cos(angle) * (p.w * 1.2);
+          const sparkY = p.y + p.h/2 + Math.sin(angle) * (p.w * 1.2);
+          
+          ctx.fillStyle = "#ff00ff";
+          ctx.beginPath();
+          ctx.arc(sparkX, sparkY, 5, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
+      
+      ctx.restore();
+    
       ctx.save();
       
       if (p.sdtAnimationPhase === 'sword_falling') {
