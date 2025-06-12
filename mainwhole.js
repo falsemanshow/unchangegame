@@ -91,8 +91,8 @@ const DEVIL_SWORD_GAUGE = {
 };
 const SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
-  CHARGE_RATE: 0.8,
-  ACTIVATION_HOLD_TIME: 2000,
+  CHARGE_RATE: 1,
+  ACTIVATION_HOLD_TIME: 2500,
   SWORD_FALL_DURATION: 90,
   EXPLOSION_DURATION: 30,
   PIERCE_OFFSET_Y: -200,
@@ -107,29 +107,29 @@ const SIN_DEVIL_TRIGGER = {
 };
 const VERGIL_SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
-  CHARGE_RATE: 1.2, // Slightly faster than Danty (Vergil is more skilled)
-  ACTIVATION_HOLD_TIME: 1800, // Shorter than Danty (18 frames less)
+  CHARGE_RATE: 0.2, // Slightly faster than Danty (Vergil is more skilled)
+  ACTIVATION_HOLD_TIME: 2500, // Shorter than Danty (18 frames less)
   JUDGMENT_CUT_COST: 50, // 50% gauge to use Judgment Cut
   JUDGMENT_CUT_REQUIREMENT: 50, // Need 50% minimum to execute
   SDT_DURATION: 600, // Shorter but more intense than Danty
-  DAMAGE_MULTIPLIER: 2.8, // HIGHER than Danty! (Vergil is stronger)
-  SPEED_MULTIPLIER: 2.2,  // FASTER than Danty! ⚡
+  DAMAGE_MULTIPLIER: 1.2, // HIGHER than Danty! (Vergil is stronger)
+  SPEED_MULTIPLIER: 1.2,  // FASTER than Danty! ⚡
   DASH_SPEED_MULTIPLIER: 2.8, // TELEPORT-SPEED! 🌩️
-  STORM_SLASHES_SCALE: 5, // MASSIVE Storm Slashes in SDT! 💀⚡
+  STORM_SLASHES_SCALE: 3, // MASSIVE Storm Slashes in SDT! 💀⚡
   FEAR_AURA_RANGE: 200, // Terrify opponents within this range! 👹
 };
 const SPECTRAL_SWORD = {
-  SPAWN_DISTANCE: 100, // How far from Danty it spawns
+  SPAWN_DISTANCE: 10, // How far from Danty it spawns
   MOVE_SPEED: 7, // How fast it moves
   DASH_SPEED: 15, // How fast it dashes
   DASH_FRAMES: 8, // How long dash lasts
   DASH_COOLDOWN: 36, // Dash cooldown frames
-  DASH_DAMAGE: 15, // Damage when dashing
+  DASH_DAMAGE: 10, // Damage when dashing
   FLOAT_SPEED: 2, // How fast it naturally floats up/down
   SIZE: 40, // Width and height
   GAUGE_DRAIN: 0.3, // How much Devil Trigger gauge it drains per frame
   MIN_GAUGE_TO_SPAWN: 20, // Minimum gauge needed to spawn
-  CONTROL_TRANSFER_FRAMES: 30 // Frames to transfer control
+  CONTROL_TRANSFER_FRAMES: 10 // Frames to transfer control
 };
 const DEVIL_SWORD_PROGRESSION = {
   HIT_COMBO_RESET_TIME: 3000,
@@ -181,9 +181,14 @@ let cameraZoomEffect = {
 const impactEffects = [];
 
 const characterImpactEffects = {
-  vergil: {
+   vergil: {
     dash: { sprite: "vergil-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
-    'beowulf-dash': { sprite: "vergil-beowulf-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } }
+    'beowulf-dash': { sprite: "vergil-beowulf-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } },
+    // VERGIL SDT IMPACT EFFECTS! 💀⚡🌩️
+    'vergil-sdt-dash': { sprite: "vergil-sdt-slash-impact.png", frames: 2, w: 140, h: 120, speed: 2, duration: 35, offset: { x: -25, y: -60 } },
+    'vergil-sdt-beowulf-dash': { sprite: "vergil-sdt-beowulf-impact.png", frames: 4, w: 120, h: 100, speed: 2, duration: 30, offset: { x: -20, y: -40 } },
+    'vergil-sdt-beowulf-uppercut': { sprite: "vergil-sdt-beowulf-uppercut-impact.png", frames: 3, w: 130, h: 140, speed: 2, duration: 40, offset: { x: -25, y: -70 } },
+    'vergil-sdt-beowulf-divekick': { sprite: "vergil-sdt-beowulf-divekick-impact.png", frames: 5, w: 150, h: 110, speed: 2, duration: 45, offset: { x: -30, y: -35 } },
   },
   gold: {
     dash: { sprite: "gold-punch-impact.png", frames: 4, w: 60, h: 60, speed: 2, duration: 12, offset: { x: -10, y: -10 } }
@@ -649,7 +654,12 @@ if (attacker.charId === 'danty' && attacker.devilSwordUpgraded) {
     opponent.vy = attacker.vy; // Exact same upward speed
     opponent.vx = attacker.facing * (6 + attacker.uppercutPower * 4); // Slight horizontal push
     
-    createImpactEffect(attacker, opponent, 'beowulf-dash');
+        // Choose appropriate impact effect for Vergil
+    if (attacker.charId === 'vergil' && attacker.vergilSdtActive) {
+      createImpactEffect(attacker, opponent, 'vergil-sdt-beowulf-uppercut');
+    } else {
+      createImpactEffect(attacker, opponent, 'beowulf-dash');
+    }
     
     if (opponent.hp <= 0) {
       opponent.hp = 0;
@@ -2262,6 +2272,16 @@ let damage = DASH_DAMAGE;
 if (p.charId === 'vergil' && p.vergilSdtActive) {
   damage = Math.floor(DASH_DAMAGE * VERGIL_SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER); // VERGIL SDT DAMAGE! 💀⚡💥
   console.log(`${p.name}'s VERGIL SDT DEVASTATING DAMAGE! ${damage} instead of ${DASH_DAMAGE} 💀⚡🌩️`);
+  
+  // Use SDT impact effects
+  let sdtEffectType = 'vergil-sdt-dash';
+  if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.isUppercutting) {
+    sdtEffectType = 'vergil-sdt-beowulf-uppercut';
+  } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    sdtEffectType = 'vergil-sdt-beowulf-dash';
+  }
+  // We'll use this effect type later in the function
+  
 } else if (p.charId === 'danty' && p.sdtActive) {
   damage = Math.floor(DASH_DAMAGE * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER); // DOUBLE DAMAGE IN SDT 💀💥
   console.log(`${p.name}'s SDT DOUBLE DAMAGE! ${damage} instead of ${DASH_DAMAGE} 💀💥🔥`);
@@ -2378,9 +2398,15 @@ opp.hp -= damage;
         maxBounces: 2
       };
       
-      if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        createImpactEffect(p, opp, 'beowulf-dash');
-        console.log(`💥 ${p.name} punched ${opp.name} with Beowulf! Force: ${Math.abs(opp.vx).toFixed(1)}`);
+           if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        // Choose appropriate impact effect
+        if (p.vergilSdtActive) {
+          createImpactEffect(p, opp, 'vergil-sdt-beowulf-dash');
+          console.log(`💥 ${p.name} DEVASTATED ${opp.name} with SDT Beowulf! STORM POWER! 💀⚡🌩️ Force: ${Math.abs(opp.vx).toFixed(1)}`);
+        } else {
+          createImpactEffect(p, opp, 'beowulf-dash');
+          console.log(`💥 ${p.name} punched ${opp.name} with Beowulf! Force: ${Math.abs(opp.vx).toFixed(1)}`);
+        }
       } else {
         createImpactEffect(p, opp, 'dash');
         console.log(`💥 ${p.name} sent ${opp.name} flying! Force: ${Math.abs(opp.vx).toFixed(1)}`);
@@ -2703,22 +2729,73 @@ if (effect.phase === 'slide') {
       }
     }
     
-    // SDT Animation phases
+     // SDT Animation phases
     if (p.vergilSdtAnimationPhase === 'lightning_strike') {
       p.vergilSdtLightningY += 6;
       if (p.vergilSdtLightningY >= p.y + p.h/2) {
-        p.vergilSdtAnimationPhase = 'explosion';
-        p.vergilSdtExplosionTimer = 25;
-        console.log(`${p.name} is struck by divine lightning! 💀⚡💥`);
+        // START VERGIL TRANSFORMATION SEQUENCE! 🎬⚡💀
+        p.vergilSdtAnimationPhase = 'transformation';
+        p.vergilTransformationFrame = 0;
+        p.vergilTransformationTimer = 0;
+        console.log(`${p.name} begins the STORM TRANSFORMATION! 🎬⚡💀🌩️`);
       }
-    } else if (p.vergilSdtAnimationPhase === 'explosion') {
-      p.vergilSdtExplosionTimer--;
-      if (p.vergilSdtExplosionTimer <= 0) {
-        p.vergilSdtAnimationPhase = 'active';
-        p.vergilSdtActive = true;
-        p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
-        p.vergilSdtFearAura = true;
-        console.log(`${p.name} HAS AWAKENED! I AM THE STORM! ⚡💀👹🌩️`);
+    } else if (p.vergilSdtAnimationPhase === 'transformation') {
+      // VERGIL TRANSFORMATION ANIMATION! 🎬⚡
+      p.vergilTransformationTimer++;
+      if (p.vergilTransformationTimer >= 8) { // 8 frames per animation frame for dramatic effect
+        p.vergilTransformationTimer = 0;
+        p.vergilTransformationFrame++;
+        
+        // Check if transformation animation is complete
+        if (vergilTransformingSprite.complete && vergilTransformingSprite.naturalWidth > 0) {
+          const totalFrames = 10; // Assuming 10 frames for Vergil transformation
+          if (p.vergilTransformationFrame >= totalFrames) {
+            // START VERGIL BIG DRAW LIGHTNING! ⚡💥🎬
+            p.vergilSdtAnimationPhase = 'big_draw_lightning';
+            p.vergilBigDrawFrame = 0;
+            p.vergilBigDrawTimer = 0;
+            p.vergilBigDrawActive = true;
+            console.log(`${p.name} UNLEASHES THE STORM BIG DRAW! ⚡💥🎬🌩️`);
+          }
+        } else {
+          // Fallback: proceed after 60 frames if sprite isn't loaded
+          if (p.vergilTransformationFrame >= 60) {
+            p.vergilSdtAnimationPhase = 'big_draw_lightning';
+            p.vergilBigDrawFrame = 0;
+            p.vergilBigDrawTimer = 0;
+            p.vergilBigDrawActive = true;
+          }
+        }
+      }
+    } else if (p.vergilSdtAnimationPhase === 'big_draw_lightning') {
+      // VERGIL BIG DRAW LIGHTNING ANIMATION! ⚡💥🎬
+      p.vergilBigDrawTimer++;
+      if (p.vergilBigDrawTimer >= 5) { // Fast and dramatic
+        p.vergilBigDrawTimer = 0;
+        p.vergilBigDrawFrame++;
+        
+        // Check if big draw is complete
+        if (vergilSdtLightningBigDrawSprite.complete && vergilSdtLightningBigDrawSprite.naturalWidth > 0) {
+          const totalFrames = 8; // Assuming 8 frames for big draw lightning
+          if (p.vergilBigDrawFrame >= totalFrames) {
+            // TRANSFORMATION COMPLETE! ⚡💀
+            p.vergilSdtAnimationPhase = 'active';
+            p.vergilSdtActive = true;
+            p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
+            p.vergilSdtFearAura = true;
+            p.vergilBigDrawActive = false;
+            console.log(`${p.name} HAS AWAKENED! I AM THE STORM! ⚡💀👹🌩️`);
+          }
+        } else {
+          // Fallback
+          if (p.vergilBigDrawFrame >= 40) {
+            p.vergilSdtAnimationPhase = 'active';
+            p.vergilSdtActive = true;
+            p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
+            p.vergilSdtFearAura = true;
+            p.vergilBigDrawActive = false;
+          }
+        }
       }
     }
     
@@ -2892,7 +2969,7 @@ if (p.charId === 'danty') {
     }
   }
   
-  // SDT Animation phases
+   // SDT Animation phases
   if (p.sdtAnimationPhase === 'sword_falling') {
     p.sdtSwordY += SIN_DEVIL_TRIGGER.SWORD_FALL_SPEED;
     if (p.sdtSwordY >= p.y + p.h/2) {
@@ -2903,14 +2980,70 @@ if (p.charId === 'danty') {
   } else if (p.sdtAnimationPhase === 'piercing') {
     p.sdtExplosionTimer--;
     if (p.sdtExplosionTimer <= 0) {
-      p.sdtAnimationPhase = 'active';
-          p.sdtActive = true;
-      p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
-      p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
-      console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
+      // START BIG DRAW TRANSFORMATION SEQUENCE! 🎬💀💥
+      p.sdtAnimationPhase = 'transformation';
+      p.dantyTransformationFrame = 0;
+      p.dantyTransformationTimer = 0;
+      console.log(`${p.name} begins the LEGENDARY TRANSFORMATION! 🎬💀🔥`);
+    }
+  } else if (p.sdtAnimationPhase === 'transformation') {
+    // DANTY TRANSFORMATION ANIMATION! 🎬💀
+    p.dantyTransformationTimer++;
+    if (p.dantyTransformationTimer >= 8) { // 8 frames per animation frame for dramatic effect
+      p.dantyTransformationTimer = 0;
+      p.dantyTransformationFrame++;
       
-               // SDT activated - just let the default music keep rocking! 💀🎵
-      console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
+      // Check if transformation animation is complete
+      if (dantyTransformingSprite.complete && dantyTransformingSprite.naturalWidth > 0) {
+        const totalFrames = 8; // Assuming 8 frames for transformation
+        if (p.dantyTransformationFrame >= totalFrames) {
+          // START BIG DRAW EXPLOSION! 💥🎬
+          p.sdtAnimationPhase = 'big_draw_explosion';
+          p.dantyBigDrawFrame = 0;
+          p.dantyBigDrawTimer = 0;
+          p.dantyBigDrawActive = true;
+          console.log(`${p.name} UNLEASHES THE BIG DRAW EXPLOSION! 💥🎬💀`);
+        }
+      } else {
+        // Fallback: proceed after 50 frames if sprite isn't loaded
+        if (p.dantyTransformationFrame >= 50) {
+          p.sdtAnimationPhase = 'big_draw_explosion';
+          p.dantyBigDrawFrame = 0;
+          p.dantyBigDrawTimer = 0;
+          p.dantyBigDrawActive = true;
+        }
+      }
+    }
+  } else if (p.sdtAnimationPhase === 'big_draw_explosion') {
+    // BIG DRAW EXPLOSION ANIMATION! 💥🎬
+    p.dantyBigDrawTimer++;
+    if (p.dantyBigDrawTimer >= 6) { // Slower for dramatic effect
+      p.dantyBigDrawTimer = 0;
+      p.dantyBigDrawFrame++;
+      
+      // Check if big draw is complete
+      if (sdtExplosionBigDrawSprite.complete && sdtExplosionBigDrawSprite.naturalWidth > 0) {
+        const totalFrames = 6; // Assuming 6 frames for big draw
+        if (p.dantyBigDrawFrame >= totalFrames) {
+          // TRANSFORMATION COMPLETE! 💀🔥
+          p.sdtAnimationPhase = 'active';
+          p.sdtActive = true;
+          p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
+          p.devilSwordUpgraded = true;
+          p.dantyBigDrawActive = false;
+          console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
+        }
+      } else {
+        // Fallback
+        if (p.dantyBigDrawFrame >= 30) {
+          p.sdtAnimationPhase = 'active';
+          p.sdtActive = true;
+          p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
+          p.devilSwordUpgraded = true;
+          p.dantyBigDrawActive = false;
+        }
+      }
+    
     }
   }
   
@@ -3193,7 +3326,24 @@ function getAnimForPlayer(p) {
   let charAnim = characterSprites[p.charId];
   if (!charAnim) return null;
   
-  // SDT ANIMATIONS OVERRIDE EVERYTHING 💀🔥
+  // VERGIL SDT ANIMATIONS OVERRIDE EVERYTHING! 💀⚡🌩️
+  if (p.charId === 'vergil' && p.vergilSdtActive) {
+    // Check for Beowulf SDT animations first
+    if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+      const vergilSdtBeowulfAnimState = `vergil-sdt-beowulf-${p.animState}`;
+      if (charAnim[vergilSdtBeowulfAnimState]) {
+        return charAnim[vergilSdtBeowulfAnimState];
+      }
+    }
+    
+    // Then check for regular Vergil SDT animations
+    const vergilSdtAnimState = `vergil-sdt-${p.animState}`;
+    if (charAnim[vergilSdtAnimState]) {
+      return charAnim[vergilSdtAnimState];
+    }
+  }
+  
+  // DANTY SDT ANIMATIONS OVERRIDE EVERYTHING 💀🔥
   if (p.charId === 'danty' && p.sdtActive) {
     const sdtAnimState = `sdt-${p.animState}`;
     if (charAnim[sdtAnimState]) {
@@ -3208,13 +3358,12 @@ function getAnimForPlayer(p) {
     }
   }
 
-
-if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG) {
-  const balrogAnimState = `balrog-${p.animState}`;
-  if (charAnim[balrogAnimState]) {
-    return charAnim[balrogAnimState];
+  if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG) {
+    const balrogAnimState = `balrog-${p.animState}`;
+    if (charAnim[balrogAnimState]) {
+      return charAnim[balrogAnimState];
+    }
   }
-}
   
   return charAnim[p.animState];
 }
@@ -3432,7 +3581,21 @@ const devilSwordEnhancedStrike3Sprite = new Image();
 devilSwordEnhancedStrike3Sprite.src = "danty-devilsword-enhanced-strike3.png";
 
 const sdtSwordSprite = new Image();
-sdtSwordSprite.src = "danty-sdt-sword-pierce.png"; // The sword that falls and pierces Danty 🥵
+sdtSwordSprite.src = "sin-devil-sword.png"; // THE LEGENDARY SIN DEVIL SWORD! 💀⚔️
+
+// EPIC TRANSFORMATION SPRITES! 🎬💀⚡
+const dantyTransformingSprite = new Image();
+dantyTransformingSprite.src = "danty-transforming.png"; // Danty's transformation sequence!
+
+const vergilTransformingSprite = new Image();
+vergilTransformingSprite.src = "vergil-transforming.png"; // Vergil's transformation sequence! (for later)
+
+// BIG DRAW FRAME EXPLOSION SPRITES! 💥🎬
+const sdtExplosionBigDrawSprite = new Image();
+sdtExplosionBigDrawSprite.src = "sdt-explosion-big-draw.png"; // The epic explosion after sword pierce!
+
+const vergilSdtLightningBigDrawSprite = new Image();
+vergilSdtLightningBigDrawSprite.src = "vergil-sdt-lightning-big-draw.png"; // Vergil's lightning big draw! (for later)
 
 // Spectral Sword sprites
 const spectralSwordIdleSprite = new Image();
@@ -3491,6 +3654,48 @@ sdtJumpSprite.src = "danty-sdt-jump.png";
 
 const sdtFallSprite = new Image();
 sdtFallSprite.src = "danty-sdt-fall.png";
+// VERGIL SDT EXCLUSIVE SPRITES! 💀⚡🌩️
+const vergilSdtIdleSprite = new Image();
+vergilSdtIdleSprite.src = "vergil-sdt-idle.png";
+
+const vergilSdtWalkSprite = new Image();
+vergilSdtWalkSprite.src = "vergil-sdt-walk.png";
+
+const vergilSdtDashSprite = new Image();
+vergilSdtDashSprite.src = "vergil-sdt-dash.png";
+
+const vergilSdtJumpSprite = new Image();
+vergilSdtJumpSprite.src = "vergil-sdt-jump.png";
+
+const vergilSdtFallSprite = new Image();
+vergilSdtFallSprite.src = "vergil-sdt-fall.png";
+
+const vergilSdtBlockSprite = new Image();
+vergilSdtBlockSprite.src = "vergil-sdt-block.png";
+
+const vergilSdtBlockingSprite = new Image();
+vergilSdtBlockingSprite.src = "vergil-sdt-blocking.png";
+
+const vergilSdtChargingSprite = new Image();
+vergilSdtChargingSprite.src = "vergil-sdt-charging.png";
+
+const vergilSdtBeowulfIdleSprite = new Image();
+vergilSdtBeowulfIdleSprite.src = "vergil-sdt-beowulf-idle.png";
+
+const vergilSdtBeowulfDashSprite = new Image();
+vergilSdtBeowulfDashSprite.src = "vergil-sdt-beowulf-dash.png";
+
+const vergilSdtBeowulfWalkSprite = new Image();
+vergilSdtBeowulfWalkSprite.src = "vergil-sdt-beowulf-walk.png";
+
+const vergilSdtBeowulfChargingSprite = new Image();
+vergilSdtBeowulfChargingSprite.src = "vergil-sdt-beowulf-charging.png";
+
+const vergilSdtBeowulfUppercutSprite = new Image();
+vergilSdtBeowulfUppercutSprite.src = "vergil-sdt-beowulf-uppercut.png";
+
+const vergilSdtBeowulfDivekickSprite = new Image();
+vergilSdtBeowulfDivekickSprite.src = "vergil-sdt-beowulf-divekick.png";
 
 const characterSprites = {
   gold: {
@@ -3550,6 +3755,22 @@ const characterSprites = {
     'mirage-idle': { src: "vergil-mirage-idle.png", frames: 6, w: 100, h: 100, speed: 12 },
     'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
+    
+    // VERGIL SDT EXCLUSIVE SPRITES! 
+    'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 10, w: 120, h: 120, speed: 8 },
+    'vergil-sdt-walk': { src: "vergil-sdt-walk.png", frames: 8, w: 120, h: 120, speed: 4 },
+    'vergil-sdt-dash': { src: "vergil-sdt-dash.png", frames: 5, w: 120, h: 120, speed: 2 },
+    'vergil-sdt-jump': { src: "vergil-sdt-jump.png", frames: 6, w: 120, h: 120, speed: 4 },
+    'vergil-sdt-fall': { src: "vergil-sdt-fall.png", frames: 4, w: 120, h: 120, speed: 5 },
+    'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 3, w: 120, h: 120, speed: 6 },
+    'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 4, w: 120, h: 120, speed: 7 },
+    'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 8, w: 120, h: 120, speed: 6 },
+    'vergil-sdt-beowulf-idle': { src: "vergil-sdt-beowulf-idle.png", frames: 8, w: 120, h: 120, speed: 10 },
+    'vergil-sdt-beowulf-dash': { src: "vergil-sdt-beowulf-dash.png", frames: 6, w: 120, h: 120, speed: 2 },
+    'vergil-sdt-beowulf-walk': { src: "vergil-sdt-beowulf-walk.png", frames: 6, w: 120, h: 120, speed: 5 },
+    'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png", frames: 6, w: 120, h: 120, speed: 5 },
+    'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 8, w: 120, h: 120, speed: 2 },
+    'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png", frames: 6, w: 120, h: 120, speed: 3 },
   },
  danty: {
   idle: { src: "danty-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
@@ -3654,8 +3875,20 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     vergilSdtAnimationPhase: null,
     vergilSdtLightningX: 0,
     vergilSdtLightningY: 0,
-    vergilSdtExplosionTimer: 0,
-    vergilSdtFearAura: false,
+      vergilSdtExplosionTimer: 0,
+       vergilSdtFearAura: false,
+    // TRANSFORMATION ANIMATION! 🎬💀🔥
+    dantyTransformationFrame: 0,
+    dantyTransformationTimer: 0,
+    dantyBigDrawFrame: 0,
+    dantyBigDrawTimer: 0,
+    dantyBigDrawActive: false,
+    // TRANSFORMATION ANIMATION! 🎬💀⚡
+    vergilTransformationFrame: 0,
+    vergilTransformationTimer: 0,
+    vergilBigDrawFrame: 0,
+    vergilBigDrawTimer: 0,
+    vergilBigDrawActive: false,
  devilSwordGauge: 0,
 devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
@@ -3700,8 +3933,20 @@ sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
     vergilSdtAnimationPhase: null,
     vergilSdtLightningX: 0,
     vergilSdtLightningY: 0,
-    vergilSdtExplosionTimer: 0,
-    vergilSdtFearAura: false,
+     vergilSdtExplosionTimer: 0,
+       vergilSdtFearAura: false,
+    // TRANSFORMATION ANIMATION! 🎬💀🔥
+    dantyTransformationFrame: 0,
+    dantyTransformationTimer: 0,
+    dantyBigDrawFrame: 0,
+    dantyBigDrawTimer: 0,
+    dantyBigDrawActive: false,
+    // TRANSFORMATION ANIMATION! 🎬💀⚡
+    vergilTransformationFrame: 0,
+    vergilTransformationTimer: 0,
+    vergilBigDrawFrame: 0,
+    vergilBigDrawTimer: 0,
+    vergilBigDrawActive: false,
 devilSwordGauge: 0,
 devilSwordUpgraded: false,
 devilSwordUpgradeTimer: 0,
@@ -4013,7 +4258,53 @@ function draw() {
       }
     }
     
-    ctx.restore();
+       ctx.restore();
+
+    // Draw Vergil SDT Fear Aura! 👹💀⚡
+    if (p.charId === 'vergil' && p.vergilSdtFearAura && p.vergilSdtActive) {
+      ctx.save();
+      
+      // Pulsing dark aura
+      const auraIntensity = 0.3 + 0.2 * Math.sin(performance.now() / 150);
+      ctx.globalAlpha = auraIntensity;
+      
+      // Multiple aura rings
+      for (let ring = 0; ring < 3; ring++) {
+        const ringRadius = VERGIL_SIN_DEVIL_TRIGGER.FEAR_AURA_RANGE - (ring * 40);
+        const ringAlpha = auraIntensity * (1 - ring * 0.3);
+        
+        ctx.globalAlpha = ringAlpha;
+        ctx.strokeStyle = ring === 0 ? "#1e90ff" : ring === 1 ? "#00bfff" : "#87ceeb";
+        ctx.lineWidth = 4 - ring;
+        ctx.setLineDash([10 - ring * 2, 5 + ring]);
+        ctx.beginPath();
+        ctx.arc(p.x + p.w/2, p.y + p.h/2, ringRadius, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+      
+      // Lightning sparks around the aura
+      for (let spark = 0; spark < 8; spark++) {
+        const angle = (spark / 8) * Math.PI * 2 + (performance.now() / 200);
+        const sparkDistance = VERGIL_SIN_DEVIL_TRIGGER.FEAR_AURA_RANGE * 0.8;
+        const sparkX = p.x + p.w/2 + Math.cos(angle) * sparkDistance;
+        const sparkY = p.y + p.h/2 + Math.sin(angle) * sparkDistance;
+        
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 100 + spark);
+        ctx.strokeStyle = "#00bfff";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        
+        ctx.beginPath();
+        ctx.moveTo(sparkX - 5, sparkY - 5);
+        ctx.lineTo(sparkX + 5, sparkY + 5);
+        ctx.moveTo(sparkX + 5, sparkY - 5);
+        ctx.lineTo(sparkX - 5, sparkY + 5);
+        ctx.stroke();
+      }
+      
+      ctx.setLineDash([]); // Reset line dash
+      ctx.restore();
+    }
 
     // Draw bounce effect
     if (p.bounceEffect) {
@@ -4513,14 +4804,84 @@ ctx.restore();
         ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize * 0.4, 0, 2 * Math.PI);
         ctx.fill();
       }
+
+            } else if (p.vergilSdtAnimationPhase === 'transformation') {
+        // DRAW VERGIL TRANSFORMATION ANIMATION! 🎬⚡💀
+        ctx.globalAlpha = 1.0;
+        if (vergilTransformingSprite.complete && vergilTransformingSprite.naturalWidth > 0) {
+          const frameWidth = 160; // Vergil's transformation sprite
+          const frameHeight = 160;
+          const spriteX = p.x + p.w/2 - frameWidth/2;
+          const spriteY = p.y + p.h/2 - frameHeight/2;
+          
+          ctx.drawImage(
+            vergilTransformingSprite,
+            frameWidth * p.vergilTransformationFrame, 0,
+            frameWidth, frameHeight,
+            spriteX, spriteY,
+            frameWidth, frameHeight
+          );
+        } else {
+          // Fallback transformation effect
+          ctx.strokeStyle = "#00bfff";
+          ctx.globalAlpha = 0.8;
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.arc(p.x + p.w/2, p.y + p.h/2, 90 + Math.sin(performance.now() / 80) * 25, 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+        
+      } else if (p.vergilSdtAnimationPhase === 'big_draw_lightning' && p.vergilBigDrawActive) {
+        // DRAW VERGIL BIG DRAW LIGHTNING! ⚡💥🎬
+        ctx.globalAlpha = 1.0;
+        if (vergilSdtLightningBigDrawSprite.complete && vergilSdtLightningBigDrawSprite.naturalWidth > 0) {
+          const frameWidth = 320; // MASSIVE big draw lightning!
+          const frameHeight = 320;
+          const spriteX = p.x + p.w/2 - frameWidth/2;
+          const spriteY = p.y + p.h/2 - frameHeight/2;
+          
+          ctx.drawImage(
+            vergilSdtLightningBigDrawSprite,
+            frameWidth * p.vergilBigDrawFrame, 0,
+            frameWidth, frameHeight,
+            spriteX, spriteY,
+            frameWidth, frameHeight
+          );
+          
+          // Add lightning screen effects!
+          for (let i = 0; i < 8; i++) {
+            ctx.globalAlpha = 0.4;
+            ctx.strokeStyle = "#00bfff";
+            ctx.lineWidth = 3;
+            const angle = (i / 8) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(p.x + p.w/2, p.y + p.h/2);
+            ctx.lineTo(
+              p.x + p.w/2 + Math.cos(angle) * 250,
+              p.y + p.h/2 + Math.sin(angle) * 250
+            );
+            ctx.stroke();
+          }
+        } else {
+          // Fallback big lightning
+          for (let i = 0; i < 6; i++) {
+            ctx.globalAlpha = 0.8 - (i * 0.1);
+            ctx.strokeStyle = i % 2 === 0 ? "#00bfff" : "#ffffff";
+            ctx.lineWidth = 20 - (i * 3);
+            ctx.beginPath();
+            ctx.arc(p.x + p.w/2, p.y + p.h/2, 180 + (i * 30), 0, 2 * Math.PI);
+            ctx.stroke();
+          }
+        }
+      
       
       ctx.restore();
     }
   }
 
-  // Draw SDT sword falling animation
+   // Draw EPIC TRANSFORMATION SEQUENCES! 🎬💀⚡
   for (let p of players) {
-    if (p.charId === 'danty' && (p.sdtAnimationPhase === 'sword_falling' || p.sdtAnimationPhase === 'piercing')) {
+    if (p.charId === 'danty' && (p.sdtAnimationPhase === 'sword_falling' || p.sdtAnimationPhase === 'piercing' || p.sdtAnimationPhase === 'transformation' || p.sdtAnimationPhase === 'big_draw_explosion')) {
       ctx.save();
       
       if (p.sdtAnimationPhase === 'sword_falling') {
@@ -4544,7 +4905,7 @@ ctx.restore();
           ctx.fillStyle = "#8b008b";
           ctx.fillRect(p.sdtSwordX - 5, p.sdtSwordY - (i * 20), 10, 40);
         }
-      } else if (p.sdtAnimationPhase === 'piercing') {
+        } else if (p.sdtAnimationPhase === 'piercing') {
         // Draw explosion effect
         const explosionIntensity = 1 - (p.sdtExplosionTimer / SIN_DEVIL_TRIGGER.EXPLOSION_DURATION);
         const explosionSize = 100 * explosionIntensity;
@@ -4565,7 +4926,69 @@ ctx.restore();
         ctx.beginPath();
         ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize * 0.3, 0, 2 * Math.PI);
         ctx.fill();
-      }
+        
+      } else if (p.sdtAnimationPhase === 'transformation') {
+        // DRAW DANTY TRANSFORMATION ANIMATION! 🎬💀🔥
+        ctx.globalAlpha = 1.0;
+        if (dantyTransformingSprite.complete && dantyTransformingSprite.naturalWidth > 0) {
+          const frameWidth = 150; // Assume bigger transformation sprite
+          const frameHeight = 150;
+          const spriteX = p.x + p.w/2 - frameWidth/2;
+          const spriteY = p.y + p.h/2 - frameHeight/2;
+          
+          ctx.drawImage(
+            dantyTransformingSprite,
+            frameWidth * p.dantyTransformationFrame, 0,
+            frameWidth, frameHeight,
+            spriteX, spriteY,
+            frameWidth, frameHeight
+          );
+        } else {
+          // Fallback transformation effect
+          ctx.fillStyle = "#8b008b";
+          ctx.globalAlpha = 0.8;
+          ctx.beginPath();
+          ctx.arc(p.x + p.w/2, p.y + p.h/2, 80 + Math.sin(performance.now() / 100) * 20, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+        
+      } else if (p.sdtAnimationPhase === 'big_draw_explosion' && p.dantyBigDrawActive) {
+        // DRAW BIG DRAW EXPLOSION! 💥🎬💀
+        ctx.globalAlpha = 1.0;
+        if (sdtExplosionBigDrawSprite.complete && sdtExplosionBigDrawSprite.naturalWidth > 0) {
+          const frameWidth = 300; // MASSIVE big draw frame!
+          const frameHeight = 300;
+          const spriteX = p.x + p.w/2 - frameWidth/2;
+          const spriteY = p.y + p.h/2 - frameHeight/2;
+          
+          ctx.drawImage(
+            sdtExplosionBigDrawSprite,
+            frameWidth * p.dantyBigDrawFrame, 0,
+            frameWidth, frameHeight,
+            spriteX, spriteY,
+            frameWidth, frameHeight
+          );
+          
+          // Add screen shake effect for dramatic impact!
+          for (let i = 0; i < 5; i++) {
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = "#ff0080";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(p.x + p.w/2 + (Math.random() - 0.5) * 10, p.y + p.h/2 + (Math.random() - 0.5) * 10, 200 + i * 50, 0, 2 * Math.PI);
+            ctx.stroke();
+          }
+        } else {
+          // Fallback big explosion
+          for (let i = 0; i < 5; i++) {
+            ctx.globalAlpha = 0.7 - (i * 0.1);
+            ctx.strokeStyle = i % 2 === 0 ? "#8b008b" : "#ff0080";
+            ctx.lineWidth = 15 - (i * 2);
+            ctx.beginPath();
+            ctx.arc(p.x + p.w/2, p.y + p.h/2, 150 + (i * 40), 0, 2 * Math.PI);
+            ctx.stroke();
+          }
+        }}
       
       ctx.restore();
     }
