@@ -121,6 +121,9 @@ const VERGIL_SIN_DEVIL_TRIGGER = {
   DASH_SPEED_MULTIPLIER: 2.8, // TELEPORT-SPEED! 🌩️
   STORM_SLASHES_SCALE: 3, // MASSIVE Storm Slashes in SDT! 💀⚡
   FEAR_AURA_RANGE: 200, // Terrify opponents within this range! 👹
+  BIG_DRAW_DURATION: 60, // How long big draw plays
+  BIG_DRAW_SCALE: 5, // Size multiplier for big draw effect
+  TRANSFORMATION_DURATION: 48, // How long transformation takes
 };
 const SPECTRAL_SWORD = {
   SPAWN_DISTANCE: 10, // How far from Danty it spawns
@@ -1816,18 +1819,14 @@ document.addEventListener("keyup", function(e) {
     const playerControls = getControls(pid);
     if (k === playerControls.special) {
       const p = players[pid];
-           // VERGIL SDT RELEASE HANDLER! 💀⚡
-     if (p.charId === 'vergil' && p.vergilSdtCharging) {
+   if (p.charId === 'vergil' && p.vergilSdtCharging) {
   const holdTime = now - p.vergilSdtChargeStart;
   if (holdTime >= VERGIL_SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
-    // START TRANSFORMATION SEQUENCE! 💀⚡🌩️
+    // START BIG DRAW SEQUENCE! 💥🔥
     p.vergilSdtCharging = false;
-    p.vergilSdtAnimationPhase = 'transforming';
-    p.vergilSdtTransformTimer = 48; // 8 frames * 6 speed = 48 ticks
-   /* p.animState = "vergil-sdt-transforming";
-    p.animFrame = 0;
-    p.animTimer = 0;*/
-    console.log(`${p.name} begins STORM TRANSFORMATION! ⚡💀🌩️👹`);
+    p.vergilSdtAnimationPhase = 'big_draw';
+    p.vergilSdtBigDrawTimer = VERGIL_SIN_DEVIL_TRIGGER.BIG_DRAW_DURATION || 60;
+    console.log(`${p.name} unleashes the VERGIL BIG DRAW! 💥🔥💀`);
   } else {
     p.vergilSdtCharging = false;
     console.log(`${p.name} released too early! Need more MOTIVATION! ⚡❌`);
@@ -2791,15 +2790,24 @@ if (effect.phase === 'slide') {
       }
     }
     
-if (p.vergilSdtAnimationPhase === 'transforming') {
+if (p.vergilSdtAnimationPhase === 'big_draw') {
+  // BIG DRAW PHASE! 💥🔥
+  p.vergilSdtBigDrawTimer--;
+  if (p.vergilSdtBigDrawTimer <= 0) {
+    // BIG DRAW FINISHED - START TRANSFORMATION!
+    p.vergilSdtAnimationPhase = 'transforming';
+    p.vergilSdtTransformTimer = VERGIL_SIN_DEVIL_TRIGGER.TRANSFORMATION_DURATION;
+    console.log(`${p.name} begins the VERGIL STORM TRANSFORMATION! 💀🔥⚡`);
+  }
+} else if (p.vergilSdtAnimationPhase === 'transforming') {
+  // TRANSFORMATION PHASE! 💀⚡
   p.vergilSdtTransformTimer--;
   if (p.vergilSdtTransformTimer <= 0) {
-    // SKIP lightning and explosion - go straight to active SDT!
+    // TRANSFORMATION COMPLETE!
     p.vergilSdtAnimationPhase = 'active';
     p.vergilSdtActive = true;
     p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
     p.vergilSdtFearAura = true;
-    p.animState = "idle";
     console.log(`${p.name} HAS AWAKENED! I AM THE STORM! ⚡💀👹🌩️`);
   }
 } else if (p.vergilSdtAnimationPhase === 'lightning_strike') {
@@ -3823,6 +3831,7 @@ const players = [
     judgmentCutCharging: false, judgmentCutChargeStart: 0, judgmentCutChargeLevel: 0,
     currentWeapon: VERGIL_WEAPONS.YAMATO, bounceEffect: null, isBeingKnockedBack: false,
     sdtSwordY: 0,
+    vergilSdtBigDrawTimer: 0,
 sdtSwordX: 0,
 sdtExplosionTimer: 0,
 // Spectral Sword properties
@@ -3892,6 +3901,7 @@ sdtTransformTimer: 0,
     currentWeapon: DANTY_WEAPONS.DEVIL_SWORD, bounceEffect: null, isBeingKnockedBack: false,
         // STORM SLASHES ABILITY! ⚡⚔️🌩️
     stormSlashesReady: false,
+    vergilSdtBigDrawTimer: 0,
     stormSlashesTimer: 0,
     stormSlashesActive: false,
     stormSlashesAnimationFrame: 0,
@@ -4859,7 +4869,46 @@ if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
       ctx.fillText(sizeText, p.x + p.w/2, squareY - 10);
       
       ctx.restore();
-  
+    }
+  }
+
+  // Draw BIG DRAW - SIMPLE RED SQUARE! 🔥
+for (let p of players) {
+  if (p.charId === 'danty' && p.sdtAnimationPhase === 'big_draw') {
+    // ... existing Danty code ...
+  }
+}
+
+// Draw VERGIL BIG DRAW - BLUE STORM SQUARE! ⚡
+for (let p of players) {
+  if (p.charId === 'vergil' && p.vergilSdtAnimationPhase === 'big_draw') {
+    ctx.save();
+    
+    // STATIONARY SIZE - NO PULSING!
+    const bigDrawSize = p.w * (VERGIL_SIN_DEVIL_TRIGGER.BIG_DRAW_SCALE || 5);
+    
+    // PLAYER STANDS ON GROUND - SQUARE EXTENDS UP FROM GROUND! 🎯
+    const squareX = p.x + p.w/2 - bigDrawSize/2;
+    const squareY = p.y + p.h - bigDrawSize; // Square sits on ground like player!
+    
+    // STORM BLUE SQUARE OUTLINE! ⚡
+    ctx.strokeStyle = "#00bfff"; // STORM BLUE!
+    ctx.lineWidth = 3;
+    ctx.strokeRect(squareX, squareY, bigDrawSize, bigDrawSize);
+    
+    // SIZE TEXT ABOVE SQUARE! 📏
+    ctx.font = "bold 16px Arial";
+    ctx.fillStyle = "#00bfff";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1;
+    ctx.textAlign = "center";
+    const sizeText = `${(bigDrawSize/50).toFixed(1)}x STORM SIZE`;
+    ctx.strokeText(sizeText, p.x + p.w/2, squareY - 10);
+    ctx.fillText(sizeText, p.x + p.w/2, squareY - 10);
+    
+    ctx.restore();
+  }
+}
     
     
       ctx.save();
@@ -4909,8 +4958,7 @@ if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
       }
       
       ctx.restore();
-    }
-  }
+  
 
   // Draw Judgment Cut lines
   for (let p of players) {
