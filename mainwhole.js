@@ -726,7 +726,7 @@ const impactEffects = [];
 
 const characterImpactEffects = {
    vergil: {
-    dash: { sprite: "vergil-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
+    dash: { sprite: "vergil-slash-impact.png", frames: 3, w: 110, h: 110, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
     'beowulf-dash': { sprite: "vergil-beowulf-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } },
     // VERGIL SDT IMPACT EFFECTS! 💀⚡🌩️
     'vergil-sdt-dash': { sprite: "vergil-sdt-slash-impact.png", frames: 2, w: 140, h: 120, speed: 2, duration: 35, offset: { x: -25, y: -60 } },
@@ -744,7 +744,7 @@ danty: {
   dash: { sprite: "danty-slash-impact.png", frames: 1, w: 100, h: 100, speed: 3, duration: 18, offset: { x: -15, y: -40 } },
   'balrog-dash': { sprite: "danty-balrog-punch-impact.png", frames: 3, w: 80, h: 80, speed: 2, duration: 15, offset: { x: -10, y: -20 } },
   // Normal Devil Sword sprites
-  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 1, w: 90, h: 90, speed: 3, duration: 500, offset: { x: 50, y: 10 } },//right offset
+  'devilsword-strike1': { sprite: "danty-devilsword-strike1.png", frames: 1, w: 90, h: 90, speed: 3, duration: 20, offset: { x: 50, y: 10 } },//right offset
   'devilsword-strike2': { sprite: "danty-devilsword-strike2.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
   'devilsword-strike3': { sprite: "danty-devilsword-strike3.png", frames: 1, w: 120, h: 80, speed: 3, duration: 20, offset: { x: 60, y: -10 } },
   // Sin devil sword sprties
@@ -2049,13 +2049,17 @@ if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging &&
         return;
       }
       
-      p.judgmentCutCharging = true;
-      p.judgmentCutChargeStart = performance.now();
-      p.judgmentCutChargeLevel = 0;
-      p.animState = "charging";
-      p.animFrame = 0;
-      p.animTimer = 0;
-      console.log(`${p.name} is CLOSE! Charging Judgment Cut EXECUTION! ⚔️💀⚡`);
+   p.judgmentCutCharging = true;
+p.judgmentCutChargeStart = performance.now();
+p.judgmentCutChargeLevel = 0;
+p.animState = "charging";
+p.animFrame = 0;
+p.animTimer = 0;
+
+// Play charging sound immediately when starting to charge
+playJudgmentCutChargeSound();
+
+console.log(`${p.name} is CLOSE! Charging Judgment Cut EXECUTION! ⚔️💀⚡`);
     } 
     else {
       // FAR RANGE = I AM THE STORM THAT IS APPROACHING! 🌩️💀
@@ -2382,10 +2386,7 @@ document.addEventListener("keyup", function(e) {
   }
 }
       
-      if (p.charId === 'vergil' && p.judgmentCutCharging) {
-          if (chargeTime <= 200) { // When charging just started
-    playJudgmentCutChargeSound();
-  }
+ if (p.charId === 'vergil' && p.judgmentCutCharging) {
         const chargeTime = now - p.judgmentCutChargeStart;
         
                       if (chargeTime >= JUDGMENT_CUT_CHARGE.MIN_CHARGE_TIME) {
@@ -3259,7 +3260,7 @@ if (p.charId === 'vergil') {
       p.uppercutPower = 0;
     }
 
-    if (p.judgmentCutCharging) {
+if (p.judgmentCutCharging) {
         const chargeTime = performance.now() - p.judgmentCutChargeStart;
         p.judgmentCutChargeLevel = Math.min(chargeTime / JUDGMENT_CUT_CHARGE.MAX_CHARGE_TIME, 1.0);
     }
@@ -4363,7 +4364,7 @@ const characterSprites = {
   dizzy: { src: "vergil-dizzy.png", frames: 1, w: 100, h: 100, speed: 8 },
   defeat: { src: "vergil-defeat.png", frames: 1, w: 100, h: 100, speed: 10 },
   victory: { src: "vergil-victory.png", frames: 1, w: 100, h: 100, speed: 6 },
-    sheathing: { src: "vergil-sheathing.png", frames: 6, w: 100, h: 100, speed: 8 }, 
+    sheathing: { src: "vergil-sheathing.png", frames: 14, w: 100, h: 100, speed: 8 }, 
     slashing: { src: "vergil-judgment-cut-slashes.png", frames: 10, w: 200, h: 200, speed: 8 },
       'storm-slashes': { src: "vergil-storm-slashes.png", frames: 10, w: 200, h: 200, speed: 10 }, 
     charging: { src: "gold-idle.png", frames: 8, w: 100, h: 100, speed: 10 },
@@ -4417,7 +4418,7 @@ const characterSprites = {
 'vergil-sdt-transforming': { src: "vergil-sdt-transforming.png", frames: 1, w: 160, h: 140, speed: 6 },
   },
  danty: {
-  idle: { src: "danty-idle.png", frames: 1, w: 100, h: 100, speed: 13 },
+  idle: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
   walk: { src: "danty-walk.png", frames: 1, w: 100, h: 100, speed: 4 },
   jump: { src: "danty-jump.png", frames: 1, w: 100, h: 100, speed: 6 },
   fall: { src: "danty-fall.png", frames: 1, w: 100, h: 100, speed: 7 },
@@ -4437,17 +4438,17 @@ const characterSprites = {
   // SDT EXCLUSIVE SPRITES 
   'sdt-idle': { src: "danty-sdt-idle.png", frames: 11, w: 170, h: 180, speed: 10 },
   'sdt-walk': { src: "danty-sdt-walk.png", frames: 4, w: 170, h: 180, speed: 3 },
-  'sdt-dash': { src: "danty-sdt-dash.png", frames: 4, w: 60, h: 60, speed: 2 },
-  'sdt-jump': { src: "danty-sdt-jump.png", frames: 4, w: 60, h: 60, speed: 5 },
-  'sdt-fall': { src: "danty-sdt-fall.png", frames: 3, w: 60, h: 60, speed: 6 },
-  'sdt-uppercut': { src: "danty-sdt-uppercut.png", frames: 6, w: 60, h: 60, speed: 2 },
-  'sdt-divekick': { src: "danty-sdt-divekick.png", frames: 5, w: 60, h: 60, speed: 3 },
-  'sdt-charging': { src: "danty-sdt-charging.png", frames: 5, w: 60, h: 60, speed: 6 },
+  'sdt-dash': { src: "danty-sdt-walk.png", frames: 4, w: 170, h: 180, speed: 2 },
+  'sdt-jump': { src: "danty-sdt-jump.png", frames: 4, w: 170, h: 180, speed: 5 },
+  'sdt-fall': { src: "danty-sdt-idle.png", frames: 11, w: 170, h: 180, speed: 10 },
+  'sdt-uppercut': { src: "danty-sdt-uppercut.png", frames: 6, w: 170, h: 180, speed: 2 },
+  'sdt-divekick': { src: "danty-sdt-divekick.png", frames: 5, w: 170, h: 180, speed: 3 },
+  'sdt-charging': { src: "danty-sdt-charging.png", frames: 5, w: 170, h: 180, speed: 6 },
   // Danty SDT transformation
-'sdt-transforming': { src: "danty-sdt-transforming.png", frames: 1, w: 120, h: 120, speed: 8 },
+'sdt-transforming': { src: "danty-sdt-idle.png", frames: 1, w: 170, h: 180, speed: 8 },
     // Spectral Sword control animation
-  'controlling-spectral': { src: "danty-controlling-spectral.png", frames: 8, w: 100, h: 100, speed: 8 },
-  'transferring-control': { src: "danty-transferring-control.png", frames: 6, w: 100, h: 100, speed: 5 }
+  'controlling-spectral': { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
+  'transferring-control': { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 12 }
 },
 
 // SPECTRAL SWORD ENTITY ANIMATIONS 👻⚔️ - PLAYER SIZE!
