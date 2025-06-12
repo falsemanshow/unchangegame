@@ -325,11 +325,8 @@ function resetPlayersForNewRound() {
     console.log("🔄 Players reset for new round!");
 }
 
-
+// Function to update round system
 function updateRoundSystem() {
-    // Don't update rounds if game is paused
-    if (pauseSystem.isPaused) return;
-    
     // Handle round end timer
     if (gameRounds.showingRoundResult && gameRounds.roundEndTimer > 0) {
         gameRounds.roundEndTimer--;
@@ -1835,18 +1832,6 @@ document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 
 document.addEventListener("keydown", function(e) {
   const k = e.key.toLowerCase();
-  
-  // Handle pause/resume with ESC key
-  if (e.key === 'Escape') {
-    togglePause();
-    e.preventDefault();
-    return;
-  }
-  
-  // Don't process other keys if game is paused
-  if (pauseSystem.isPaused) {
-    return;
-  }
   
   for (let pid = 0; pid < 2; pid++) {
     const p = players[pid];
@@ -5724,46 +5709,7 @@ for (let p of players) {
       ctx.fillText(`${players[winner].name || `Player ${winner+1}`} Wins!`, WIDTH/2, HEIGHT/2);
     }
   }
-  
-  // Draw pause menu
-  if (pauseSystem.showPauseMenu) {
-    ctx.save();
-    
-    // Draw semi-transparent overlay
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    
-    // Draw pause menu background
-    const menuW = 400;
-    const menuH = 200;
-    const menuX = (WIDTH - menuW) / 2;
-    const menuY = (HEIGHT - menuH) / 2;
-    
-    ctx.fillStyle = "#1a1a2e";
-    ctx.strokeStyle = "#ffeb3b";
-    ctx.lineWidth = 3;
-    ctx.fillRect(menuX, menuY, menuW, menuH);
-    ctx.strokeRect(menuX, menuY, menuW, menuH);
-    
-    // Draw pause text
-    ctx.fillStyle = "#ffeb3b";
-    ctx.font = "bold 48px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("PAUSED", WIDTH/2, HEIGHT/2 - 30);
-    
-    // Draw instructions
-    ctx.fillStyle = "#fff";
-    ctx.font = "24px Arial";
-    ctx.fillText("Press ESC to Resume", WIDTH/2, HEIGHT/2 + 20);
-    
-    ctx.font = "18px Arial";
-    ctx.fillStyle = "#aaa";
-    ctx.fillText("or Click Anywhere", WIDTH/2, HEIGHT/2 + 50);
-    
-    ctx.restore();
-  }
 }
-
 
 function gameLoop() {
   updateCameraZoomEffect();
@@ -5795,7 +5741,7 @@ function gameLoop() {
     }
   }
   
-       if (!pauseSystem.isPaused) {
+      if (!gameState.paused) {
     for (let i = 0; i < players.length; ++i) {
       const p = players[i];
       if (p.justHit > 0) p.justHit--;
@@ -5964,23 +5910,5 @@ document.addEventListener("keydown", function(e) {
 
 // Only start immediately if no character select system is present
 if (!document.getElementById('characterSelect')) {
-  // Add click to resume functionality
-document.addEventListener('click', function(e) {
-    // Only resume if game is paused and not clicking on UI elements
-    if (pauseSystem.isPaused && !e.target.closest('#ui')) {
-        resumeGame();
-    }
-});
-
-// Add canvas click specifically for resuming
-const canvas = document.getElementById("game");
-if (canvas) {
-    canvas.addEventListener('click', function(e) {
-        if (pauseSystem.isPaused) {
-            resumeGame();
-            e.preventDefault();
-        }
-    });
-}
     gameLoop();
 }
