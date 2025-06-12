@@ -1,3 +1,393 @@
+// Bridge functions for character select integration
+window.initializeGameWithCharacters = function(player1Char, player2Char) {
+    console.log(`Initializing game: ${player1Char} vs ${player2Char}`);
+    
+    // Set the character IDs based on selection
+    if (typeof players !== 'undefined' && players.length >= 2) {
+        // Set character IDs
+        players[0].charId = player1Char;
+        players[0].name = player1Char.charAt(0).toUpperCase() + player1Char.slice(1);
+        players[1].charId = player2Char;
+        players[1].name = player2Char.charAt(0).toUpperCase() + player2Char.slice(1);
+        
+        // Set appropriate colors and properties based on character
+        setCharacterProperties(players[0], player1Char, 0);
+        setCharacterProperties(players[1], player2Char, 1);
+        
+        console.log(`Player 1 is now ${players[0].name} (${players[0].charId})`);
+        console.log(`Player 2 is now ${players[1].name} (${players[1].charId})`);
+    }
+};
+
+function setCharacterProperties(player, charId, playerId) {
+    // Reset all special properties first
+    resetPlayerProperties(player);
+    
+    switch(charId) {
+        case 'vergil':
+            player.color = "#4a90e2";
+            player.currentWeapon = VERGIL_WEAPONS.YAMATO;
+            break;
+        case 'danty':
+            player.color = "#ef5350";
+            player.currentWeapon = DANTY_WEAPONS.DEVIL_SWORD;
+            break;
+        case 'gold':
+            player.color = "#ffd700";
+            break;
+        case 'chicken':
+            player.color = "#ff8c00";
+            break;
+    }
+}
+
+function resetPlayerProperties(player) {
+    // Reset Vergil properties
+    player.judgmentCutCharging = false;
+    player.judgmentCutChargeStart = 0;
+    player.beowulfCharging = false;
+    player.stormSlashesReady = false;
+    player.stormSlashesActive = false;
+    player.mirageActive = false;
+    player.vergilSdtGauge = 0;
+    player.vergilSdtActive = false;
+    
+    // Reset Danty properties
+    player.devilSwordGauge = 0;
+    player.devilSwordUpgraded = false;
+    player.devilSwordActivating = false;
+    player.sdtActive = false;
+    player.sdtCharging = false;
+    player.balrogCharging = false;
+    if (player.spectralSword) destroySpectralSword(player);
+}
+
+window.startGameLoop = function() {
+    console.log("Starting the game loop!");
+    
+    // Initialize audio
+    if (typeof initializeAudio === 'function') {
+        initializeAudio();
+    }
+    
+    // Initialize round system
+    initializeRoundSystem();
+    
+    // Reset game state
+    winner = null;
+    
+    // Start the main game loop
+    if (typeof gameLoop === 'function') {
+        gameLoop();
+    } else {
+        console.error("gameLoop function not found!");
+    }
+};
+
+
+
+// Pause System Variables
+let pauseSystem = {
+    isPaused: false,
+    pauseOverlay: null,
+    pauseStartTime: 0,
+    pausedByUser: false // Distinguish from game pauses (like judgment cut)
+};
+
+// Pause System Functions
+function togglePause() {
+    if (gameState.paused && !pauseSystem.pausedByUser) {
+        // Don't allow user pause during game-controlled pauses (like judgment cut)
+        console.log("Cannot pause during special moves!");
+        return;
+    }
+    
+    if (pauseSystem.isPaused) {
+        resumeGame();
+    } else {
+        pauseGameByUser();
+    }
+}
+
+function pauseGameByUser() {
+    if (pauseSystem.isPaused) return;
+    
+    pauseSystem.isPaused = true;
+    pauseSystem.pausedByUser = true;
+    pauseSystem.pauseStartTime = performance.now();
+    
+    // Pause the main game state too
+    gameState.paused = true;
+    gameState.pauseReason = 'user_pause';
+    
+    console.log("⏸️ Game paused by user!");
+    showPauseOverlay();
+}
+
+function resumeGame() {
+    if (!pauseSystem.isPaused) return;
+    
+    pauseSystem.isPaused = false;
+    pauseSystem.pausedByUser = false;
+    
+    // Only resume main game state if it was paused by user
+    if (gameState.pauseReason === 'user_pause') {
+        gameState.paused = false;
+        gameState.pauseReason = null;
+    }
+    
+    console.log("▶️ Game resumed!");
+    hidePauseOverlay();
+}
+
+function showPauseOverlay() {
+    // Remove existing overlay if any
+    hidePauseOverlay();
+    
+    // Create pause overlay
+    pauseSystem.pauseOverlay = document.createElement('div');
+    pauseSystem.pauseOverlay.id = 'pauseOverlay';
+    pauseSystem.pauseOverlay.innerHTML = `
+        <div class="pause-content">
+            <h1>⏸️ GAME PAUSED</h1>
+            <div class="pause-instructions">
+                <p>Press <kbd>ESC</kbd> to resume</p>
+                <p>Or click anywhere on screen</p>
+            </div>
+            <div class="pause-controls">
+                <div class="control-hint">
+                    <strong>Player 1:</strong> WASD + E + Q
+                </div>
+                <div class="control-hint">
+                    <strong>Player 2:</strong> OKL; + P + I
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add styles
+    pauseSystem.pauseOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        font-family: Arial, sans-serif;
+        color: white;
+        backdrop-filter: blur(5px);
+        cursor: pointer;
+    `;
+    
+    // Add click handler to overlay
+    pauseSystem.pauseOverlay.addEventListener('click', resumeGame);
+    
+    document.body.appendChild(pauseSystem.pauseOverlay);
+}
+
+function hidePauseOverlay() {
+    if (pauseSystem.pauseOverlay) {
+        pauseSystem.pauseOverlay.remove();
+        pauseSystem.pauseOverlay = null;
+    }
+}
+
+// Round system variables
+let gameRounds = {
+    currentRound: 1,
+    maxRounds: 3,
+    player1Wins: 0,
+    player2Wins: 0,
+    gameWinner: null,
+    roundActive: true,
+    roundEndTimer: 0,
+    showingRoundResult: false
+};
+
+// Function to initialize round system
+function initializeRoundSystem() {
+    gameRounds = {
+        currentRound: 1,
+        maxRounds: 3,
+        player1Wins: 0,
+        player2Wins: 0,
+        gameWinner: null,
+        roundActive: true,
+        roundEndTimer: 0,
+        showingRoundResult: false
+    };
+    console.log("🏁 Round system initialized! Best of 3 rounds!");
+}
+
+// Function to handle round end
+function handleRoundEnd(roundWinner) {
+    if (!gameRounds.roundActive) return;
+    
+    gameRounds.roundActive = false;
+    gameRounds.showingRoundResult = true;
+    gameRounds.roundEndTimer = 180; // 3 seconds at 60fps
+    
+    // Update round wins
+    if (roundWinner === 0) {
+        gameRounds.player1Wins++;
+        console.log(`🎉 ${players[0].name} wins Round ${gameRounds.currentRound}!`);
+    } else if (roundWinner === 1) {
+        gameRounds.player2Wins++;
+        console.log(`🎉 ${players[1].name} wins Round ${gameRounds.currentRound}!`);
+    } else {
+        console.log(`⚡ Round ${gameRounds.currentRound} is a DRAW!`);
+    }
+    
+    // Check if someone won the match (best of 3)
+    if (gameRounds.player1Wins >= 2) {
+        gameRounds.gameWinner = 0;
+        console.log(`👑 ${players[0].name} WINS THE MATCH! ${gameRounds.player1Wins}-${gameRounds.player2Wins}`);
+    } else if (gameRounds.player2Wins >= 2) {
+        gameRounds.gameWinner = 1;
+        console.log(`👑 ${players[1].name} WINS THE MATCH! ${gameRounds.player2Wins}-${gameRounds.player1Wins}`);
+    } else if (gameRounds.currentRound >= gameRounds.maxRounds) {
+        // All rounds played, determine winner by wins
+        if (gameRounds.player1Wins > gameRounds.player2Wins) {
+            gameRounds.gameWinner = 0;
+        } else if (gameRounds.player2Wins > gameRounds.player1Wins) {
+            gameRounds.gameWinner = 1;
+        } else {
+            gameRounds.gameWinner = "draw";
+        }
+        console.log(`🏆 MATCH COMPLETE! Final Score: ${gameRounds.player1Wins}-${gameRounds.player2Wins}`);
+    }
+}
+
+// Function to start next round
+function startNextRound() {
+    if (gameRounds.gameWinner !== null) {
+        // Match is over, don't start new round
+        return;
+    }
+    
+    gameRounds.currentRound++;
+    gameRounds.roundActive = true;
+    gameRounds.showingRoundResult = false;
+    gameRounds.roundEndTimer = 0;
+    
+    console.log(`🔥 Starting Round ${gameRounds.currentRound}!`);
+    
+    // Reset players for new round
+    resetPlayersForNewRound();
+}
+
+// Function to reset players for new round
+function resetPlayersForNewRound() {
+    for (let i = 0; i < players.length; i++) {
+        const p = players[i];
+        
+        // Reset position
+        p.x = i === 0 ? WIDTH/3 : 2*WIDTH/3;
+        p.y = GROUND - p.h;
+        
+        // Reset health and status
+        p.hp = PLAYER_HP;
+        p.alive = true;
+        p.vx = 0;
+        p.vy = 0;
+        p.onGround = false;
+        p.jumps = 0;
+        p.dash = 0;
+        p.dashCooldown = 0;
+        p.justHit = 0;
+        p.block = p.maxBlock;
+        p.blocking = false;
+        p.dizzy = 0;
+        p.hitstun = 0;
+        p.inHitstun = false;
+        p.airHitstun = false;
+        p.hasDashHit = false;
+        p.bounceEffect = null;
+        p.isBeingKnockedBack = false;
+        p.pauseTimer = 0;
+        
+        // Reset character-specific abilities
+        resetPlayerProperties(p);
+        
+        // Reset animation
+        p.animState = "idle";
+        p.animFrame = 0;
+        p.animTimer = 0;
+    }
+    
+    // Reset global game state
+    winner = null;
+    
+    console.log("🔄 Players reset for new round!");
+}
+
+
+function updateRoundSystem() {
+    // Don't update rounds if game is paused
+    if (pauseSystem.isPaused) return;
+    
+    // Handle round end timer
+    if (gameRounds.showingRoundResult && gameRounds.roundEndTimer > 0) {
+        gameRounds.roundEndTimer--;
+        
+        if (gameRounds.roundEndTimer <= 0) {
+            gameRounds.showingRoundResult = false;
+            
+            if (gameRounds.gameWinner === null) {
+                // Start next round
+                startNextRound();
+            }
+            // If gameWinner is set, the match is over and we stay on results screen
+        }
+    }
+    
+    // Check for round end conditions
+    if (gameRounds.roundActive && winner !== null) {
+        handleRoundEnd(winner);
+    }
+}
+
+// Function to get round display text
+function getRoundDisplayText() {
+    if (gameRounds.gameWinner !== null) {
+        if (gameRounds.gameWinner === "draw") {
+            return {
+                main: "MATCH DRAW!",
+                sub: `Final Score: ${gameRounds.player1Wins}-${gameRounds.player2Wins}`,
+                color: "#ff6b6b"
+            };
+        } else {
+            const winnerName = players[gameRounds.gameWinner]?.name || `Player ${gameRounds.gameWinner + 1}`;
+            return {
+                main: `${winnerName.toUpperCase()} WINS!`,
+                sub: `Match Score: ${gameRounds.player1Wins}-${gameRounds.player2Wins}`,
+                color: "#ffeb3b"
+            };
+        }
+    } else if (gameRounds.showingRoundResult) {
+        if (winner === "draw") {
+            return {
+                main: `Round ${gameRounds.currentRound} DRAW!`,
+                sub: `Score: ${gameRounds.player1Wins}-${gameRounds.player2Wins}`,
+                color: "#ff6b6b"
+            };
+        } else {
+            const roundWinnerName = players[winner]?.name || `Player ${winner + 1}`;
+            return {
+                main: `${roundWinnerName.toUpperCase()} WINS ROUND ${gameRounds.currentRound}!`,
+                sub: `Score: ${gameRounds.player1Wins}-${gameRounds.player2Wins}`,
+                color: "#ffeb3b"
+            };
+        }
+    }
+    
+    return null;
+}
+
 // Block function 
 function updateBlocking(p, pid) {
   const controls = pid === 0 ? {down: 's'} : {down: 'l'};
@@ -1446,6 +1836,18 @@ document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 document.addEventListener("keydown", function(e) {
   const k = e.key.toLowerCase();
   
+  // Handle pause/resume with ESC key
+  if (e.key === 'Escape') {
+    togglePause();
+    e.preventDefault();
+    return;
+  }
+  
+  // Don't process other keys if game is paused
+  if (pauseSystem.isPaused) {
+    return;
+  }
+  
   for (let pid = 0; pid < 2; pid++) {
     const p = players[pid];
     if (!p.alive) continue;
@@ -2478,16 +2880,21 @@ function updateUI() {
   document.getElementById("p1nameui").style.color = players[0].color;
   document.getElementById("p2nameui").style.color = players[1].color;
   
-  if(winner !== null) {
-    if (winner === "draw") {
-      document.getElementById("winner").textContent = "DRAW - Both Players Defeated!";
-      document.getElementById("winner").style.color = "#ff6b6b";
-    } else {
-      document.getElementById("winner").textContent = `Winner: ${players[winner].name || `Player ${winner+1}`}`;
-      document.getElementById("winner").style.color = "#ffeb3b";
-    }
+  // Round system UI
+  const roundDisplay = getRoundDisplayText();
+  if (roundDisplay) {
+    document.getElementById("winner").innerHTML = `
+      <div style="font-size: 44px; color: ${roundDisplay.color}; margin-bottom: 10px;">${roundDisplay.main}</div>
+      <div style="font-size: 24px; color: #fff;">${roundDisplay.sub}</div>
+      ${gameRounds.gameWinner === null && gameRounds.showingRoundResult ? 
+        '<div style="font-size: 18px; color: #aaa; margin-top: 10px;">Next round starting...</div>' : ''}
+    `;
   } else {
-    document.getElementById("winner").textContent = "";
+    // Show current round info during gameplay
+    document.getElementById("winner").innerHTML = `
+      <div style="font-size: 24px; color: #ffeb3b; margin-bottom: 5px;">Round ${gameRounds.currentRound}</div>
+      <div style="font-size: 16px; color: #fff;">Score: ${gameRounds.player1Wins} - ${gameRounds.player2Wins}</div>
+    `;
   }
   
   for (let i = 0; i < 2; ++i) {
@@ -2501,7 +2908,7 @@ function updateUI() {
       bar.style.background = "linear-gradient(90deg, #ffeb3b 30%, #ffa726 100%)";
     }
   }
-}
+} 
 
 const particles = [];
 
@@ -5317,7 +5724,46 @@ for (let p of players) {
       ctx.fillText(`${players[winner].name || `Player ${winner+1}`} Wins!`, WIDTH/2, HEIGHT/2);
     }
   }
+  
+  // Draw pause menu
+  if (pauseSystem.showPauseMenu) {
+    ctx.save();
+    
+    // Draw semi-transparent overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    
+    // Draw pause menu background
+    const menuW = 400;
+    const menuH = 200;
+    const menuX = (WIDTH - menuW) / 2;
+    const menuY = (HEIGHT - menuH) / 2;
+    
+    ctx.fillStyle = "#1a1a2e";
+    ctx.strokeStyle = "#ffeb3b";
+    ctx.lineWidth = 3;
+    ctx.fillRect(menuX, menuY, menuW, menuH);
+    ctx.strokeRect(menuX, menuY, menuW, menuH);
+    
+    // Draw pause text
+    ctx.fillStyle = "#ffeb3b";
+    ctx.font = "bold 48px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("PAUSED", WIDTH/2, HEIGHT/2 - 30);
+    
+    // Draw instructions
+    ctx.fillStyle = "#fff";
+    ctx.font = "24px Arial";
+    ctx.fillText("Press ESC to Resume", WIDTH/2, HEIGHT/2 + 20);
+    
+    ctx.font = "18px Arial";
+    ctx.fillStyle = "#aaa";
+    ctx.fillText("or Click Anywhere", WIDTH/2, HEIGHT/2 + 50);
+    
+    ctx.restore();
+  }
 }
+
 
 function gameLoop() {
   updateCameraZoomEffect();
@@ -5349,7 +5795,7 @@ function gameLoop() {
     }
   }
   
-   if (!gameState.paused) {
+       if (!pauseSystem.isPaused) {
     for (let i = 0; i < players.length; ++i) {
       const p = players[i];
       if (p.justHit > 0) p.justHit--;
@@ -5370,6 +5816,7 @@ p.blockWasFull = p.block >= p.maxBlock - 0.1;
     handleMirageBladeAttack();
     updateImpactEffects();
     updateDynamicMusic();
+    updateRoundSystem(); // ADD THIS LINE HERE!
   }
   
   updateUI();
@@ -5512,4 +5959,28 @@ document.addEventListener("keydown", function(e) {
   }
 });
 
-gameLoop();
+// Don't auto-start the game loop anymore - let character select handle it
+// gameLoop();
+
+// Only start immediately if no character select system is present
+if (!document.getElementById('characterSelect')) {
+  // Add click to resume functionality
+document.addEventListener('click', function(e) {
+    // Only resume if game is paused and not clicking on UI elements
+    if (pauseSystem.isPaused && !e.target.closest('#ui')) {
+        resumeGame();
+    }
+});
+
+// Add canvas click specifically for resuming
+const canvas = document.getElementById("game");
+if (canvas) {
+    canvas.addEventListener('click', function(e) {
+        if (pauseSystem.isPaused) {
+            resumeGame();
+            e.preventDefault();
+        }
+    });
+}
+    gameLoop();
+}
