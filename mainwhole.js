@@ -2093,15 +2093,17 @@ function handleSpectralSwordAttack() {
           interruptJudgmentCut(opp);
           interruptDantyCharging(opp);
           
-          // Spectral sword hits
-          let damage = SPECTRAL_SWORD.DASH_DAMAGE;
-          if (p.sdtActive) {
-            damage = Math.floor(damage * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER);
-            console.log(`${p.name}'s SDT Spectral Sword deals DOUBLE DAMAGE! ${damage} 💀👻💥`);
-          }
-          
+          // Spectral sword hits with DEVASTATING SDT damage! 💀👻⚔️
+let damage = SPECTRAL_SWORD.DASH_DAMAGE;
+if (p.sdtActive) {
+  damage = Math.floor(damage * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER * 1.5); // Extra 50% more in SDT!
+  console.log(`${p.name}'s SDT Spectral Sword deals DEVASTATING DAMAGE! ${damage} instead of ${SPECTRAL_SWORD.DASH_DAMAGE} 💀👻💥🔥`);
+} else if (p.devilSwordUpgraded) {
+  damage = Math.floor(damage * 1.3); // 30% more during Devil Trigger
+  console.log(`${p.name}'s Devil Trigger Spectral Sword deals enhanced damage! ${damage} 💀👻💥`);
+}
           opp.hp -= damage;
-          opp.justHit = 20;
+          opp.justHit = 10;
           opp.hitstun = HITSTUN_FRAMES;
           opp.inHitstun = true;
           
@@ -3148,6 +3150,27 @@ if (p.inHitstun) {
       sword.vx *= FRICTION;
       if (Math.abs(sword.vx) < 0.3) sword.vx = 0;
     }
+    // SPECIAL SDT BEHAVIOR: Auto-follow Danty when in SDT! 💀👻
+if (p.charId === 'danty' && p.spectralSword && (p.sdtActive || p.devilSwordUpgraded)) {
+  const sword = p.spectralSword;
+  
+  // Make sword follow Danty more closely during SDT
+  const targetBehindOffset = 25;
+  const targetHeightOffset = -10;
+  
+  const targetX = p.facing === 1 ? 
+    p.x - targetBehindOffset - sword.w : 
+    p.x + p.w + targetBehindOffset;
+  const targetY = p.y + p.h/2 - sword.h/2 + targetHeightOffset;
+  
+  // Smooth following movement
+  const followSpeed = 0.15;
+  sword.x += (targetX - sword.x) * followSpeed;
+  sword.y += (targetY - sword.y) * followSpeed;
+  
+  // Keep sword facing same direction as Danty
+  sword.facing = p.facing;
+}
     
       if (keys[controls.up] && !keys[controls.down]) {
       sword.vy = -swordMoveSpeed;
@@ -4635,6 +4658,25 @@ for (let p of players) {
   if (p.spectralSword && p.charId === 'danty') {
     const sword = p.spectralSword;
     
+    // SPECIAL SDT POSITIONING: Sword behind Danty! 💀👻⚔️
+    let swordRenderX = sword.x;
+    let swordRenderY = sword.y;
+    
+    if (p.sdtActive || p.devilSwordUpgraded) {
+      // Position sword behind Danty during SDT/Devil Trigger! 💀🔥
+      const behindOffset = 25; // Distance behind player
+      const heightOffset = -10; // Slightly above center
+      
+      swordRenderX = p.facing === 1 ? 
+        p.x - behindOffset - sword.w : // Behind when facing right
+        p.x + p.w + behindOffset;      // Behind when facing left
+      swordRenderY = p.y + p.h/2 - sword.h/2 + heightOffset;
+      
+      // Update actual sword position for collision detection
+      sword.x = swordRenderX;
+      sword.y = swordRenderY;
+    }
+    
     ctx.save();
     
     // Draw spectral sword with proper animation 👻⚔️
@@ -4642,20 +4684,32 @@ for (let p of players) {
     const swordSpritesheet = swordAnim && spritesheetCache[swordAnim.src];
     
     if (swordAnim && swordSpritesheet && swordSpritesheet.complete && swordSpritesheet.naturalWidth > 0) {
-      // SPRITE FOUND - DRAW ONLY THE SPRITE! 👻⚔️✨
+      // SPRITE FOUND - DRAW THE SPRITE! 👻⚔️✨
       
       // Add floating effect to rendered position
       const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
-      const renderY = sword.y + floatOffset;
+      const renderY = swordRenderY + floatOffset;
       
-// Enhanced HOT FIRE glow for dashing! 🔥🥵
-if (sword.dash > 0) {
-  ctx.globalAlpha = 1.0;
-  ctx.shadowColor = "#ff0000"; // HOT RED FIRE!
-  ctx.shadowBlur = 25;
+      // SDT ENHANCEMENT: Bigger and more menacing! 💀🔥
+      let sdtScale = 1.0;
+      let sdtGlow = "#ff3300";
+      
+      if (p.sdtActive) {
+        sdtScale = 1.4; // 40% bigger during SDT
+        sdtGlow = "#8b008b"; // Purple SDT glow
+      } else if (p.devilSwordUpgraded) {
+        sdtScale = 1.2; // 20% bigger during Devil Trigger
+        sdtGlow = "#ff4500"; // Orange Devil Trigger glow
+      }
+
+      // Enhanced HOT FIRE glow for dashing! 🔥🥵
+      if (sword.dash > 0) {
+        ctx.globalAlpha = 1.0;
+        ctx.shadowColor = sdtGlow;
+        ctx.shadowBlur = 30 * sdtScale;
         
-        // Larger size when dashing
-        const dashScale = 1.3;
+        // Larger size when dashing + SDT scale
+        const dashScale = 1.3 * sdtScale;
         const scaledW = sword.w * dashScale;
         const scaledH = sword.h * dashScale;
         const offsetX = (scaledW - sword.w) / 2;
@@ -4663,102 +4717,144 @@ if (sword.dash > 0) {
         
         if (sword.facing === 1) {
           ctx.save();
-          ctx.translate(sword.x + sword.w/2, renderY + sword.h/2);
+          ctx.translate(swordRenderX + sword.w/2, renderY + sword.h/2);
           ctx.scale(-dashScale, dashScale);
           ctx.translate(-swordAnim.w/2, -swordAnim.h/2);
-ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, swordAnim.w, swordAnim.h);
+          ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, swordAnim.w, swordAnim.h);
           ctx.restore();
         } else {
           ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 
-                       sword.x - offsetX, renderY - offsetY, scaledW, scaledH);
+                       swordRenderX - offsetX, renderY - offsetY, scaledW, scaledH);
         }
-  } else {
-  // Normal size with HOT fire glow! 🔥🥵
-  ctx.globalAlpha = 1.0;
-  ctx.shadowColor = "#ff3300"; // HOT RED-ORANGE FIRE!
-  ctx.shadowBlur = 15;
+      } else {
+        // Normal size with SDT scaling and fire glow! 🔥🥵💀
+        ctx.globalAlpha = 1.0;
+        ctx.shadowColor = sdtGlow;
+        ctx.shadowBlur = 15 * sdtScale;
+        
+        const scaledW = sword.w * sdtScale;
+        const scaledH = sword.h * sdtScale;
+        const offsetX = (scaledW - sword.w) / 2;
+        const offsetY = (scaledH - sword.h) / 2;
         
         if (sword.facing === 1) {
           ctx.save();
-          ctx.translate(sword.x + sword.w/2, renderY + sword.h/2);
-          ctx.scale(-1, 1);
+          ctx.translate(swordRenderX + sword.w/2, renderY + sword.h/2);
+          ctx.scale(-sdtScale, sdtScale);
           ctx.translate(-sword.w/2, -sword.h/2);
           ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, sword.w, sword.h);
           ctx.restore();
         } else {
-          ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, sword.x, renderY, sword.w, sword.h);
+          ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 
+                       swordRenderX - offsetX, renderY - offsetY, scaledW, scaledH);
         }
       }
       
- // Draw SIMPLE HOT FLAME trail if moving! 🔥🥵
-if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
-  for (let i = 1; i <= 3; i++) {
-    ctx.save();
-    
-    const trailAlpha = 0.5 - (i * 0.12);
-    ctx.globalAlpha = trailAlpha;
-    
-    // SIMPLE HOT FIRE GLOW! 🔥🥵
-    ctx.shadowColor = "#ff0000"; // Hot red glow
-    ctx.shadowBlur = 15 + (i * 5);
-    
-    const trailX = sword.x - sword.vx * i * 2;
-    const trailY = renderY - sword.vy * i * 2;
-    const trailScale = 1 - (i * 0.15);
-    const trailW = sword.w * trailScale;
-    const trailH = sword.h * trailScale;
-    const trailOffsetX = (sword.w - trailW) / 2;
-    const trailOffsetY = (sword.h - trailH) / 2;
-    
-    // Hot fire filter! 🔥
-    ctx.filter = `saturate(200%) brightness(130%) hue-rotate(${i * 10}deg)`;
-    
-    if (sword.facing === 1) {
-      ctx.save();
-      ctx.translate(trailX + sword.w/2, trailY + sword.h/2);
-      ctx.scale(-trailScale, trailScale);
-      ctx.translate(-sword.w/2, -sword.h/2);
-      ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, sword.w, sword.h);
-      ctx.restore();
-    } else {
-      ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 
-                   trailX + trailOffsetX, trailY + trailOffsetY, trailW, trailH);
-    }
-    
-    ctx.restore();
-  }
-}
+      // Draw SIMPLE HOT FLAME trail if moving! 🔥🥵
+      if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
+        for (let i = 1; i <= 3; i++) {
+          ctx.save();
+          
+          const trailAlpha = 0.5 - (i * 0.12);
+          ctx.globalAlpha = trailAlpha;
+          
+          // SIMPLE HOT FIRE GLOW with SDT enhancement! 🔥🥵💀
+          ctx.shadowColor = sdtGlow;
+          ctx.shadowBlur = (15 + (i * 5)) * sdtScale;
+          
+          const trailX = swordRenderX - sword.vx * i * 2;
+          const trailY = renderY - sword.vy * i * 2;
+          const trailScale = (1 - (i * 0.15)) * sdtScale;
+          const trailW = sword.w * trailScale;
+          const trailH = sword.h * trailScale;
+          const trailOffsetX = (sword.w - trailW) / 2;
+          const trailOffsetY = (sword.h - trailH) / 2;
+          
+          // Hot fire filter with SDT enhancement! 🔥💀
+          ctx.filter = `saturate(200%) brightness(${130 + (sdtScale * 20)}%) hue-rotate(${i * 10}deg)`;
+          
+          if (sword.facing === 1) {
+            ctx.save();
+            ctx.translate(trailX + sword.w/2, trailY + sword.h/2);
+            ctx.scale(-trailScale, trailScale);
+            ctx.translate(-sword.w/2, -sword.h/2);
+            ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, sword.w, sword.h);
+            ctx.restore();
+          } else {
+            ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 
+                         trailX + trailOffsetX, trailY + trailOffsetY, trailW, trailH);
+          }
+          
+          ctx.restore();
+        }
+      }
+      
+      // SDT AURA EFFECT: Draw energy aura around sword! 💀⚡🔥
+      if (p.sdtActive || p.devilSwordUpgraded) {
+        const auraIntensity = 0.4 + 0.3 * Math.sin(performance.now() / 120);
+        ctx.globalAlpha = auraIntensity;
+        
+        // Multiple aura rings
+        for (let ring = 0; ring < 2; ring++) {
+          const ringRadius = (25 + ring * 15) * sdtScale;
+          ctx.strokeStyle = p.sdtActive ? "#8b008b" : "#ff4500";
+          ctx.lineWidth = (3 - ring) * sdtScale;
+          ctx.setLineDash([5 + ring * 2, 3]);
+          ctx.beginPath();
+          ctx.arc(swordRenderX + sword.w/2, renderY + sword.h/2, ringRadius, 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+        
+        ctx.setLineDash([]); // Reset line dash
+      }
       
     } else {
-      // FALLBACK: If sprites fail to load, show simple colored rectangle
-      console.log("Spectral Sword sprite not loaded, using fallback!");
+      // FALLBACK: If sprites fail to load, show enhanced colored rectangle
+      console.log("Spectral Sword sprite not loaded, using enhanced fallback!");
       
       const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
-      const renderY = sword.y + floatOffset;
+      const renderY = swordRenderY + floatOffset;
       
-      ctx.globalAlpha = 0.8;
-      ctx.fillStyle = p.sdtActive ? "#FF3701" : "#820000";
-      ctx.fillRect(sword.x, renderY, sword.w, sword.h);
+      let sdtScale = 1.0;
+      let swordColor = "#ff3300";
       
- // Simple HOT trail fallback! 🔥🥵
-if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
-  for (let i = 1; i <= 2; i++) {
-    ctx.save();
-    ctx.globalAlpha = 0.4 - (i * 0.15);
-    
-    // Simple hot red fire
-    ctx.fillStyle = "#ff0000";
-    ctx.shadowColor = "#ff0000";
-    ctx.shadowBlur = 12;
-    
-    const trailX = sword.x - sword.vx * i * 2;
-    const trailY = renderY - sword.vy * i * 2;
-    const trailSize = sword.w * (1 - i * 0.2);
-    ctx.fillRect(trailX + (sword.w - trailSize)/2, trailY + (sword.h - trailSize)/2, trailSize, trailSize);
-    
-    ctx.restore();
-  }
-}
+      if (p.sdtActive) {
+        sdtScale = 1.4;
+        swordColor = "#8b008b";
+      } else if (p.devilSwordUpgraded) {
+        sdtScale = 1.2;
+        swordColor = "#ff4500";
+      }
+      
+      const scaledW = sword.w * sdtScale;
+      const scaledH = sword.h * sdtScale;
+      const offsetX = (scaledW - sword.w) / 2;
+      const offsetY = (scaledH - sword.h) / 2;
+      
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = swordColor;
+      ctx.shadowColor = swordColor;
+      ctx.shadowBlur = 15 * sdtScale;
+      ctx.fillRect(swordRenderX - offsetX, renderY - offsetY, scaledW, scaledH);
+      
+      // Simple HOT trail fallback with SDT! 🔥🥵💀
+      if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
+        for (let i = 1; i <= 2; i++) {
+          ctx.save();
+          ctx.globalAlpha = 0.4 - (i * 0.15);
+          
+          ctx.fillStyle = swordColor;
+          ctx.shadowColor = swordColor;
+          ctx.shadowBlur = 12 * sdtScale;
+          
+          const trailX = swordRenderX - sword.vx * i * 2;
+          const trailY = renderY - sword.vy * i * 2;
+          const trailSize = scaledW * (1 - i * 0.2);
+          ctx.fillRect(trailX + (scaledW - trailSize)/2, trailY + (scaledH - trailSize)/2, trailSize, trailSize);
+          
+          ctx.restore();
+        }
+      }
     }
     
     ctx.restore();
