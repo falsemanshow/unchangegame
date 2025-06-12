@@ -3787,7 +3787,7 @@ const characterSprites = {
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
      'mirage-attack': { src: "vergil-mirage-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
   'mirage-attack_air': { src: "vergil-mirage-attack-air.png", frames: 1, w: 100, h: 100, speed: 2 },
-  'mirage-slash': { src: "mirage-slash.png", frames: 3, w: 140, h: 100, speed: 3 },
+  'mirage-slash': { src: "mirage-slash.png", frames: 3, w: 100, h: 100, speed: 5 },
     
    // VERGIL SDT EXCLUSIVE SPRITES! 
 'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
