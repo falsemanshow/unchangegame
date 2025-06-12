@@ -87,18 +87,18 @@ const DEVIL_SWORD_GAUGE = {
   HIT_GAIN: 10,
   ACTIVATION_HOLD_TIME: 1000,
   UPGRADE_DURATION: 600,
-  PASSIVE_REGEN: 0.05
+  PASSIVE_REGEN: 2
 };
 const SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
-  CHARGE_RATE: 1,
+  CHARGE_RATE: 2,
   ACTIVATION_HOLD_TIME: 2500,
   SWORD_FALL_DURATION: 90,
   EXPLOSION_DURATION: 30,
   PIERCE_OFFSET_Y: -200,
   SWORD_FALL_SPEED: 4,
   SDT_DURATION: 900,
-  DAMAGE_MULTIPLIER: 2.0, // Double damage
+  DAMAGE_MULTIPLIER: 1.2, // Double damage
   SPEED_MULTIPLIER: 1.5,  // 50% faster movement
   DASH_SPEED_MULTIPLIER: 1.8, // 80% faster dash
   FLOAT_HEIGHT: 10, // How much above ground SDT floats
@@ -107,7 +107,7 @@ const SIN_DEVIL_TRIGGER = {
 };
 const VERGIL_SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
-  CHARGE_RATE: 0.2, // Slightly faster than Danty (Vergil is more skilled)
+  CHARGE_RATE: 2, // Slightly faster than Danty (Vergil is more skilled)
   ACTIVATION_HOLD_TIME: 2500, // Shorter than Danty (18 frames less)
   JUDGMENT_CUT_COST: 50, // 50% gauge to use Judgment Cut
   JUDGMENT_CUT_REQUIREMENT: 50, // Need 50% minimum to execute
@@ -1799,20 +1799,22 @@ document.addEventListener("keyup", function(e) {
     if (k === playerControls.special) {
       const p = players[pid];
            // VERGIL SDT RELEASE HANDLER! 💀⚡
-      if (p.charId === 'vergil' && p.vergilSdtCharging) {
-        const holdTime = now - p.vergilSdtChargeStart;
-        if (holdTime >= VERGIL_SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
-          // ACTIVATE VERGIL SDT! 💀⚡🌩️
-          p.vergilSdtCharging = false;
-          p.vergilSdtAnimationPhase = 'lightning_strike';
-          p.vergilSdtLightningX = p.x + p.w/2;
-          p.vergilSdtLightningY = p.y - 150;
-          console.log(`${p.name} BECOMES THE STORM! SIN DEVIL TRIGGER ACTIVATED! ⚡💀🌩️👹`);
-        } else {
-          p.vergilSdtCharging = false;
-          console.log(`${p.name} released too early! Need more MOTIVATION! ⚡❌`);
-        }
-      }
+     if (p.charId === 'vergil' && p.vergilSdtCharging) {
+  const holdTime = now - p.vergilSdtChargeStart;
+  if (holdTime >= VERGIL_SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
+    // START TRANSFORMATION SEQUENCE! 💀⚡🌩️
+    p.vergilSdtCharging = false;
+    p.vergilSdtAnimationPhase = 'transforming';
+    p.vergilSdtTransformTimer = 48; // 8 frames * 6 speed = 48 ticks
+   /* p.animState = "vergil-sdt-transforming";
+    p.animFrame = 0;
+    p.animTimer = 0;*/
+    console.log(`${p.name} begins STORM TRANSFORMATION! ⚡💀🌩️👹`);
+  } else {
+    p.vergilSdtCharging = false;
+    console.log(`${p.name} released too early! Need more MOTIVATION! ⚡❌`);
+  }
+}
       
       if (p.charId === 'vergil' && p.judgmentCutCharging) {
         const chargeTime = now - p.judgmentCutChargeStart;
@@ -1890,16 +1892,24 @@ if (p.charId === 'danty' && p.balrogCharging && p.balrogChargeType === 'uppercut
         // If held long enough, activation happens in updatePlayer
       }
       
-      // ADD SDT RELEASE HANDLER:
-      if (p.charId === 'danty' && p.sdtCharging) {
-        const holdTime = performance.now() - p.sdtChargeStart;
-        if (holdTime < SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
-          // Released too early
-          p.sdtCharging = false;
-          console.log(`${p.name} released too early! Need to hold longer for Sin Devil Trigger! 😈💀❌`);
-        }
-        // If held long enough, activation happens in updatePlayer
-      }
+     // ADD SDT RELEASE HANDLER:
+if (p.charId === 'danty' && p.sdtCharging) {
+  const holdTime = performance.now() - p.sdtChargeStart;
+  if (holdTime < SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
+    // Released too early
+    p.sdtCharging = false;
+    console.log(`${p.name} released too early! Need to hold longer for Sin Devil Trigger! 😈💀❌`);
+  } else {
+    // START TRANSFORMATION SEQUENCE! 💀🔥
+    p.sdtCharging = false;
+    p.sdtAnimationPhase = 'transforming';
+    p.sdtTransformTimer = 48; // 6 frames * 8 speed = 48 ticks  
+    /*p.animState = "sdt-transforming";
+    p.animFrame = 0;
+    p.animTimer = 0;*/
+    console.log(`${p.name} begins SIN DEVIL TRANSFORMATION! 😈💀🔥⚡`);
+  }
+}
     }
   }
 });
@@ -2729,15 +2739,25 @@ if (effect.phase === 'slide') {
       }
     }
     
-    // SDT Animation phases
-    if (p.vergilSdtAnimationPhase === 'lightning_strike') {
-      p.vergilSdtLightningY += 6;
-      if (p.vergilSdtLightningY >= p.y + p.h/2) {
-        p.vergilSdtAnimationPhase = 'explosion';
-        p.vergilSdtExplosionTimer = 25;
-        console.log(`${p.name} is struck by divine lightning! 💀⚡💥`);
-      }
-    } else if (p.vergilSdtAnimationPhase === 'explosion') {
+if (p.vergilSdtAnimationPhase === 'transforming') {
+  p.vergilSdtTransformTimer--;
+  if (p.vergilSdtTransformTimer <= 0) {
+    // SKIP lightning and explosion - go straight to active SDT!
+    p.vergilSdtAnimationPhase = 'active';
+    p.vergilSdtActive = true;
+    p.vergilSdtTimer = VERGIL_SIN_DEVIL_TRIGGER.SDT_DURATION;
+    p.vergilSdtFearAura = true;
+    p.animState = "idle";
+    console.log(`${p.name} HAS AWAKENED! I AM THE STORM! ⚡💀👹🌩️`);
+  }
+} else if (p.vergilSdtAnimationPhase === 'lightning_strike') {
+  p.vergilSdtLightningY += 6;
+  if (p.vergilSdtLightningY >= p.y + p.h/2) {
+    p.vergilSdtAnimationPhase = 'explosion';
+    p.vergilSdtExplosionTimer = 25;
+    console.log(`${p.name} is struck by divine lightning! 💀⚡💥`);
+  }
+} else if (p.vergilSdtAnimationPhase === 'explosion') {
       p.vergilSdtExplosionTimer--;
       if (p.vergilSdtExplosionTimer <= 0) {
         p.vergilSdtAnimationPhase = 'active';
@@ -2905,21 +2925,19 @@ if (p.charId === 'danty') {
     }
   }
   
-  // SDT charging system
-  if (p.sdtCharging) {
-    const holdTime = performance.now() - p.sdtChargeStart;
-    if (holdTime >= SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME && !p.sdtActive) {
-      // Start SDT activation sequence
-      p.sdtCharging = false;
-      p.sdtAnimationPhase = 'sword_falling';
-      p.sdtSwordX = p.x + p.w/2;
-      p.sdtSwordY = p.y + SIN_DEVIL_TRIGGER.PIERCE_OFFSET_Y;
-      console.log(`${p.name} UNLEASHES SIN DEVIL TRIGGER! 😈💀🔥⚡`);
-    }
-  }
   
-  // SDT Animation phases
-  if (p.sdtAnimationPhase === 'sword_falling') {
+ if (p.sdtAnimationPhase === 'transforming') {
+  p.sdtTransformTimer--;
+  if (p.sdtTransformTimer <= 0) {
+    // SKIP sword falling and piercing - go straight to active SDT!
+    p.sdtAnimationPhase = 'active';
+    p.sdtActive = true;
+    p.sdtTimer = SIN_DEVIL_TRIGGER.SDT_DURATION;
+    p.devilSwordUpgraded = true; // Keep Devil Trigger active during SDT
+    p.animState = "idle";
+    console.log(`${p.name} has transformed into SIN DEVIL TRIGGER! ULTIMATE POWER UNLEASHED! 😈💀🔥👹`);
+  }
+} else if (p.sdtAnimationPhase === 'sword_falling') {
     p.sdtSwordY += SIN_DEVIL_TRIGGER.SWORD_FALL_SPEED;
     if (p.sdtSwordY >= p.y + p.h/2) {
       p.sdtAnimationPhase = 'piercing';
@@ -3219,30 +3237,44 @@ function getAnimForPlayer(p) {
   let charAnim = characterSprites[p.charId];
   if (!charAnim) return null;
   
-  // VERGIL SDT ANIMATIONS OVERRIDE EVERYTHING! 💀⚡🌩️
-  if (p.charId === 'vergil' && p.vergilSdtActive) {
-    // Check for Beowulf SDT animations first
-    if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-      const vergilSdtBeowulfAnimState = `vergil-sdt-beowulf-${p.animState}`;
-      if (charAnim[vergilSdtBeowulfAnimState]) {
-        return charAnim[vergilSdtBeowulfAnimState];
-      }
-    }
-    
-    // Then check for regular Vergil SDT animations
-    const vergilSdtAnimState = `vergil-sdt-${p.animState}`;
-    if (charAnim[vergilSdtAnimState]) {
-      return charAnim[vergilSdtAnimState];
+// VERGIL SDT TRANSFORMING ANIMATION (highest priority)
+if (p.charId === 'vergil' && p.vergilSdtAnimationPhase === 'transforming') {
+  if (charAnim['vergil-sdt-transforming']) {
+    return charAnim['vergil-sdt-transforming'];
+  }
+}
+
+// VERGIL SDT ANIMATIONS OVERRIDE EVERYTHING! 💀⚡🌩️
+if (p.charId === 'vergil' && p.vergilSdtActive) {
+  // Check for Beowulf SDT animations first
+  if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+    const vergilSdtBeowulfAnimState = `vergil-sdt-beowulf-${p.animState}`;
+    if (charAnim[vergilSdtBeowulfAnimState]) {
+      return charAnim[vergilSdtBeowulfAnimState];
     }
   }
   
-  // DANTY SDT ANIMATIONS OVERRIDE EVERYTHING 💀🔥
-  if (p.charId === 'danty' && p.sdtActive) {
-    const sdtAnimState = `sdt-${p.animState}`;
-    if (charAnim[sdtAnimState]) {
-      return charAnim[sdtAnimState];
-    }
+  // Then check for regular Vergil SDT animations
+  const vergilSdtAnimState = `vergil-sdt-${p.animState}`;
+  if (charAnim[vergilSdtAnimState]) {
+    return charAnim[vergilSdtAnimState];
   }
+}
+  
+  // DANTY SDT TRANSFORMING ANIMATION (highest priority)
+if (p.charId === 'danty' && p.sdtAnimationPhase === 'transforming') {
+  if (charAnim['sdt-transforming']) {
+    return charAnim['sdt-transforming'];
+  }
+}
+
+// DANTY SDT ANIMATIONS OVERRIDE EVERYTHING 💀🔥
+if (p.charId === 'danty' && p.sdtActive) {
+  const sdtAnimState = `sdt-${p.animState}`;
+  if (charAnim[sdtAnimState]) {
+    return charAnim[sdtAnimState];
+  }
+}
   
   if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
     const beowulfAnimState = `beowulf-${p.animState}`;
@@ -3302,6 +3334,14 @@ function updatePlayerAnimState(p, pid) {
     }
     return;
   }
+  if (p.charId === 'vergil' && p.vergilSdtAnimationPhase === 'transforming') {
+  if (p.animState !== "vergil-sdt-transforming") {
+    p.animState = "vergil-sdt-transforming";
+    p.animFrame = 0;
+    p.animTimer = 0;
+  }
+  return;
+}
   
   if (p.charId === 'vergil' && p.judgementCutPhase === VERGIL_JUDGMENT_CUT_PHASES.SHEATHING) {
     if (p.animState !== "sheathing") {
@@ -3312,37 +3352,47 @@ function updatePlayerAnimState(p, pid) {
     return;
   }
 
-    if (p.charId === 'danty') {
-    // Handle recovery state first
-    if (p.balrogRecovering) {
-      if (p.animState !== "balrog-recovery") {
-        p.animState = "balrog-recovery";
-        p.animFrame = 0;
-        p.animTimer = 0;
-      }
-      return;
+  if (p.charId === 'danty') {
+  // Handle recovery state first
+  if (p.balrogRecovering) {
+    if (p.animState !== "balrog-recovery") {
+      p.animState = "balrog-recovery";
+      p.animFrame = 0;
+      p.animTimer = 0;
     }
-
-     // Handle SDT charging animation
-    if (p.sdtCharging) {
-      if (p.animState !== "transferring-control") {
-        p.animState = "idle"; // Vulnerable while charging!
-        p.animFrame = 0;
-        p.animTimer = 0;
-      }
-      return;
-    }
-    
-    // Handle Devil Trigger charging animation
-    if (p.devilSwordActivating) {
-      if (p.animState !== "transferring-control") {
-        p.animState = "idle"; // Vulnerable while charging!
-        p.animFrame = 0;
-        p.animTimer = 0;
-      }
-      return;
-    }
+    return;
   }
+
+  // Handle SDT transforming animation
+  if (p.sdtAnimationPhase === 'transforming') {
+    if (p.animState !== "sdt-transforming") {
+      p.animState = "sdt-transforming";
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+    return;
+  }
+
+   // Handle SDT charging animation
+  if (p.sdtCharging) {
+    if (p.animState !== "transferring-control") {
+      p.animState = "idle"; // Vulnerable while charging!
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+    return;
+  }
+  
+  // Handle Devil Trigger charging animation
+  if (p.devilSwordActivating) {
+    if (p.animState !== "transferring-control") {
+      p.animState = "idle"; // Vulnerable while charging!
+      p.animFrame = 0;
+      p.animTimer = 0;
+    }
+    return;
+  }
+}
   
   if (p.alive && other && !other.alive && getAnimForPlayer({...p, animState:"victory"})) {
     p.animState = "victory"; return;
@@ -3475,6 +3525,13 @@ devilSwordEnhancedStrike3Sprite.src = "danty-devilsword-enhanced-strike3.png";
 
 const sdtSwordSprite = new Image();
 sdtSwordSprite.src = "danty-sdt-sword-pierce.png"; // The sword that falls and pierces Danty 🥵
+
+// SDT Transformation sprites
+const vergilSdtTransformingSprite = new Image();
+vergilSdtTransformingSprite.src = "vergil-sdt-transforming.png";
+
+const dantySdtTransformingSprite = new Image();
+dantySdtTransformingSprite.src = "danty-sdt-transforming.png";
 
 // Spectral Sword sprites
 const spectralSwordIdleSprite = new Image();
@@ -3636,42 +3693,44 @@ const characterSprites = {
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
     
     // VERGIL SDT EXCLUSIVE SPRITES! 
-    'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 10, w: 120, h: 120, speed: 8 },
-    'vergil-sdt-walk': { src: "vergil-sdt-walk.png", frames: 8, w: 120, h: 120, speed: 4 },
-    'vergil-sdt-dash': { src: "vergil-sdt-dash.png", frames: 5, w: 120, h: 120, speed: 2 },
-    'vergil-sdt-jump': { src: "vergil-sdt-jump.png", frames: 6, w: 120, h: 120, speed: 4 },
-    'vergil-sdt-fall': { src: "vergil-sdt-fall.png", frames: 4, w: 120, h: 120, speed: 5 },
-    'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 3, w: 120, h: 120, speed: 6 },
-    'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 4, w: 120, h: 120, speed: 7 },
-    'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 8, w: 120, h: 120, speed: 6 },
-    'vergil-sdt-beowulf-idle': { src: "vergil-sdt-beowulf-idle.png", frames: 8, w: 120, h: 120, speed: 10 },
-    'vergil-sdt-beowulf-dash': { src: "vergil-sdt-beowulf-dash.png", frames: 6, w: 120, h: 120, speed: 2 },
-    'vergil-sdt-beowulf-walk': { src: "vergil-sdt-beowulf-walk.png", frames: 6, w: 120, h: 120, speed: 5 },
-    'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png", frames: 6, w: 120, h: 120, speed: 5 },
-    'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 8, w: 120, h: 120, speed: 2 },
-    'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png", frames: 6, w: 120, h: 120, speed: 3 },
+    'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-walk': { src: "vergil-sdt-walk.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-dash': { src: "vergil-sdt-dash.png",frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-jump': { src: "vergil-sdt-jump.png",frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-fall': { src: "vergil-sdt-fall.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-beowulf-idle': { src: "vergil-sdt-beowulf-idle.png",frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-beowulf-dash': { src: "vergil-sdt-beowulf-dash.png",frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-beowulf-walk': { src: "vergil-sdt-beowulf-walk.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png",frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 1, w: 160, h: 160, speed: 8 },
+    'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png",frames: 1, w: 160, h: 160, speed: 8 },
+    // Vergil SDT transformation
+'vergil-sdt-transforming': { src: "vergil-sdt-transforming.png", frames: 1, w: 120, h: 120, speed: 6 },
   },
  danty: {
-  idle: { src: "danty-idle.png", frames: 5, w: 50, h: 50, speed: 13 },
-  walk: { src: "danty-walk.png", frames: 10, w: 50, h: 50, speed: 4 },
-  jump: { src: "danty-jump.png", frames: 3, w: 50, h: 50, speed: 6 },
-  fall: { src: "danty-fall.png", frames: 1, w: 50, h: 50, speed: 7 },
-  attack: { src: "danty-attack.png", frames: 3, w: 38, h: 38, speed: 2 },
-  attack_air: { src: "danty-attack-air.png", frames: 2, w: 38, h: 38, speed: 2 },
-  block: { src: "danty-block.png", frames: 2, w: 38, h: 38, speed: 6 },
-  blocking: { src: "danty-blocking.png", frames: 2, w: 38, h: 38, speed: 8 },
-  hit: { src: "danty-hit.png", frames: 2, w: 38, h: 38, speed: 8 },
-  dizzy: { src: "danty-dizzy.png", frames: 3, w: 38, h: 38, speed: 8 },
-  dash: { src: "danty-dash.png", frames: 2, w: 50, h: 50, speed: 3 },
-  defeat: { src: "danty-defeat.png", frames: 1, w: 38, h: 38, speed: 10 },
-  victory: { src: "danty-victory.png", frames: 6, w: 38, h: 38, speed: 6 },
+  idle: { src: "danty-idle.png", frames: 1, w: 100, h: 100, speed: 13 },
+  walk: { src: "danty-walk.png", frames: 1, w: 100, h: 100, speed: 4 },
+  jump: { src: "danty-jump.png", frames: 1, w: 100, h: 100, speed: 6 },
+  fall: { src: "danty-fall.png", frames: 1, w: 100, h: 100, speed: 7 },
+  attack: { src: "danty-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
+  attack_air: { src: "danty-attack-air.png", frames: 1, w: 100, h: 100, speed: 13 },
+  block: { src: "danty-block.png", frames: 1, frames: 1, w: 100, h: 100, speed: 13 },
+  blocking: { src: "danty-blocking.png", frames: 1, w: 100, h: 100, speed: 13 },
+  hit: { src: "danty-hit.png",frames: 1, w: 100, h: 100, speed: 13 },
+  dizzy: { src: "danty-dizzy.png", frames: 1, w: 100, h: 100, speed: 13 },
+  dash: { src: "danty-dash.png", frames: 1, w: 100, h: 100, speed: 3 },
+  defeat: { src: "danty-defeat.png",frames: 1, w: 100, h: 100, speed: 13 },
+  victory: { src: "danty-victory.png", frames: 1, w: 100, h: 100, speed: 13 },
   // Balrog sprites
-  'balrog-charging': { src: "danty-balrog-charging.png", frames: 4, w: 50, h: 50, speed: 8 },
-  'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 5, w: 50, h: 50, speed: 3 },
-  'balrog-divekick': { src: "danty-balrog-divekick.png", frames: 3, w: 50, h: 50, speed: 4 },
-  'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 4, w: 50, h: 50, speed: 8 },
+  'balrog-charging': { src: "danty-balrog-charging.png",frames: 1, w: 100, h: 100, speed: 13 },
+  'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 1, w: 100, h: 100, speed: 13 },
+  'balrog-divekick': { src: "danty-balrog-divekick.png", frames: 1, w: 100, h: 100, speed: 13 },
+  'balrog-recovery': { src: "danty-balrog-recovery.png", frames: 1, w: 100, h: 100, speed: 13 },
   // SDT EXCLUSIVE SPRITES 
-  'sdt-idle': { src: "danty-sdt-idle.png", frames: 8, w: 60, h: 60, speed: 10 },
+  'sdt-idle': { src: "danty-sdt-idle.png", frames: 1, w: 120, h: 120, speed: 10 },
   'sdt-walk': { src: "danty-sdt-walk.png", frames: 12, w: 60, h: 60, speed: 3 },
   'sdt-dash': { src: "danty-sdt-dash.png", frames: 4, w: 60, h: 60, speed: 2 },
   'sdt-jump': { src: "danty-sdt-jump.png", frames: 4, w: 60, h: 60, speed: 5 },
@@ -3679,9 +3738,11 @@ const characterSprites = {
   'sdt-uppercut': { src: "danty-sdt-uppercut.png", frames: 6, w: 60, h: 60, speed: 2 },
   'sdt-divekick': { src: "danty-sdt-divekick.png", frames: 5, w: 60, h: 60, speed: 3 },
   'sdt-charging': { src: "danty-sdt-charging.png", frames: 5, w: 60, h: 60, speed: 6 },
+  // Danty SDT transformation
+'sdt-transforming': { src: "danty-sdt-transforming.png", frames: 1, w: 120, h: 120, speed: 8 },
     // Spectral Sword control animation
-  'controlling-spectral': { src: "danty-controlling-spectral.png", frames: 8, w: 50, h: 50, speed: 8 },
-  'transferring-control': { src: "danty-transferring-control.png", frames: 6, w: 50, h: 50, speed: 5 }
+  'controlling-spectral': { src: "danty-controlling-spectral.png", frames: 8, w: 100, h: 100, speed: 8 },
+  'transferring-control': { src: "danty-transferring-control.png", frames: 6, w: 100, h: 100, speed: 5 }
 },
 
 // SPECTRAL SWORD ENTITY ANIMATIONS 👻⚔️
@@ -3755,6 +3816,7 @@ spectralSwordTransferTimer: 0, // Transfer animation timer
     vergilSdtLightningX: 0,
     vergilSdtLightningY: 0,
     vergilSdtExplosionTimer: 0,
+    vergilSdtTransformTimer: 0,
     vergilSdtFearAura: false,
  devilSwordGauge: 0,
 devilSwordUpgraded: false,
@@ -3770,7 +3832,8 @@ sdtActive: false,
 sdtTimer: 0,
 sdtCharging: false,
 sdtChargeStart: 0,
-sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
+sdtAnimationPhase: null, // 'transforming', 'sword_falling', 'piercing', 'explosion', 'active'
+sdtTransformTimer: 0,
   },
   {
     x: 2*WIDTH/3, y: GROUND-PLAYER_SIZE, vx: 0, vy: 0, w: PLAYER_SIZE, h: PLAYER_SIZE,
@@ -3801,6 +3864,7 @@ sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
     vergilSdtLightningX: 0,
     vergilSdtLightningY: 0,
     vergilSdtExplosionTimer: 0,
+    vergilSdtTransformTimer: 0,
     vergilSdtFearAura: false,
 devilSwordGauge: 0,
 devilSwordUpgraded: false,
@@ -3816,7 +3880,8 @@ sdtActive: false,
 sdtTimer: 0,
 sdtCharging: false,
 sdtChargeStart: 0,
-sdtAnimationPhase: null, // 'sword_falling', 'piercing', 'explosion', 'active'
+sdtAnimationPhase: null, // 'transforming', 'sword_falling', 'piercing', 'explosion', 'active'
+sdtTransformTimer: 0,
 sdtSwordY: 0,
 sdtSwordX: 0,
 sdtExplosionTimer: 0,
@@ -4073,6 +4138,14 @@ function draw() {
       }
     }
     
+// DEBUG: Log current animation state
+if (p.charId === 'vergil' && p.vergilSdtAnimationPhase === 'transforming') {
+  console.log(`Vergil transforming - animState: ${p.animState}, anim found: ${!!anim}`);
+}
+if (p.charId === 'danty' && p.sdtAnimationPhase === 'transforming') {
+  console.log(`Danty transforming - animState: ${p.animState}, anim found: ${!!anim}`);
+}
+
     if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
       const scaleX = p.w / anim.w;
       const scaleY = p.h / anim.h;
