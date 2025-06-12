@@ -57,6 +57,7 @@ const JUDGMENT_CUT_CHARGE = {
 const WIDTH = 900, HEIGHT = 600;
 const GRAVITY = 0.6, FRICTION = 0.7, GROUND = HEIGHT - 60;
 const PLATFORM_HEIGHT = 20, PLAYER_SIZE = 50, PLAYER_SPEED = 5;
+const SDT_PLAYER_SIZE = 73; // Bigger size for SDT forms
 const DASH_SPEED = 13, DASH_WINDOW = 250, JUMP_VEL = 15, MAX_JUMPS = 2;
 const PLAYER_HP = 120, PLATFORM_COLOR = "#ffd54f", PLATFORM_EDGE = "#ffb300";
 const PLAYER_OUTLINE = "#fff", FLOOR_HEIGHT = HEIGHT-30;
@@ -109,8 +110,8 @@ const VERGIL_SIN_DEVIL_TRIGGER = {
   GAUGE_MAX: 100,
   CHARGE_RATE: 2, // Slightly faster than Danty (Vergil is more skilled)
   ACTIVATION_HOLD_TIME: 2500, // Shorter than Danty (18 frames less)
-  JUDGMENT_CUT_COST: 50, // 50% gauge to use Judgment Cut
-  JUDGMENT_CUT_REQUIREMENT: 50, // Need 50% minimum to execute
+  JUDGMENT_CUT_COST: 30, // 30% gauge to use Judgment Cut (reduced from 50%)
+  JUDGMENT_CUT_REQUIREMENT: 30, // Need 30% minimum to execute (reduced from 50%)
   SDT_DURATION: 600, // Shorter but more intense than Danty
   DAMAGE_MULTIPLIER: 1.2, // HIGHER than Danty! (Vergil is stronger)
   SPEED_MULTIPLIER: 1.2,  // FASTER than Danty! ⚡
@@ -127,6 +128,7 @@ const SPECTRAL_SWORD = {
   DASH_DAMAGE: 10, // Damage when dashing
   FLOAT_SPEED: 2, // How fast it naturally floats up/down
   SIZE: 40, // Width and height
+    SIZE: PLAYER_SIZE, // Width and height - SAME AS PLAYER! 🔥👻
   GAUGE_DRAIN: 0.3, // How much Devil Trigger gauge it drains per frame
   MIN_GAUGE_TO_SPAWN: 20, // Minimum gauge needed to spawn
   CONTROL_TRANSFER_FRAMES: 10 // Frames to transfer control
@@ -278,17 +280,17 @@ function createSpectralSword(owner) {
     return null;
   }
   
-  // Calculate spawn position (in front of owner)
+  
   const spawnX = owner.facing === 1 ? 
     owner.x + owner.w + SPECTRAL_SWORD.SPAWN_DISTANCE : 
-    owner.x - SPECTRAL_SWORD.SPAWN_DISTANCE - SPECTRAL_SWORD.SIZE;
-  const spawnY = owner.y + (owner.h / 2) - (SPECTRAL_SWORD.SIZE / 2);
+    owner.x - SPECTRAL_SWORD.SPAWN_DISTANCE - PLAYER_SIZE;
+  const spawnY = owner.y + (owner.h / 2) - (PLAYER_SIZE / 2);
   
   const spectralSword = {
     x: spawnX,
     y: spawnY,
-    w: SPECTRAL_SWORD.SIZE,
-    h: SPECTRAL_SWORD.SIZE,
+    w: PLAYER_SIZE, // SAME SIZE AS PLAYER! 🔥👻
+    h: PLAYER_SIZE, // SAME SIZE AS PLAYER! 🔥👻
     vx: 0,
     vy: 0,
     facing: owner.facing,
@@ -1429,71 +1431,84 @@ document.addEventListener("keydown", function(e) {
     if (!p.alive) continue;
     
     const controls = getControls(pid);
-        if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
-      if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
-        // CHECK FOR VERGIL SDT FIRST! 💀⚡🌩️
-        if (p.vergilSdtGauge >= VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.vergilSdtActive && !p.vergilSdtCharging) {
-          p.vergilSdtCharging = true;
-          p.vergilSdtChargeStart = performance.now();
-          console.log(`${p.name} is charging SIN DEVIL TRIGGER! I AM THE STORM THAT IS APPROACHING! 💀⚡🌩️`);
-          return; // Exit early to prevent other abilities
+if (k === controls.special && p.charId === 'vergil' && !p.judgmentCutCharging && p.judgementCutCooldown === 0) {
+  if (p.currentWeapon === VERGIL_WEAPONS.YAMATO) {
+    
+    // CHECK FOR STORM SLASHES FIRST! ⚡🌩️ (if available)
+    if (p.stormSlashesReady && !p.vergilSdtCharging) {
+      // Find nearby enemy for Storm Slashes
+      const nearbyEnemy = players.find(enemy => {
+        if (enemy === p || !enemy.alive) return false;
+        const dx = Math.abs(enemy.x + enemy.w/2 - (p.x + p.w/2));
+        const dy = Math.abs(enemy.y + enemy.h/2 - (p.y + p.h/2));
+        return dx <= 200 && dy <= 100; // Storm Slashes range
+      });
+      
+      if (nearbyEnemy) {
+        // Check if we have enough SDT gauge for Storm Slashes
+        if (p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST) {
+          console.log(`${p.name} needs ${VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST}% SDT gauge for Storm Slashes! 💀❌`);
+          return;
         }
-        // CHECK FOR STORM SLASHES SECOND! ⚡🌩️ (only if not SDT charging)
-        else if (p.stormSlashesReady && !p.vergilSdtCharging) {
-          // Find nearby enemy for Storm Slashes
-          const nearbyEnemy = players.find(enemy => {
-            if (enemy === p || !enemy.alive) return false;
-            const dx = Math.abs(enemy.x + enemy.w/2 - (p.x + p.w/2));
-            const dy = Math.abs(enemy.y + enemy.h/2 - (p.y + p.h/2));
-            return dx <= 200 && dy <= 100; // Storm Slashes range
-          });
-          
-          if (nearbyEnemy) {
-            // Check if we have enough SDT gauge for Judgment Cut in SDT mode
-            if (p.vergilSdtActive && p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST) {
-              console.log(`${p.name} needs ${VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST}% SDT gauge for Storm Slashes in SDT! 💀❌`);
-              return;
-            }
-            
-            // ACTIVATE STORM SLASHES! ⚡⚔️🌩️
-            p.stormSlashesActive = true;
-            p.stormSlashesDuration = p.vergilSdtActive ? 40 : 30; // Longer in SDT!
-            p.stormSlashesAnimationFrame = 0;
-            p.stormSlashesAnimationTimer = 0;
-            p.stormSlashesTarget = nearbyEnemy;
-            p.stormSlashesReady = false;
-            p.stormSlashesTimer = 0;
-            
-            // Consume SDT gauge if in SDT mode
-            if (p.vergilSdtActive) {
-              p.vergilSdtGauge -= VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST;
-              console.log(`${p.name} unleashes SDT STORM SLASHES! 💀⚡🌩️ Gauge: ${p.vergilSdtGauge}%`);
-            } else {
-              console.log(`${p.name} unleashes Storm Slashes! ⚡🌩️`);
-            }
-          }
+        
+        // ACTIVATE STORM SLASHES! ⚡⚔️🌩️
+        p.stormSlashesActive = true;
+        p.stormSlashesDuration = p.vergilSdtActive ? 40 : 30;
+        p.stormSlashesAnimationFrame = 0;
+        p.stormSlashesAnimationTimer = 0;
+        p.stormSlashesTarget = nearbyEnemy;
+        p.stormSlashesReady = false;
+        p.stormSlashesTimer = 0;
+        
+        // Consume SDT gauge
+        p.vergilSdtGauge -= VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST;
+        if (p.vergilSdtGauge < 0) p.vergilSdtGauge = 0;
+
+        if (p.vergilSdtActive) {
+          console.log(`${p.name} unleashes SDT STORM SLASHES! 💀⚡🌩️ Gauge: ${p.vergilSdtGauge}%`);
+        } else {
+          console.log(`${p.name} unleashes Storm Slashes! ⚡🌩️ Gauge: ${p.vergilSdtGauge}%`);
         }
-        // JUDGMENT CUT (only if not charging SDT and has required gauge)
-        else if (p.onGround && !p.vergilSdtCharging) {
-          // Check SDT gauge requirement for Judgment Cut
-          if (p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_REQUIREMENT) {
-            console.log(`${p.name} needs ${VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_REQUIREMENT}% SDT gauge for Judgment Cut! Current: ${p.vergilSdtGauge.toFixed(0)}% ⚡❌`);
-            return;
-          }
-          
-          if (isOpponentInJudgmentCutRange(p)) {
-            p.judgmentCutCharging = true;
-            p.judgmentCutChargeStart = performance.now();
-            p.judgmentCutChargeLevel = 0;
-            p.animState = "charging";
-            p.animFrame = 0;
-            p.animTimer = 0;
-            console.log(`${p.name} charging Judgment Cut! Gauge: ${p.vergilSdtGauge.toFixed(0)}% ⚔️⚡`);
-          } else {
-            rangeWarningText.show = true;
-            rangeWarningText.timer = 60;
-          }
-        }
+        return;
+      }
+    }
+    
+    // DISTANCE-BASED ABILITY SELECTION! 🌩️💀⚡
+    const nearbyEnemy = players.find(enemy => {
+      if (enemy === p || !enemy.alive) return false;
+      const dx = Math.abs(enemy.x + enemy.w/2 - (p.x + p.w/2));
+      const dy = Math.abs(enemy.y + enemy.h/2 - (p.y + p.h/2));
+      return dx <= JUDGMENT_CUT_TRIGGER_RANGE && dy <= 100; // Judgment Cut range
+    });
+    
+    if (nearbyEnemy && p.onGround && !p.vergilSdtCharging) {
+      // CLOSE RANGE = JUDGMENT CUT EXECUTION! ⚔️💀
+      const requiredGauge = 30;
+      if (p.vergilSdtGauge < requiredGauge) {
+        console.log(`${p.name} needs ${requiredGauge}% SDT gauge for Judgment Cut! Current: ${p.vergilSdtGauge.toFixed(0)}% ⚡❌`);
+        return;
+      }
+      
+      p.judgmentCutCharging = true;
+      p.judgmentCutChargeStart = performance.now();
+      p.judgmentCutChargeLevel = 0;
+      p.animState = "charging";
+      p.animFrame = 0;
+      p.animTimer = 0;
+      console.log(`${p.name} is CLOSE! Charging Judgment Cut EXECUTION! ⚔️💀⚡`);
+    } 
+    else {
+      // FAR RANGE = I AM THE STORM THAT IS APPROACHING! 🌩️💀
+      if (p.vergilSdtGauge >= VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX && !p.vergilSdtActive && !p.vergilSdtCharging) {
+        p.vergilSdtCharging = true;
+        p.vergilSdtChargeStart = performance.now();
+        console.log(`${p.name} is FAR! I AM THE STORM THAT IS APPROACHING! 💀⚡🌩️`);
+      } else if (p.vergilSdtGauge < VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX) {
+        console.log(`${p.name} needs 100% SDT gauge to APPROACH THE STORM! Current: ${p.vergilSdtGauge.toFixed(0)}% 🌩️❌`);
+      } else if (p.vergilSdtActive) {
+        console.log(`${p.name} is already THE STORM! ⚡💀🌩️`);
+      }
+    }
           } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
         // SDT STATE: Can use Beowulf with ANY weapon! 💀👊
         if (p.vergilSdtActive || (p.currentWeapon === VERGIL_WEAPONS.BEOWULF)) {
@@ -1826,6 +1841,11 @@ document.addEventListener("keyup", function(e) {
           p.slashAnimationTimer = 0;
           p.judgmentCutCharging = false;
           p.judgmentCutChargeLevel = 0;
+
+            // CONSUME SDT GAUGE FOR JUDGMENT CUT! ⚡💀
+  p.vergilSdtGauge -= VERGIL_SIN_DEVIL_TRIGGER.JUDGMENT_CUT_COST;
+  if (p.vergilSdtGauge < 0) p.vergilSdtGauge = 0;
+  console.log(`${p.name} used Judgment Cut! SDT Gauge: ${p.vergilSdtGauge.toFixed(0)}% remaining ⚡⚔️💀`);
           
                   // PAUSE BACKGROUND MUSIC FOR DRAMATIC EFFECT! 🎵❌
           if (defaultFightMusic && !defaultFightMusic.paused) {
@@ -2530,6 +2550,38 @@ function drawParticles(ctx) {
 const platforms = [];
 
 function updatePlayer(p, pid) {
+  // DYNAMIC PLAYER SIZE FOR SDT! 💀⚡
+  if (p.charId === 'vergil' && (p.vergilSdtActive || p.vergilSdtAnimationPhase === 'transforming')) {
+    if (p.w !== SDT_PLAYER_SIZE || p.h !== SDT_PLAYER_SIZE) {
+      // Resize to SDT size - keep center position
+      const centerX = p.x + p.w/2;
+      const centerY = p.y + p.h/2;
+      p.w = SDT_PLAYER_SIZE;
+      p.h = SDT_PLAYER_SIZE;
+      p.x = centerX - p.w/2;
+      p.y = centerY - p.h/2;
+    }
+  } else if (p.charId === 'danty' && (p.sdtActive || p.sdtAnimationPhase === 'transforming')) {
+    if (p.w !== SDT_PLAYER_SIZE || p.h !== SDT_PLAYER_SIZE) {
+      // Resize to SDT size - keep center position
+      const centerX = p.x + p.w/2;
+      const centerY = p.y + p.h/2;
+      p.w = SDT_PLAYER_SIZE;
+      p.h = SDT_PLAYER_SIZE;
+      p.x = centerX - p.w/2;
+      p.y = centerY - p.h/2;
+    }
+  } else {
+    // Regular form - normal size
+    if (p.w !== PLAYER_SIZE || p.h !== PLAYER_SIZE) {
+      const centerX = p.x + p.w/2;
+      const centerY = p.y + p.h/2;
+      p.w = PLAYER_SIZE;
+      p.h = PLAYER_SIZE;
+      p.x = centerX - p.w/2;
+      p.y = centerY - p.h/2;
+    }
+  }
   if (p.pauseTimer > 0) {
     p.pauseTimer--;
     return;
@@ -3692,23 +3744,23 @@ const characterSprites = {
     'mirage-dash': { src: "vergil-mirage-dash.png", frames: 4, w: 100, h: 100, speed: 3 },
     'mirage-walk': { src: "vergil-mirage-walk.png", frames: 4, w: 100, h: 100, speed: 6 },
     
-    // VERGIL SDT EXCLUSIVE SPRITES! 
-    'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-walk': { src: "vergil-sdt-walk.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-dash': { src: "vergil-sdt-dash.png",frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-jump': { src: "vergil-sdt-jump.png",frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-fall': { src: "vergil-sdt-fall.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-beowulf-idle': { src: "vergil-sdt-beowulf-idle.png",frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-beowulf-dash': { src: "vergil-sdt-beowulf-dash.png",frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-beowulf-walk': { src: "vergil-sdt-beowulf-walk.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png",frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 1, w: 160, h: 160, speed: 8 },
-    'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png",frames: 1, w: 160, h: 160, speed: 8 },
-    // Vergil SDT transformation
-'vergil-sdt-transforming': { src: "vergil-sdt-transforming.png", frames: 1, w: 120, h: 120, speed: 6 },
+   // VERGIL SDT EXCLUSIVE SPRITES! 
+'vergil-sdt-idle': { src: "vergil-sdt-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-walk': { src: "vergil-sdt-walk.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-dash': { src: "vergil-sdt-dash.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-jump': { src: "vergil-sdt-jump.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-fall': { src: "vergil-sdt-fall.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-block': { src: "vergil-sdt-block.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-blocking': { src: "vergil-sdt-blocking.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-charging': { src: "vergil-sdt-charging.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-idle': { src: "vergil-sdt-beowulf-idle.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-dash': { src: "vergil-sdt-beowulf-dash.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-walk': { src: "vergil-sdt-beowulf-walk.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-charging': { src: "vergil-sdt-beowulf-charging.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-uppercut': { src: "vergil-sdt-beowulf-uppercut.png", frames: 1, w: 160, h: 140, speed: 8 },
+'vergil-sdt-beowulf-divekick': { src: "vergil-sdt-beowulf-divekick.png", frames: 1, w: 160, h: 140, speed: 8 },
+// Vergil SDT transformation - using 160x160 to match other SDT sprites
+'vergil-sdt-transforming': { src: "vergil-sdt-transforming.png", frames: 1, w: 160, h: 140, speed: 6 },
   },
  danty: {
   idle: { src: "danty-idle.png", frames: 1, w: 100, h: 100, speed: 13 },
@@ -3745,11 +3797,11 @@ const characterSprites = {
   'transferring-control': { src: "danty-transferring-control.png", frames: 6, w: 100, h: 100, speed: 5 }
 },
 
-// SPECTRAL SWORD ENTITY ANIMATIONS 👻⚔️
+// SPECTRAL SWORD ENTITY ANIMATIONS 👻⚔️ - PLAYER SIZE!
 spectralSword: {
-  idle: { src: "danty-spectral-sword-idle.png", frames: 6, w: 40, h: 40, speed: 12 },
-  walk: { src: "danty-spectral-sword-move.png", frames: 8, w: 40, h: 40, speed: 6 },
-  dash: { src: "danty-spectral-sword-dash.png", frames: 4, w: 40, h: 40, speed: 3 }
+  idle: { src: "danty-spectral-sword-idle.png", frames: 1, w: 50, h: 50, speed: 12 },
+  walk: { src: "danty-spectral-sword-move.png", frames: 1, w: 50, h: 50, speed: 6 },
+  dash: { src: "danty-spectral-sword-dash.png", frames: 1, w: 50, h: 50, speed: 3 }
 },
 };
 
@@ -4578,46 +4630,53 @@ ctx.restore();
     }
   }
 
-  // Draw Spectral Swords 👻⚔️
-  for (let p of players) {
-    if (p.spectralSword && p.charId === 'danty') {
-      const sword = p.spectralSword;
+// Draw Spectral Swords 👻⚔️
+for (let p of players) {
+  if (p.spectralSword && p.charId === 'danty') {
+    const sword = p.spectralSword;
+    
+    ctx.save();
+    
+    // Draw spectral sword with proper animation 👻⚔️
+    const swordAnim = getSpectralSwordAnim(sword);
+    const swordSpritesheet = swordAnim && spritesheetCache[swordAnim.src];
+    
+    if (swordAnim && swordSpritesheet && swordSpritesheet.complete && swordSpritesheet.naturalWidth > 0) {
+      // SPRITE FOUND - DRAW ONLY THE SPRITE! 👻⚔️✨
       
-      ctx.save();
+      // Add floating effect to rendered position
+      const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
+      const renderY = sword.y + floatOffset;
       
-      // Draw spectral sword aura/glow
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = p.sdtActive ? "#8b008b" : "#4b0082";
-      ctx.beginPath();
-      ctx.arc(sword.x + sword.w/2, sword.y + sword.h/2, sword.w/2 + 5, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Draw spectral sword main body
-      ctx.globalAlpha = 0.9;
-      if (sword.dash > 0) {
-        // Dashing - brighter and larger
-        ctx.fillStyle = p.sdtActive ? "#ff00ff" : "#6a0dad";
-        ctx.globalAlpha = 1.0;
-        const dashScale = 1.2;
+// Enhanced HOT FIRE glow for dashing! 🔥🥵
+if (sword.dash > 0) {
+  ctx.globalAlpha = 1.0;
+  ctx.shadowColor = "#ff0000"; // HOT RED FIRE!
+  ctx.shadowBlur = 25;
+        
+        // Larger size when dashing
+        const dashScale = 1.3;
         const scaledW = sword.w * dashScale;
         const scaledH = sword.h * dashScale;
-        ctx.fillRect(sword.x - (scaledW - sword.w)/2, sword.y - (scaledH - sword.h)/2, scaledW, scaledH);
-      } else {
-        // Normal - floating
-        ctx.fillStyle = p.sdtActive ? "#da70d6" : "#8a2be2";
-        ctx.fillRect(sword.x, sword.y, sword.w, sword.h);
-      }
-      
-           // Draw spectral sword with proper animation 👻⚔️
-      const swordAnim = getSpectralSwordAnim(sword);
-      const swordSpritesheet = swordAnim && spritesheetCache[swordAnim.src];
-      
-      if (swordAnim && swordSpritesheet && swordSpritesheet.complete && swordSpritesheet.naturalWidth > 0) {
-        ctx.globalAlpha = 1.0;
+        const offsetX = (scaledW - sword.w) / 2;
+        const offsetY = (scaledH - sword.h) / 2;
         
-        // Add floating effect to rendered position
-        const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
-        const renderY = sword.y + floatOffset;
+        if (sword.facing === 1) {
+          ctx.save();
+          ctx.translate(sword.x + sword.w/2, renderY + sword.h/2);
+          ctx.scale(-dashScale, dashScale);
+          ctx.translate(-swordAnim.w/2, -swordAnim.h/2);
+ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, swordAnim.w, swordAnim.h);
+          ctx.restore();
+        } else {
+          ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 
+                       sword.x - offsetX, renderY - offsetY, scaledW, scaledH);
+        }
+  } else {
+  // Normal size with HOT fire glow! 🔥🥵
+  ctx.globalAlpha = 1.0;
+  ctx.shadowColor = "#ff3300"; // HOT RED-ORANGE FIRE!
+  ctx.shadowBlur = 15;
         
         if (sword.facing === 1) {
           ctx.save();
@@ -4629,39 +4688,82 @@ ctx.restore();
         } else {
           ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, sword.x, renderY, sword.w, sword.h);
         }
-      } else {
-        // Fallback rendering - just use the colored rectangles
-        const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
-        const renderY = sword.y + floatOffset;
-        
-        if (sword.dash > 0) {
-          ctx.fillStyle = p.sdtActive ? "#ff00ff" : "#6a0dad";
-          ctx.globalAlpha = 1.0;
-          const dashScale = 1.2;
-          const scaledW = sword.w * dashScale;
-          const scaledH = sword.h * dashScale;
-          ctx.fillRect(sword.x - (scaledW - sword.w)/2, renderY - (scaledH - sword.h)/2, scaledW, scaledH);
-        } else {
-          ctx.fillStyle = p.sdtActive ? "#da70d6" : "#8a2be2";
-          ctx.fillRect(sword.x, renderY, sword.w, sword.h);
-        }
       }
       
-      // Draw energy trail if moving
-      if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
-        ctx.globalAlpha = 0.4;
-        for (let i = 1; i <= 3; i++) {
-          ctx.fillStyle = p.sdtActive ? "#8b008b" : "#4b0082";
-          const trailX = sword.x - sword.vx * i * 2;
-          const trailY = sword.y - sword.vy * i * 2;
-          const trailSize = sword.w * (1 - i * 0.2);
-          ctx.fillRect(trailX + (sword.w - trailSize)/2, trailY + (sword.h - trailSize)/2, trailSize, trailSize);
-        }
-      }
-      
+ // Draw SIMPLE HOT FLAME trail if moving! 🔥🥵
+if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
+  for (let i = 1; i <= 3; i++) {
+    ctx.save();
+    
+    const trailAlpha = 0.5 - (i * 0.12);
+    ctx.globalAlpha = trailAlpha;
+    
+    // SIMPLE HOT FIRE GLOW! 🔥🥵
+    ctx.shadowColor = "#ff0000"; // Hot red glow
+    ctx.shadowBlur = 15 + (i * 5);
+    
+    const trailX = sword.x - sword.vx * i * 2;
+    const trailY = renderY - sword.vy * i * 2;
+    const trailScale = 1 - (i * 0.15);
+    const trailW = sword.w * trailScale;
+    const trailH = sword.h * trailScale;
+    const trailOffsetX = (sword.w - trailW) / 2;
+    const trailOffsetY = (sword.h - trailH) / 2;
+    
+    // Hot fire filter! 🔥
+    ctx.filter = `saturate(200%) brightness(130%) hue-rotate(${i * 10}deg)`;
+    
+    if (sword.facing === 1) {
+      ctx.save();
+      ctx.translate(trailX + sword.w/2, trailY + sword.h/2);
+      ctx.scale(-trailScale, trailScale);
+      ctx.translate(-sword.w/2, -sword.h/2);
+      ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 0, 0, sword.w, sword.h);
       ctx.restore();
+    } else {
+      ctx.drawImage(swordSpritesheet, swordAnim.w * sword.animFrame, 0, swordAnim.w, swordAnim.h, 
+                   trailX + trailOffsetX, trailY + trailOffsetY, trailW, trailH);
     }
+    
+    ctx.restore();
   }
+}
+      
+    } else {
+      // FALLBACK: If sprites fail to load, show simple colored rectangle
+      console.log("Spectral Sword sprite not loaded, using fallback!");
+      
+      const floatOffset = Math.sin(sword.floatTimer * 0.1) * 3;
+      const renderY = sword.y + floatOffset;
+      
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = p.sdtActive ? "#FF3701" : "#820000";
+      ctx.fillRect(sword.x, renderY, sword.w, sword.h);
+      
+ // Simple HOT trail fallback! 🔥🥵
+if (Math.abs(sword.vx) > 1 || Math.abs(sword.vy) > 1) {
+  for (let i = 1; i <= 2; i++) {
+    ctx.save();
+    ctx.globalAlpha = 0.4 - (i * 0.15);
+    
+    // Simple hot red fire
+    ctx.fillStyle = "#ff0000";
+    ctx.shadowColor = "#ff0000";
+    ctx.shadowBlur = 12;
+    
+    const trailX = sword.x - sword.vx * i * 2;
+    const trailY = renderY - sword.vy * i * 2;
+    const trailSize = sword.w * (1 - i * 0.2);
+    ctx.fillRect(trailX + (sword.w - trailSize)/2, trailY + (sword.h - trailSize)/2, trailSize, trailSize);
+    
+    ctx.restore();
+  }
+}
+    }
+    
+    ctx.restore();
+  }
+}
 
   drawImpactEffects(ctx);
 
