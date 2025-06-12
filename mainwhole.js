@@ -4272,18 +4272,71 @@ if (p.charId === 'danty' && p.sdtAnimationPhase === 'transforming') {
   console.log(`Danty transforming - animState: ${p.animState}, anim found: ${!!anim}`);
 }
 
-    if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
+      if (anim && spritesheet && spritesheet.complete && spritesheet.naturalWidth > 0) {
       const scaleX = p.w / anim.w;
       const scaleY = p.h / anim.h;
       
-      if (p.facing === 1) {
+      // Check if player is dive kicking for rotation
+      const isDiveKicking = (p.charId === 'vergil' && p.beowulfDiveKick && p.isDiveKicking) ||
+                           (p.charId === 'danty' && p.balrogDiveKick && p.isDiveKicking);
+      
+      if (isDiveKicking) {
+        // DIVE KICK ROTATION! 🦆💥⚡
+        ctx.save();
+        ctx.translate(p.x + p.w/2, p.y + p.h/2);
+        
+        // Calculate rotation angle based on velocity direction
+        let rotationAngle = Math.atan2(p.vy, Math.abs(p.vx)) * 0.7; // Reduce angle for better look
+        
+        // Adjust rotation direction based on facing
+        if (p.facing === 1) {
+          // Facing right - rotate clockwise for right kick
+          ctx.rotate(rotationAngle);
+          ctx.scale(-scaleX, scaleY);
+        } else {
+          // Facing left - rotate counter-clockwise for left kick  
+          ctx.rotate(-rotationAngle);
+          ctx.scale(scaleX, scaleY);
+        }
+        
+        ctx.translate(-anim.w/2, -anim.h/2);
+        ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, 0, 0, anim.w, anim.h);
+        ctx.restore();
+        
+        // Add cool dive kick trail effect! 💨⚡
+        for (let i = 1; i <= 3; i++) {
+          ctx.save();
+          ctx.globalAlpha = 0.3 - (i * 0.08);
+          
+          const trailX = p.x - p.vx * i * 0.8;
+          const trailY = p.y - p.vy * i * 0.8;
+          
+          ctx.translate(trailX + p.w/2, trailY + p.h/2);
+          ctx.rotate(p.facing === 1 ? rotationAngle * 0.5 : -rotationAngle * 0.5);
+          ctx.scale(p.facing === 1 ? -scaleX * (1 - i * 0.1) : scaleX * (1 - i * 0.1), scaleY * (1 - i * 0.1));
+          ctx.translate(-anim.w/2, -anim.h/2);
+          
+          // Color the trail based on character/SDT state
+          if (p.charId === 'vergil') {
+            ctx.filter = p.vergilSdtActive ? "hue-rotate(200deg) saturate(150%)" : "hue-rotate(240deg)";
+          } else if (p.charId === 'danty') {
+            ctx.filter = p.sdtActive ? "hue-rotate(320deg) saturate(200%)" : "hue-rotate(0deg)";
+          }
+          
+          ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, 0, 0, anim.w, anim.h);
+          ctx.restore();
+        }
+        
+      } else if (p.facing === 1) {
+        // Normal right-facing rendering
         ctx.save();
         ctx.translate(p.x + p.w/2, p.y + p.h/2);
         ctx.scale(-scaleX, scaleY);
         ctx.translate(-anim.w/2, -anim.h/2);
         ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, 0, 0, anim.w, anim.h);
         ctx.restore();
-      } else {  
+      } else {
+        // Normal left-facing rendering
         ctx.drawImage(spritesheet, anim.w * p.animFrame, 0, anim.w, anim.h, p.x, p.y, p.w, p.h);
       }
     } else {
