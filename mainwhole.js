@@ -1484,31 +1484,36 @@ document.addEventListener("keydown", function(e) {
             rangeWarningText.timer = 60;
           }
         }
-      } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        // Rest of Beowulf logic stays the same... else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
-        if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
-          p.beowulfCharging = true;
-          p.beowulfChargeStart = performance.now();
-          p.beowulfChargeType = 'uppercut';
-          p.animState = "beowulf-charging";
-          p.animFrame = 0;
-          p.animTimer = 0;
-          console.log(`${p.name} is charging Beowulf Rising Uppercut! 👊⬆️`);
-        } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
-          const currentHeight = GROUND - (p.y + p.h);
-          
-          if (currentHeight >= 50) {
-            p.beowulfDiveKick = true;
-            p.beowulfDiveDirection = p.facing;
-            p.vy = 16;
-            p.vx = p.facing * 18;
-            p.isDiveKicking = true;
-            p.animState = "beowulf-divekick";
+          } else if (p.currentWeapon === VERGIL_WEAPONS.BEOWULF) {
+        // SDT STATE: Can use Beowulf with ANY weapon! 💀👊
+        if (p.vergilSdtActive || (p.currentWeapon === VERGIL_WEAPONS.BEOWULF)) {
+          if (p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+            p.beowulfCharging = true;
+            p.beowulfChargeStart = performance.now();
+            p.beowulfChargeType = 'uppercut';
+            p.animState = "beowulf-charging";
             p.animFrame = 0;
             p.animTimer = 0;
-            console.log(`${p.name} performs SUPER DIAGONAL Kamen Rider Kick! 👊💥`);
-          } else {
-            console.log(`${p.name} not high enough for Kamen Rider kick! Need 100px height 🚫`);
+            const sdtText = p.vergilSdtActive ? ' SDT' : '';
+            console.log(`${p.name} is charging${sdtText} Beowulf Rising Uppercut! 👊⬆️${p.vergilSdtActive ? '💀' : ''}`);
+          } else if (!p.onGround && !p.beowulfCharging && !p.beowulfDiveKick) {
+            const currentHeight = GROUND - (p.y + p.h);
+            const requiredHeight = p.vergilSdtActive ? 30 : 50; // Lower requirement for SDT
+            
+            if (currentHeight >= requiredHeight) {
+              p.beowulfDiveKick = true;
+              p.beowulfDiveDirection = p.facing;
+              p.vy = p.vergilSdtActive ? 20 : 16; // Stronger for SDT
+              p.vx = p.facing * (p.vergilSdtActive ? 22 : 18); // Faster for SDT
+              p.isDiveKicking = true;
+              p.animState = "beowulf-divekick";
+              p.animFrame = 0;
+              p.animTimer = 0;
+              const sdtText = p.vergilSdtActive ? ' SDT DEVASTATING' : ' SUPER DIAGONAL';
+              console.log(`${p.name} performs${sdtText} Kamen Rider Kick! 👊💥${p.vergilSdtActive ? '💀' : ''}`);
+            } else {
+              console.log(`${p.name} not high enough for Kamen Rider kick! Need ${requiredHeight}px height 🚫`);
+            }
           }
         }
              } else if (p.currentWeapon === VERGIL_WEAPONS.MIRAGE_BLADE) {
@@ -1721,11 +1726,14 @@ if (k === weaponSwitchKey) {
     if (k === controls.left && !keys[controls.right] && p.dashCooldown === 0 && !p.inHitstun) {
       let now = performance.now();
       if (dashTapState[pid].lastTapDir === 'left' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.left < DASH_WINDOW) {
-                if (p.charId === 'vergil') {
+                             if (p.charId === 'vergil') {
           p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
           p.isTeleporting = true;
           p.teleportAlpha = 0.3;
-          p.vx = -DASH_SPEED * 1.2;
+          
+          // VERGIL SDT DASH SPEED BOOST! ⚡💀
+          const vergilDashMultiplier = p.vergilSdtActive ? VERGIL_SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.2;
+          p.vx = -DASH_SPEED * vergilDashMultiplier;
         } else {
           // SDT DASH SPEED BOOST 💀⚡
           const dashMultiplier = (p.charId === 'danty' && p.sdtActive) ? SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.0;
@@ -1744,11 +1752,14 @@ if (k === weaponSwitchKey) {
     if (k === controls.right && !keys[controls.left] && p.dashCooldown === 0 && !p.inHitstun) {
       let now = performance.now();
       if (dashTapState[pid].lastTapDir === 'right' && now - dashTapState[pid].lastTapTime < DASH_WINDOW && now - dashTapState[pid].lastReleaseTime.right < DASH_WINDOW) {
-                    if (p.charId === 'vergil') {
+                                      if (p.charId === 'vergil') {
           p.teleportTrail = { x: p.x, y: p.y, duration: 15, alpha: 0.8, frame: p.animFrame, animState: p.animState, facing: p.facing };
           p.isTeleporting = true;
           p.teleportAlpha = 0.3;
-          p.vx = DASH_SPEED * 1.2;
+          
+          // VERGIL SDT DASH SPEED BOOST! ⚡💀
+          const vergilDashMultiplier = p.vergilSdtActive ? VERGIL_SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.2;
+          p.vx = DASH_SPEED * vergilDashMultiplier;
         } else {
           // SDT DASH SPEED BOOST 💀⚡
           const dashMultiplier = (p.charId === 'danty' && p.sdtActive) ? SIN_DEVIL_TRIGGER.DASH_SPEED_MULTIPLIER : 1.0;
@@ -1777,6 +1788,22 @@ document.addEventListener("keyup", function(e) {
     const playerControls = getControls(pid);
     if (k === playerControls.special) {
       const p = players[pid];
+           // VERGIL SDT RELEASE HANDLER! 💀⚡
+      if (p.charId === 'vergil' && p.vergilSdtCharging) {
+        const holdTime = now - p.vergilSdtChargeStart;
+        if (holdTime >= VERGIL_SIN_DEVIL_TRIGGER.ACTIVATION_HOLD_TIME) {
+          // ACTIVATE VERGIL SDT! 💀⚡🌩️
+          p.vergilSdtCharging = false;
+          p.vergilSdtAnimationPhase = 'lightning_strike';
+          p.vergilSdtLightningX = p.x + p.w/2;
+          p.vergilSdtLightningY = p.y - 150;
+          console.log(`${p.name} BECOMES THE STORM! SIN DEVIL TRIGGER ACTIVATED! ⚡💀🌩️👹`);
+        } else {
+          p.vergilSdtCharging = false;
+          console.log(`${p.name} released too early! Need more MOTIVATION! ⚡❌`);
+        }
+      }
+      
       if (p.charId === 'vergil' && p.judgmentCutCharging) {
         const chargeTime = now - p.judgmentCutChargeStart;
         
@@ -4008,6 +4035,63 @@ function draw() {
        // Draw player name and weapon indicator
     if (p.name) {
       ctx.save();
+
+      
+      
+          // VERGIL SDT GAUGE BAR! 💀⚡🌩️
+      if (p.charId === 'vergil') {
+        const vergilSdtBarWidth = p.w;
+        const vergilSdtBarHeight = 6;
+        const vergilSdtBarX = p.x;
+        const vergilSdtBarY = p.y - 45; // Above the name
+        const vergilSdtGaugeRatio = p.vergilSdtGauge / VERGIL_SIN_DEVIL_TRIGGER.GAUGE_MAX;
+        
+        // Background
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = "#000";
+        ctx.fillRect(vergilSdtBarX, vergilSdtBarY, vergilSdtBarWidth, vergilSdtBarHeight);
+        
+        // Gauge fill
+        ctx.globalAlpha = 0.9;
+        if (p.vergilSdtActive) {
+          // Active Vergil SDT - pulsing blue/white
+          const pulse = 0.8 + 0.2 * Math.sin(performance.now() / 100);
+          ctx.fillStyle = `rgba(30, 144, 255, ${pulse})`;
+        } else if (p.vergilSdtCharging) {
+          // Charging - pulsing electric blue
+          const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 80);
+          ctx.fillStyle = `rgba(0, 191, 255, ${pulse})`;
+        } else {
+          // Normal - dark blue
+          ctx.fillStyle = "#0066cc";
+        }
+        ctx.fillRect(vergilSdtBarX, vergilSdtBarY, vergilSdtBarWidth * vergilSdtGaugeRatio, vergilSdtBarHeight);
+        
+        // Border
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = p.vergilSdtActive ? "#1e90ff" : (p.vergilSdtCharging ? "#00bfff" : "#666");
+        ctx.lineWidth = 1;
+        ctx.strokeRect(vergilSdtBarX, vergilSdtBarY, vergilSdtBarWidth, vergilSdtBarHeight);
+        
+        // Vergil SDT label
+        if (p.vergilSdtActive) {
+          ctx.font = "bold 8px Arial";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#1e90ff";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 1;
+          ctx.strokeText("I AM THE STORM", p.x + p.w/2, vergilSdtBarY - 2);
+          ctx.fillText("I AM THE STORM", p.x + p.w/2, vergilSdtBarY - 2);
+        } else if (p.vergilSdtCharging) {
+          ctx.font = "bold 8px Arial";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#00bfff";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 1;
+          ctx.strokeText("APPROACHING...", p.x + p.w/2, vergilSdtBarY - 2);
+          ctx.fillText("APPROACHING...", p.x + p.w/2, vergilSdtBarY - 2);
+        }
+      }
       
       // DEVIL TRIGGER BAR (above name)
       if (p.charId === 'danty') {
@@ -4361,6 +4445,78 @@ ctx.restore();
   }
 
   drawImpactEffects(ctx);
+
+   // Draw Vergil SDT lightning animation
+  for (let p of players) {
+    if (p.charId === 'vergil' && (p.vergilSdtAnimationPhase === 'lightning_strike' || p.vergilSdtAnimationPhase === 'explosion')) {
+      ctx.save();
+      
+      if (p.vergilSdtAnimationPhase === 'lightning_strike') {
+        // Draw lightning bolt
+        ctx.globalAlpha = 0.9;
+        
+        // Main lightning bolt
+        ctx.strokeStyle = "#00bfff";
+        ctx.lineWidth = 8;
+        ctx.shadowColor = "#1e90ff";
+        ctx.shadowBlur = 20;
+        
+        ctx.beginPath();
+        ctx.moveTo(p.vergilSdtLightningX, p.vergilSdtLightningY);
+        
+        // Jagged lightning path
+        const segments = 8;
+        const segmentHeight = Math.abs(p.y + p.h/2 - p.vergilSdtLightningY) / segments;
+        let currentX = p.vergilSdtLightningX;
+        let currentY = p.vergilSdtLightningY;
+        
+        for (let i = 0; i < segments; i++) {
+          currentY += segmentHeight;
+          currentX += (Math.random() - 0.5) * 40; // Random zigzag
+          ctx.lineTo(currentX, currentY);
+        }
+        
+        ctx.lineTo(p.x + p.w/2, p.y + p.h/2); // End at Vergil
+        ctx.stroke();
+        
+        // Secondary lightning bolts
+        ctx.strokeStyle = "#87ceeb";
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 10;
+        
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(p.vergilSdtLightningX + (Math.random() - 0.5) * 100, p.vergilSdtLightningY);
+          ctx.lineTo(p.x + p.w/2 + (Math.random() - 0.5) * 50, p.y + p.h/2);
+          ctx.stroke();
+        }
+        
+      } else if (p.vergilSdtAnimationPhase === 'explosion') {
+        // Draw explosion effect
+        const explosionIntensity = 1 - (p.vergilSdtExplosionTimer / 25);
+        const explosionSize = 120 * explosionIntensity;
+        
+        // Multiple explosion rings
+        for (let i = 0; i < 4; i++) {
+          ctx.globalAlpha = 0.7 - (i * 0.15) - (explosionIntensity * 0.3);
+          ctx.strokeStyle = i === 0 ? "#00bfff" : i === 1 ? "#1e90ff" : i === 2 ? "#87ceeb" : "#fff";
+          ctx.lineWidth = 10 - (i * 2);
+          ctx.beginPath();
+          ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize + (i * 25), 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+        
+        // Center flash
+        ctx.globalAlpha = 0.9 - explosionIntensity;
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(p.x + p.w/2, p.y + p.h/2, explosionSize * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    }
+  }
 
   // Draw SDT sword falling animation
   for (let p of players) {
