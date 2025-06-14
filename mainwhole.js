@@ -152,93 +152,6 @@ function playGoldVictorySound() {
     playSound('goldVictory', 1.5); // Slightly louder for victory celebration
 }  // ADD THIS ENTIRE FUNCTION
 
-// Bridge functions for character select integration
-window.initializeGameWithCharacters = function(player1Char, player2Char) {
-    console.log(`Initializing game: ${player1Char} vs ${player2Char}`);
-    
-    // Set the character IDs based on selection
-    if (typeof players !== 'undefined' && players.length >= 2) {
-        // Set character IDs
-        players[0].charId = player1Char;
-        players[0].name = player1Char.charAt(0).toUpperCase() + player1Char.slice(1);
-        players[1].charId = player2Char;
-        players[1].name = player2Char.charAt(0).toUpperCase() + player2Char.slice(1);
-        
-        // Set appropriate colors and properties based on character
-        setCharacterProperties(players[0], player1Char, 0);
-        setCharacterProperties(players[1], player2Char, 1);
-        
-        console.log(`Player 1 is now ${players[0].name} (${players[0].charId})`);
-        console.log(`Player 2 is now ${players[1].name} (${players[1].charId})`);
-    }
-};
-
-function setCharacterProperties(player, charId, playerId) {
-    // Reset all special properties first
-    resetPlayerProperties(player);
-    
-    switch(charId) {
-        case 'vergil':
-            player.color = "#4a90e2";
-            player.currentWeapon = VERGIL_WEAPONS.YAMATO;
-            break;
-        case 'danty':
-            player.color = "#ef5350";
-            player.currentWeapon = DANTY_WEAPONS.DEVIL_SWORD;
-            break;
-        case 'gold':
-            player.color = "#ffd700";
-            break;
-        case 'chicken':
-            player.color = "#ff8c00";
-            break;
-    }
-}
-
-function resetPlayerProperties(player) {
-    // Reset Vergil properties
-    player.judgmentCutCharging = false;
-    player.judgmentCutChargeStart = 0;
-    player.beowulfCharging = false;
-    player.stormSlashesReady = false;
-    player.stormSlashesActive = false;
-    player.mirageActive = false;
-    player.vergilSdtGauge = 0;
-    player.vergilSdtActive = false;
-    
-    // Reset Danty properties
-    player.devilSwordGauge = 0;
-    player.devilSwordUpgraded = false;
-    player.devilSwordActivating = false;
-    player.sdtActive = false;
-    player.sdtCharging = false;
-    player.balrogCharging = false;
-    if (player.spectralSword) destroySpectralSword(player);
-}
-
-window.startGameLoop = function() {
-    console.log("Starting the game loop!");
-    
-    // Initialize audio
-    if (typeof initializeAudio === 'function') {
-        initializeAudio();
-    }
-    
-    // Initialize round system
-    initializeRoundSystem();
-    
-    // Reset game state
-    winner = null;
-    
-    // Start the main game loop
-    if (typeof gameLoop === 'function') {
-        gameLoop();
-    } else {
-        console.error("gameLoop function not found!");
-    }
-};
-
-
 
 // Pause System Variables
 let pauseSystem = {
@@ -4440,17 +4353,17 @@ const characterSprites = {
   },
  danty: {
   idle: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 12 },
-  walk: { src: "danty-walk.png", frames: 1, w: 100, h: 100, speed: 4 },
-  jump: { src: "danty-jump.png", frames: 1, w: 100, h: 100, speed: 6 },
-  fall: { src: "danty-fall.png", frames: 1, w: 100, h: 100, speed: 7 },
+  walk: { src: "danty-walk.png", frames: 8, w: 100, h: 100, speed: 6 },
+  jump: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 6 },
+  fall: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 7 },
   attack: { src: "danty-attack.png", frames: 1, w: 100, h: 100, speed: 2 },
   blocking: { src: "danty-blocking.png", frames: 1, w: 100, h: 100, speed: 13 },
-  hit: { src: "danty-hit.png",frames: 1, w: 100, h: 100, speed: 13 },
-  dizzy: { src: "danty-dizzy.png", frames: 1, w: 100, h: 100, speed: 13 },
-  dash: { src: "danty-dash.png", frames: 1, w: 100, h: 100, speed: 3 },
+  hit: { src: "danty-idle.png",frames: 1, w: 100, h: 100, speed: 13 },
+  dizzy: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 13 },
+  dash: { src: "danty-walk.png", frames: 8, w: 100, h: 100, speed: 3 },
   defeat: { src: "danty-defeat.png",frames: 1, w: 100, h: 100, speed: 13 },
-  victory: { src: "danty-victory.png", frames: 1, w: 100, h: 100, speed: 13 },
-  block: { src: "danty-block.png", frames: 1, w: 100, h: 100, speed: 6 },
+  victory: { src: "danty-idle.png", frames: 1, w: 100, h: 100, speed: 13 },
+  block: { src: "danty-idle.png", frames: 8, w: 100, h: 100, speed: 6 },
   // Balrog sprites
   'balrog-charging': { src: "danty-balrog-charging.png",frames: 1, w: 100, h: 100, speed: 13 },
   'balrog-uppercut': { src: "danty-balrog-uppercut.png", frames: 1, w: 100, h: 100, speed: 13 },
@@ -6117,11 +6030,7 @@ document.addEventListener("keydown", function(e) {
     console.log("Player 2 is now Danty! ALL PROPERTIES RESET! I=Switch Weapon, P=Devil Trigger 😈⚔️");
   }
 });
-
-// Don't auto-start the game loop anymore - let character select handle it
-// gameLoop();
-
-// Only start immediately if no character select system is present
-if (!document.getElementById('characterSelect')) {
-    gameLoop();
-}
+// Initialize audio and start game immediately
+initializeAudio();
+initializeRoundSystem();
+gameLoop();
