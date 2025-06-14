@@ -347,6 +347,62 @@ function startNextRound() {
     resetPlayersForNewRound();
 }
 
+function resetPlayerProperties(player) {
+    // Reset Vergil properties
+    player.judgmentCutCharging = false;
+    player.judgmentCutChargeStart = 0;
+    player.beowulfCharging = false;
+    player.stormSlashesReady = false;
+    player.stormSlashesActive = false;
+    player.mirageActive = false;
+    player.vergilSdtGauge = 0;
+    player.vergilSdtActive = false;
+    player.vergilSdtAnimationPhase = null;
+    player.vergilSdtCharging = false;
+    player.vergilSdtChargeStart = 0;
+    player.vergilSdtTimer = 0;
+    player.vergilSdtFearAura = false;
+    
+    // Reset Danty properties
+    player.devilSwordGauge = 0;
+    player.devilSwordUpgraded = false;
+    player.devilSwordActivating = false;
+    player.devilSwordActivationStart = 0;
+    player.devilSwordComboHits = 0;
+    player.devilSwordPhase = 0;
+    player.sdtActive = false;
+    player.sdtCharging = false;
+    player.sdtChargeStart = 0;
+    player.sdtGauge = 0;
+    player.sdtAnimationPhase = null;
+    player.sdtTimer = 0;
+    player.balrogCharging = false;
+    player.balrogChargeStart = 0;
+    player.balrogChargeType = null;
+    
+    // Reset spectral sword
+    if (player.spectralSword) {
+        destroySpectralSword(player);
+    }
+    player.spectralSwordControlling = false;
+    player.spectralSwordTransferring = false;
+    player.spectralSwordTransferTimer = 0;
+    
+    // Reset combat states
+    player.hitstun = 0;
+    player.inHitstun = false;
+    player.airHitstun = false;
+    player.isUppercutting = false;
+    player.uppercutPower = 0;
+    player.isDiveKicking = false;
+    player.beowulfDiveKick = false;
+    player.balrogDiveKick = false;
+    player.beowulfRecovering = false;
+    player.balrogRecovering = false;
+    player.beowulfRecoveryTimer = 0;
+    player.balrogRecoveryTimer = 0;
+}
+
 // Function to reset players for new round
 function resetPlayersForNewRound() {
     for (let i = 0; i < players.length; i++) {
