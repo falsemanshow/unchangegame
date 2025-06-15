@@ -77,7 +77,7 @@ function initializeAudioSystem() {
             }
         });
         
-        console.log('Audio system initialized successfully');
+       
     } catch (error) {
         console.warn('Some audio files could not be loaded:', error);
     }
@@ -160,36 +160,6 @@ let pauseSystem = {
     pauseStartTime: 0,
     pausedByUser: false // Distinguish from game pauses (like judgment cut)
 };
-
-// Pause System Functions
-function togglePause() {
-    if (gameState.paused && !pauseSystem.pausedByUser) {
-        // Don't allow user pause during game-controlled pauses (like judgment cut)
-        console.log("Cannot pause during special moves!");
-        return;
-    }
-    
-    if (pauseSystem.isPaused) {
-        resumeGame();
-    } else {
-        pauseGameByUser();
-    }
-}
-
-function pauseGameByUser() {
-    if (pauseSystem.isPaused) return;
-    
-    pauseSystem.isPaused = true;
-    pauseSystem.pausedByUser = true;
-    pauseSystem.pauseStartTime = performance.now();
-    
-    // Pause the main game state too
-    gameState.paused = true;
-    gameState.pauseReason = 'user_pause';
-    
-    console.log("⏸️ Game paused by user!");
-    showPauseOverlay();
-}
 
 function resumeGame() {
     if (!pauseSystem.isPaused) return;
@@ -1031,12 +1001,11 @@ function executeUppercut(player, chargeTime, weaponType = 'beowulf') {
   console.log(`${player.name} unleashes ${weaponName} Rising Uppercut! Power: ${(chargeRatio * 100).toFixed(0)}% ${emoji}`);
 }
 
-function executeBeowulfUppercut(player, chargeTime) {
-  executeUppercut(player, chargeTime, 'beowulf');
-}
-
-function executeBalrogUppercut(player, chargeTime) {
-  const weaponType = (player.charId === 'danty' && player.sdtActive) ? 'sdt' : 'balrog';
+function executeCharacterUppercut(player, chargeTime) {
+  let weaponType = 'beowulf';
+  if (player.charId === 'danty') {
+    weaponType = player.sdtActive ? 'sdt' : 'balrog';
+  }
   executeUppercut(player, chargeTime, weaponType);
 }
 
@@ -1123,86 +1092,17 @@ function handleDiveKick(player, weaponType = 'beowulf') {
   }
 }
 
-function handleBeowulfDiveKick(player) {
-  handleDiveKick(player, 'beowulf');
-}
-
-function handleBalrogDiveKick(player) {
-  const kickType = (player.charId === 'danty' && player.sdtActive) ? 'sdt' : 'balrog';
-  handleDiveKick(player, kickType);
-}
-
-function handleBeowulfUppercutHit(attacker, opponent) {
-  if (attacker.isUppercutting && opponent.justHit === 0) {
-    // CHECK FOR BLOCKING FIRST
-    let isBlocking = false;
-if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
-  if (opponent.charId === 'danty' || opponent.facing === -Math.sign(attacker.vx || attacker.facing)) {
-    isBlocking = true;
+function handleCharacterDiveKick(player) {
+  let weaponType = 'beowulf';
+  if (player.charId === 'danty') {
+    weaponType = player.sdtActive ? 'sdt' : 'balrog';
   }
-}
-    
-    if (isBlocking) {
-      // Uppercut blocked - attacker gets stunned
-      attacker.hitstun = HEAVY_HITSTUN_FRAMES; // Changed from HITSTUN_FRAMES
-      attacker.inHitstun = true;
-      attacker.vx = opponent.facing * BLOCK_PUSHBACK_X;
-      attacker.vy = BLOCK_PUSHBACK_Y;
-      attacker.isUppercutting = false;
-      attacker.uppercutPower = 0;
-      createImpactEffect(attacker, opponent, 'block');
-      console.log(`${opponent.name} blocked ${attacker.name}'s Rising Uppercut! 🛡️👊`);
-      return true;
-    }
-    
-let baseDamage = 12 + (attacker.uppercutPower * 8);
-let damage = baseDamage;
-if (attacker.charId === 'danty' && attacker.devilSwordUpgraded) {
-  damage = Math.floor(baseDamage * 1.5);
-  console.log(`${attacker.name}'s upgraded Balrog deals extra damage! ${damage} instead of ${baseDamage} 😈👊`);
-}
-    opponent.hp -= damage;
-    opponent.justHit = 20;
-    playUppercutHitSound('beowulf');
-playPlayerHurtSound();
-    
-    // Set special uppercut hitstun that lasts until landing
-    opponent.hitstun = 999999; // Very high number so it doesn't run out
-    opponent.inHitstun = true;
-    opponent.airHitstun = true; // This marks it as uppercut hitstun that only ends on landing
-    
-    console.log(`${opponent.name} was launched by uppercut and will remain stunned until landing!`);
-    
-    // Give opponent the SAME upward velocity as attacker
-    opponent.vy = attacker.vy; // Exact same upward speed
-    opponent.vx = attacker.facing * (6 + attacker.uppercutPower * 4); // Slight horizontal push
-    
-        // Choose appropriate impact effect for Vergil
-    if (attacker.charId === 'vergil' && attacker.vergilSdtActive) {
-      createImpactEffect(attacker, opponent, 'vergil-sdt-beowulf-uppercut');
-    } else {
-      createImpactEffect(attacker, opponent, 'beowulf-dash');
-    }
-    
-    if (opponent.hp <= 0) {
-      opponent.hp = 0;
-      opponent.alive = false;
-      winner = attacker.id;
-    }
-    
-    // End uppercut state
-    attacker.isUppercutting = false;
-    attacker.uppercutPower = 0;
-    
-    console.log(`${attacker.name}'s Rising Uppercut launches ${opponent.name} skyward! 👊⬆️💫`);
-    return true;
-  }
-  return false;
+  handleDiveKick(player, weaponType);
 }
 
-function handleBalrogUppercutHit(attacker, opponent) {
+function handleCharacterUppercutHit(attacker, opponent) {
   if (attacker.isUppercutting && opponent.justHit === 0) {
-    // CHECK FOR BLOCKING FIRST
+    // Check blocking
     let isBlocking = false;
     if (opponent.blocking && opponent.block > 0 && !opponent.inHitstun) {
       if (opponent.charId === 'danty' || opponent.facing === -Math.sign(attacker.vx || attacker.facing)) {
@@ -1211,57 +1111,57 @@ function handleBalrogUppercutHit(attacker, opponent) {
     }
     
     if (isBlocking) {
-      // Uppercut blocked - attacker gets stunned
+      // Block logic (same for both)
       attacker.hitstun = HEAVY_HITSTUN_FRAMES;
       attacker.inHitstun = true;
       attacker.vx = opponent.facing * BLOCK_PUSHBACK_X;
       attacker.vy = BLOCK_PUSHBACK_Y;
-           attacker.isUppercutting = false;
+      attacker.isUppercutting = false;
       attacker.uppercutPower = 0;
       createImpactEffect(attacker, opponent, 'block');
-      
-      // PARRY SOUND FOR UPPERCUT BLOCK 🛡️👊🔊
       playParrySound();
       
-      const upperType = attacker.sdtActive ? 'SDT Balrog' : 'Balrog';
-      console.log(`${opponent.name} blocked ${attacker.name}'s ${upperType} Rising Uppercut! 🛡️👊${attacker.sdtActive ? '💀' : ''}`);
+      const weaponName = attacker.charId === 'vergil' ? 'Beowulf' : 
+                        attacker.sdtActive ? 'SDT Balrog' : 'Balrog';
+      console.log(`${opponent.name} blocked ${attacker.name}'s ${weaponName} Rising Uppercut! 🛡️👊`);
       return true;
     }
     
-        // Interrupt any charging
-    interruptJudgmentCut(opponent);
-    interruptDantyCharging(opponent);
-    
-    // Calculate damage (SDT does double damage)
+    // Damage calculation
     let baseDamage = 12 + (attacker.uppercutPower * 8);
     let damage = baseDamage;
+    
     if (attacker.charId === 'danty' && attacker.sdtActive) {
       damage = Math.floor(baseDamage * SIN_DEVIL_TRIGGER.DAMAGE_MULTIPLIER);
-      console.log(`${attacker.name}'s SDT Balrog uppercut deals DOUBLE DAMAGE! ${damage} instead of ${baseDamage} 💀👊💥`);
     } else if (attacker.charId === 'danty' && attacker.devilSwordUpgraded) {
       damage = Math.floor(baseDamage * 1.5);
-      console.log(`${attacker.name}'s upgraded Balrog deals extra damage! ${damage} instead of ${baseDamage} 😈👊`);
     }
     
     opponent.hp -= damage;
     opponent.justHit = 20;
-    const weaponType = attacker.sdtActive ? 'sdt' : 'balrog';
-playUppercutHitSound(weaponType);
-playPlayerHurtSound();
     
-    // Set special uppercut hitstun that lasts until landing
+    // Play appropriate sound
+    const weaponType = attacker.charId === 'vergil' ? 'beowulf' : 
+                      attacker.sdtActive ? 'sdt' : 'balrog';
+    playUppercutHitSound(weaponType);
+    playPlayerHurtSound();
+    
+    // Set uppercut hitstun
     opponent.hitstun = 999999;
     opponent.inHitstun = true;
     opponent.airHitstun = true;
     
-    console.log(`${opponent.name} was launched by ${attacker.sdtActive ? 'SDT ' : ''}Balrog uppercut and will remain stunned until landing!`);
-    
-    // Give opponent the SAME upward velocity as attacker
+    // Knockback
     opponent.vy = attacker.vy;
     opponent.vx = attacker.facing * (6 + attacker.uppercutPower * 4);
     
-    // Choose correct impact effect
-    const effectType = attacker.sdtActive ? 'sdt-uppercut' : 'balrog-dash';
+    // Impact effect
+    let effectType = 'beowulf-dash';
+    if (attacker.charId === 'vergil' && attacker.vergilSdtActive) {
+      effectType = 'vergil-sdt-beowulf-uppercut';
+    } else if (attacker.charId === 'danty' && attacker.sdtActive) {
+      effectType = 'sdt-uppercut';
+    }
     createImpactEffect(attacker, opponent, effectType);
     
     if (opponent.hp <= 0) {
@@ -1270,13 +1170,8 @@ playPlayerHurtSound();
       winner = attacker.id;
     }
     
-    // End uppercut state
     attacker.isUppercutting = false;
     attacker.uppercutPower = 0;
-    
-    const upperType = attacker.sdtActive ? 'SDT Balrog' : 'Balrog';
-    const emoji = attacker.sdtActive ? '💀👊⬆️💫🔥' : '👊⬆️💫';
-    console.log(`${attacker.name}'s ${upperType} Rising Uppercut launches ${opponent.name} skyward! ${emoji}`);
     return true;
   }
   return false;
@@ -2408,7 +2303,7 @@ document.addEventListener("keyup", function(e) {
         const chargeTime = now - p.beowulfChargeStart;
         const minChargeTime = 200;
         if (chargeTime >= minChargeTime) {
-          executeBeowulfUppercut(p, chargeTime);
+          executeCharacterUppercut(p, chargeTime);
         } else {
           p.beowulfCharging = false;
           p.beowulfChargeType = null;
@@ -2422,7 +2317,7 @@ if (p.charId === 'danty' && p.balrogCharging && p.balrogChargeType === 'uppercut
   const chargeTime = now - p.balrogChargeStart;
   const minChargeTime = 200;
   if (chargeTime >= minChargeTime) {
-    executeBalrogUppercut(p, chargeTime);
+    executeCharacterUppercut(p, chargeTime);
   } else {
     p.balrogCharging = false;
     p.balrogChargeType = null;
@@ -2537,50 +2432,6 @@ playPlayerHurtSound();
           }
           
           p.isDiveKicking = false;
-          
-          if (opp.hp <= 0) {
-            opp.hp = 0;
-            opp.alive = false;
-            winner = p.id;
-          }
-        }
-      }
-    }
-  }
-}
-
-// Add this function around line 1202 to handle Danty's dive kick attacks
-function handleDantyDiveKickAttack() {
-  for (let i = 0; i < 2; i++) {
-    const p = players[i];
-    const opp = players[1 - i];
-    if (!p.alive || !opp.alive) continue;
-
-    if (p.charId === 'danty' && p.currentWeapon === DANTY_WEAPONS.BALROG && p.balrogDiveKick) {
-      if (p.x < opp.x + opp.w && p.x + p.w > opp.x &&
-          p.y < opp.y + opp.h && p.y + p.h > opp.y) {
-
-        // Blocking condition for Balrog divekick
-        if (opp.blocking && opp.block > 0 && opp.onGround && !opp.inHitstun) {
-          p.balrogDiveKick = false;
-          p.isDiveKicking = false;
-          p.vy = -4;
-          p.hitstun = HEAVY_HITSTUN_FRAMES;
-          p.inHitstun = true;
-          createImpactEffect(opp, p, 'block');
-          console.log(`${opp.name} blocked ${p.name}'s Balrog dive kick! 🛡️`);
-        } else {
-          opp.hp -= 12;
-          opp.justHit = 20;
-          opp.hitstun = HITSTUN_FRAMES;
-          opp.inHitstun = true;
-          opp.vy = -10;
-          
-          p.balrogDiveKick = false;
-          p.isDiveKicking = false;
-          
-          createImpactEffect(p, opp, 'balrog-dash');
-          console.log(`${p.name}'s Balrog dive kick hits ${opp.name}! 💥`);
           
           if (opp.hp <= 0) {
             opp.hp = 0;
@@ -2775,13 +2626,13 @@ function handleSimultaneousDashCollision(p1, p2) {
 
 function handleSingleDashHit(p, opp) {
 if (p.charId === 'vergil' && p.currentWeapon === VERGIL_WEAPONS.BEOWULF && p.isUppercutting) {
-  if (handleBeowulfUppercutHit(p, opp)) {
+  if (handleCharacterUppercutHit(p, opp)) {
     p.hasDashHit = true;
     return;
   }
 } else if (p.charId === 'danty' && (p.currentWeapon === DANTY_WEAPONS.BALROG || p.sdtActive) && p.isUppercutting) {
   // SDT can use Balrog uppercut with any weapon equipped
-  if (handleBalrogUppercutHit(p, opp)) {
+  if (handleCharacterUppercutHit(p, opp)) {
     p.hasDashHit = true;
     return;
   }
@@ -3232,7 +3083,7 @@ if (p.charId === 'vergil') {
     
     // ADD BEOWULF UPDATES
     if (p.beowulfDiveKick) {
-      handleBeowulfDiveKick(p);
+      handleCharacterDiveKick(p);
     }
     
      // MAINTAIN SUPER DIAGONAL MOMENTUM
@@ -3469,7 +3320,7 @@ if (p.charId === 'danty') {
   
   // ADD BALROG UPDATES
   if (p.balrogDiveKick) {
-    handleBalrogDiveKick(p);
+    handleCharacterDiveKick(p);
   }
   
   // MAINTAIN SUPER DIAGONAL MOMENTUM for Balrog
@@ -3511,7 +3362,7 @@ if (p.charId === 'danty') {
   
   // ADD BALROG UPDATES
   if (p.balrogDiveKick) {
-    handleBalrogDiveKick(p);
+    handleCharacterDiveKick(p);
   }
   
   // MAINTAIN SUPER DIAGONAL MOMENTUM for Balrog
@@ -5924,7 +5775,6 @@ p.blockWasFull = p.block >= p.maxBlock - 0.1;
     handleSpectralSwordAttack(); // Add this line! 👻⚔️
     handleDashAttack();
     handleDiveKickAttack();
-    handleDantyDiveKickAttack();
     handleMirageBladeAttack();
     updateImpactEffects();
     updateDynamicMusic();
